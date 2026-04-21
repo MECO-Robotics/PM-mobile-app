@@ -15,6 +15,8 @@ Expo/React Native starter for the MECO Robotics project-management and manufactu
 
 The mobile client is built with Expo/React Native. The companion `meco-platform` repo is the piece intended for DigitalOcean hosting and database management.
 
+The new `meco-web` repo complements this app with browser-first dashboards for mentors and admin workflows.
+
 ## Local commands
 
 ```bash
