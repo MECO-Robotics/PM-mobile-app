@@ -1,20 +1,37 @@
+export const brandColors = {
+  blue: "#16478e",
+  red: "#ea1c2d",
+  grey: "#bbbbbb",
+  black: "#000000",
+  white: "#ffffff",
+} as const;
+
+export const surfaceColors = {
+  canvas: "#f5f7fb",
+  surface: "#ffffff",
+  border: "#d6dde8",
+  track: "#e5e9f2",
+  ink: "#11213d",
+  subtleText: "#5c677c",
+  softText: "#eef3fb",
+} as const;
+
+export const toneColors = {
+  orange: brandColors.red,
+  orangeSurface: "rgba(234, 28, 45, 0.12)",
+  orangeInk: "#b31222",
+  mintSurface: "rgba(22, 71, 142, 0.12)",
+  mintInk: brandColors.blue,
+  goldSurface: "rgba(187, 187, 187, 0.22)",
+  goldInk: "#435066",
+  navySurface: "rgba(22, 71, 142, 0.18)",
+  navyInk: "#0d2e5c",
+} as const;
+
 export const colors = {
-  canvas: "#f4eee6",
-  surface: "#fffaf3",
-  border: "#e0d6c7",
-  ink: "#16253f",
-  subtleText: "#5d6a7f",
-  softText: "#dbe2ef",
-  orange: "#eb5e28",
-  orangeSurface: "#ffe3d8",
-  orangeInk: "#a53d13",
-  mintSurface: "#dbf3ee",
-  mintInk: "#156b5c",
-  goldSurface: "#f9edc9",
-  goldInk: "#8a6808",
-  navySurface: "#dde5f5",
-  navyInk: "#27406f",
-  track: "#e8dccd",
+  ...brandColors,
+  ...surfaceColors,
+  ...toneColors,
 };
 
 export const spacing = {

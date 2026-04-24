@@ -1,10 +1,24 @@
 export type MemberRole = "student" | "mentor" | "admin";
+export type EventType =
+  | "drive-practice"
+  | "competition"
+  | "deadline"
+  | "internal-review"
+  | "demo";
+export type DisciplineCode =
+  | "mechanical"
+  | "electrical"
+  | "software"
+  | "integration"
+  | "qa-test";
 export type TaskStatus =
   | "not-started"
   | "in-progress"
   | "waiting-for-qa"
   | "complete";
 export type TaskPriority = "critical" | "high" | "medium" | "low";
+export type MoscowPriority = "must" | "should" | "could" | "wont";
+export type RequirementStatus = "planned" | "in-progress" | "complete";
 export type ManufacturingStatus =
   | "requested"
   | "approved"
@@ -29,9 +43,53 @@ export interface Member {
 export interface Subsystem {
   id: string;
   name: string;
+  description: string;
+  isCore: boolean;
+  parentSubsystemId: string | null;
   responsibleEngineerId: string;
   mentorIds: string[];
   risks: string[];
+}
+
+export interface Discipline {
+  id: string;
+  code: DisciplineCode;
+  name: string;
+}
+
+export interface Mechanism {
+  id: string;
+  subsystemId: string;
+  name: string;
+  description: string;
+}
+
+export interface Requirement {
+  id: string;
+  subsystemId: string;
+  title: string;
+  description: string;
+  moscowPriority: MoscowPriority;
+  status: RequirementStatus;
+}
+
+export interface PartDefinition {
+  id: string;
+  name: string;
+  partNumber: string;
+  revision: string;
+  type: string;
+  source: string;
+}
+
+export interface PartInstance {
+  id: string;
+  subsystemId: string;
+  mechanismId: string | null;
+  partDefinitionId: string;
+  name: string;
+  quantity: number;
+  trackIndividually: boolean;
 }
 
 export interface Task {
@@ -39,6 +97,11 @@ export interface Task {
   title: string;
   summary: string;
   subsystemId: string;
+  disciplineId: string;
+  requirementId: string | null;
+  mechanismId: string | null;
+  partInstanceId: string | null;
+  targetEventId: string | null;
   ownerId: string;
   mentorId: string;
   dueDate: string;
@@ -50,6 +113,17 @@ export interface Task {
   linkedPurchaseIds: string[];
   estimatedHours: number;
   actualHours: number;
+}
+
+export interface Event {
+  id: string;
+  title: string;
+  type: EventType;
+  startDateTime: string;
+  endDateTime: string | null;
+  isExternal: boolean;
+  description: string;
+  relatedSubsystemIds: string[];
 }
 
 export interface Meeting {
