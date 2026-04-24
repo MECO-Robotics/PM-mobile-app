@@ -15,6 +15,8 @@ import { mecoSnapshot } from "./src/data/mockData";
 import type {
   MemberRole,
   ManufacturingItem,
+  Event,
+  EventType,
   PurchaseItem,
   PartInstance,
   Subsystem,
@@ -33,7 +35,7 @@ type ViewTab =
   | "subsystems"
   | "roster";
 
-type TaskViewTab = "timeline" | "queue";
+type TaskViewTab = "timeline" | "queue" | "milestones";
 type ManufacturingViewTab = "cnc" | "prints" | "fabrication";
 type InventoryViewTab = "materials" | "parts" | "purchases";
 
@@ -145,9 +147,27 @@ type PartDefinitionDraft = {
   source: string;
 };
 
+type MilestoneDraft = {
+  title: string;
+  type: EventType;
+  isExternal: boolean;
+  description: string;
+  relatedSubsystemIdsText: string;
+};
+
+type MilestoneSortField = "startDateTime" | "title" | "type";
+
+type EventStyle = {
+  label: string;
+  borderColor: string;
+  chipBackground: string;
+  chipText: string;
+};
+
 const TASK_VIEW_OPTIONS: { value: TaskViewTab; label: string }[] = [
   { value: "timeline", label: "Timeline" },
   { value: "queue", label: "Queue" },
+  { value: "milestones", label: "Milestones" },
 ];
 
 const MANUFACTURING_VIEW_OPTIONS: { value: ManufacturingViewTab; label: string }[] = [
@@ -222,6 +242,47 @@ const WORKLOG_SORT_OPTIONS: { id: WorkLogSortMode; name: string }[] = [
   { id: "shortest", name: "Shortest first" },
 ];
 
+const EVENT_TYPE_OPTIONS: Option[] = [
+  { id: "drive-practice", name: "Drive practice" },
+  { id: "competition", name: "Competition" },
+  { id: "deadline", name: "Deadline" },
+  { id: "internal-review", name: "Internal review" },
+  { id: "demo", name: "Demo" },
+];
+
+const EVENT_TYPE_STYLES: Record<EventType, EventStyle> = {
+  "drive-practice": {
+    label: "Drive practice",
+    borderColor: "rgba(22, 71, 142, 0.32)",
+    chipBackground: "rgba(22, 71, 142, 0.18)",
+    chipText: "#0d2e5c",
+  },
+  competition: {
+    label: "Competition",
+    borderColor: "rgba(76, 121, 207, 0.35)",
+    chipBackground: "rgba(76, 121, 207, 0.2)",
+    chipText: "#1f3f7a",
+  },
+  deadline: {
+    label: "Deadline",
+    borderColor: "rgba(234, 28, 45, 0.36)",
+    chipBackground: "rgba(234, 28, 45, 0.18)",
+    chipText: "#8e1120",
+  },
+  "internal-review": {
+    label: "Internal review",
+    borderColor: "rgba(36, 104, 71, 0.34)",
+    chipBackground: "rgba(36, 104, 71, 0.18)",
+    chipText: "#1d5338",
+  },
+  demo: {
+    label: "Demo",
+    borderColor: "rgba(84, 98, 123, 0.35)",
+    chipBackground: "rgba(84, 98, 123, 0.22)",
+    chipText: "#36475f",
+  },
+};
+
 const STATUS_GROUPS: Record<Exclude<StatusGroup, "neutral">, Set<string>> = {
   success: new Set(["complete", "delivered", "available", "installed", "pass"]),
   info: new Set(["in-progress", "shipped", "purchased", "approved"]),
@@ -241,6 +302,8 @@ const SUBVIEW_INTERACTION_GUIDANCE: Record<string, string> = {
     "Use the filters to focus ownership and due dates, then tap any item to inspect linked mechanism and QA status.",
   queue:
     "Use search and quick filters, then scan queue rows for owner, due date, status, and priority in one card.",
+  milestones:
+    "Use search and filters to review milestones, edit rows to adjust dates/type, and use Add to create new milestones tied to subsystems.",
   worklogs:
     "Search notes and tasks, sort by date or hours, and keep the hours, people, and touched-task metrics visible.",
   cnc:
@@ -273,6 +336,7 @@ export default function App() {
   const [members, setMembers] = useState(() => mecoSnapshot.members);
   const [subsystems, setSubsystems] = useState(() => mecoSnapshot.subsystems);
   const [tasks, setTasks] = useState(() => mecoSnapshot.tasks);
+  const [events, setEvents] = useState(() => mecoSnapshot.events);
   const [workLogs, setWorkLogs] = useState(() => mecoSnapshot.workLogs);
   const [manufacturingItems, setManufacturingItems] = useState(
     () => mecoSnapshot.manufacturingItems,
@@ -288,6 +352,12 @@ export default function App() {
   const [taskSubsystemFilter, setTaskSubsystemFilter] = useState("all");
   const [taskOwnerFilter, setTaskOwnerFilter] = useState("all");
   const [taskPriorityFilter, setTaskPriorityFilter] = useState("all");
+
+  const [milestoneSearch, setMilestoneSearch] = useState("");
+  const [milestoneTypeFilter, setMilestoneTypeFilter] = useState("all");
+  const [milestoneSortField, setMilestoneSortField] =
+    useState<MilestoneSortField>("startDateTime");
+  const [milestoneSortOrder, setMilestoneSortOrder] = useState<"asc" | "desc">("asc");
 
   const [workLogSearch, setWorkLogSearch] = useState("");
   const [workLogSubsystemFilter, setWorkLogSubsystemFilter] = useState("all");
@@ -329,6 +399,17 @@ export default function App() {
   const [taskEditorMode, setTaskEditorMode] = useState<EditorMode | null>(null);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(buildTaskDraft());
+
+  const [milestoneEditorMode, setMilestoneEditorMode] = useState<EditorMode | null>(null);
+  const [activeMilestoneId, setActiveMilestoneId] = useState<string | null>(null);
+  const [milestoneDraft, setMilestoneDraft] = useState<MilestoneDraft>(
+    buildMilestoneDraft(),
+  );
+  const [milestoneStartDate, setMilestoneStartDate] = useState("");
+  const [milestoneStartTime, setMilestoneStartTime] = useState("18:00");
+  const [milestoneEndDate, setMilestoneEndDate] = useState("");
+  const [milestoneEndTime, setMilestoneEndTime] = useState("");
+  const [milestoneError, setMilestoneError] = useState<string | null>(null);
 
   const [workLogEditorMode, setWorkLogEditorMode] = useState<EditorMode | null>(null);
   const [activeWorkLogId, setActiveWorkLogId] = useState<string | null>(null);
@@ -404,9 +485,9 @@ export default function App() {
 
   const eventsById = useMemo(() => {
     return Object.fromEntries(
-      mecoSnapshot.events.map((event) => [event.id, event]),
+      events.map((event) => [event.id, event]),
     ) as Record<string, (typeof mecoSnapshot.events)[number]>;
-  }, []);
+  }, [events]);
 
   const taskById = useMemo(() => {
     return Object.fromEntries(
@@ -530,6 +611,78 @@ export default function App() {
     taskStatusFilter,
     taskSubsystemFilter,
   ]);
+
+  const filteredMilestones = useMemo(() => {
+    const search = milestoneSearch.trim().toLowerCase();
+
+    return [...events]
+      .filter((event) =>
+        milestoneTypeFilter === "all" ? true : event.type === milestoneTypeFilter,
+      )
+      .filter((event) => {
+        if (!search) {
+          return true;
+        }
+
+        const relatedSubsystemNames = event.relatedSubsystemIds
+          .map((subsystemId) => subsystemsById[subsystemId]?.name ?? "")
+          .join(" ")
+          .toLowerCase();
+
+        return (
+          event.title.toLowerCase().includes(search) ||
+          event.description.toLowerCase().includes(search) ||
+          relatedSubsystemNames.includes(search)
+        );
+      })
+      .sort((left, right) => {
+        const leftValue =
+          milestoneSortField === "title"
+            ? left.title.toLowerCase()
+            : milestoneSortField === "type"
+              ? EVENT_TYPE_STYLES[left.type].label
+              : left.startDateTime;
+        const rightValue =
+          milestoneSortField === "title"
+            ? right.title.toLowerCase()
+            : milestoneSortField === "type"
+              ? EVENT_TYPE_STYLES[right.type].label
+              : right.startDateTime;
+
+        if (leftValue < rightValue) {
+          return milestoneSortOrder === "asc" ? -1 : 1;
+        }
+
+        if (leftValue > rightValue) {
+          return milestoneSortOrder === "asc" ? 1 : -1;
+        }
+
+        return 0;
+      });
+  }, [
+    events,
+    milestoneSearch,
+    milestoneSortField,
+    milestoneSortOrder,
+    milestoneTypeFilter,
+    subsystemsById,
+  ]);
+
+  const milestoneSummary = useMemo(() => {
+    const externalCount = filteredMilestones.filter((milestone) => milestone.isExternal).length;
+
+    return [
+      { label: "Milestones", value: String(filteredMilestones.length) },
+      { label: "External", value: String(externalCount) },
+    ] satisfies SummaryChipData[];
+  }, [filteredMilestones]);
+
+  const eventOptions = useMemo(() => {
+    return events.map((event) => ({
+      id: event.id,
+      name: `${event.title} (${formatDateTime(event.startDateTime)})`,
+    }));
+  }, [events]);
 
   const timelineTasks = useMemo(() => {
     return [...tasks]
@@ -1034,6 +1187,111 @@ export default function App() {
     closeTaskEditor();
   };
 
+  const openCreateMilestoneEditor = () => {
+    setMilestoneEditorMode("create");
+    setActiveMilestoneId(null);
+    setMilestoneDraft(buildMilestoneDraft());
+    setMilestoneStartDate(localTodayDate());
+    setMilestoneStartTime("18:00");
+    setMilestoneEndDate("");
+    setMilestoneEndTime("");
+    setMilestoneError(null);
+  };
+
+  const openEditMilestoneEditor = (event: Event) => {
+    setMilestoneEditorMode("edit");
+    setActiveMilestoneId(event.id);
+    setMilestoneDraft({
+      title: event.title,
+      type: event.type,
+      isExternal: event.isExternal,
+      description: event.description,
+      relatedSubsystemIdsText: event.relatedSubsystemIds.join(", "),
+    });
+    setMilestoneStartDate(datePortion(event.startDateTime));
+    setMilestoneStartTime(timePortion(event.startDateTime));
+    setMilestoneEndDate(event.endDateTime ? datePortion(event.endDateTime) : "");
+    setMilestoneEndTime(event.endDateTime ? timePortion(event.endDateTime) : "");
+    setMilestoneError(null);
+  };
+
+  const closeMilestoneEditor = () => {
+    setMilestoneEditorMode(null);
+    setActiveMilestoneId(null);
+    setMilestoneError(null);
+  };
+
+  const saveMilestoneDraft = () => {
+    const title = milestoneDraft.title.trim();
+
+    if (!milestoneStartDate || !title) {
+      setMilestoneError("Milestone title and start date are required.");
+      return;
+    }
+
+    const parsedSubsystemIds = splitList(milestoneDraft.relatedSubsystemIdsText)
+      .filter((subsystemId) => subsystemsById[subsystemId]);
+
+    const startDateTime = buildDateTime(
+      milestoneStartDate,
+      milestoneStartTime || "12:00",
+    );
+    const hasEnd =
+      milestoneEndDate.trim().length > 0 || milestoneEndTime.trim().length > 0;
+    const endDateTime = hasEnd
+      ? buildDateTime(
+          milestoneEndDate.trim() || milestoneStartDate,
+          milestoneEndTime.trim() || milestoneStartTime,
+        )
+      : null;
+
+    if (endDateTime && compareDateTimes(endDateTime, startDateTime) < 0) {
+      setMilestoneError("End date/time must be after start date/time.");
+      return;
+    }
+
+    const payload: Event = {
+      id: activeMilestoneId ?? buildId("event", title),
+      title,
+      type: milestoneDraft.type,
+      startDateTime,
+      endDateTime,
+      isExternal: milestoneDraft.isExternal,
+      description: milestoneDraft.description.trim(),
+      relatedSubsystemIds: Array.from(new Set(parsedSubsystemIds)),
+    };
+
+    setEvents((current) => {
+      if (milestoneEditorMode === "edit" && activeMilestoneId) {
+        return current.map((event) =>
+          event.id === activeMilestoneId ? payload : event,
+        );
+      }
+
+      return [payload, ...current];
+    });
+
+    closeMilestoneEditor();
+  };
+
+  const deleteMilestoneDraft = () => {
+    if (!activeMilestoneId) {
+      return;
+    }
+
+    setEvents((current) => current.filter((event) => event.id !== activeMilestoneId));
+    setTasks((current) =>
+      current.map((task) => {
+        if (task.targetEventId !== activeMilestoneId) {
+          return task;
+        }
+
+        return { ...task, targetEventId: null };
+      }),
+    );
+    closeMilestoneEditor();
+  };
+
   const deleteTaskDraft = () => {
     if (!activeTaskId) {
       return;
@@ -1432,6 +1690,7 @@ export default function App() {
     setMembers(mecoSnapshot.members);
     setSubsystems(mecoSnapshot.subsystems);
     setTasks(mecoSnapshot.tasks);
+    setEvents(mecoSnapshot.events);
     setWorkLogs(mecoSnapshot.workLogs);
     setManufacturingItems(mecoSnapshot.manufacturingItems);
     setPurchaseItems(mecoSnapshot.purchaseItems);
@@ -1440,6 +1699,7 @@ export default function App() {
     setActivePersonFilter("all");
     closeTaskEditor();
     closeWorkLogEditor();
+    closeMilestoneEditor();
     closeManufacturingEditor();
     closePurchaseEditor();
     closeMemberEditor();
@@ -1622,6 +1882,137 @@ export default function App() {
     );
   };
 
+  const renderTaskMilestones = () => {
+    const milestoneTypeOptions = EVENT_TYPE_OPTIONS.map((option) => ({
+      id: option.id,
+      name: option.name,
+    }));
+
+    const getMilestoneSortIcon = (field: MilestoneSortField) => {
+      if (milestoneSortField !== field) {
+        return "";
+      }
+
+      return milestoneSortOrder === "asc" ? " ^" : " v";
+    };
+
+    const toggleMilestoneSort = (field: MilestoneSortField) => {
+      if (milestoneSortField === field) {
+        setMilestoneSortOrder((current) => (current === "asc" ? "desc" : "asc"));
+        return;
+      }
+
+      setMilestoneSortField(field);
+      setMilestoneSortOrder("asc");
+    };
+
+    return (
+      <WorkspacePanel
+        title="Milestones"
+        subtitle="Search, filter, and edit timeline events with subsystem context and linked task impact."
+        actions={
+          <Pressable onPress={openCreateMilestoneEditor} style={styles.primaryAction}>
+            <Text style={styles.primaryActionLabel}>Add</Text>
+          </Pressable>
+        }
+      >
+        <FilterToolbar>
+          <SearchField
+            onChangeText={setMilestoneSearch}
+            placeholder="Search milestones"
+            value={milestoneSearch}
+          />
+
+          <OptionChipRow
+            allLabel="All types"
+            onChange={setMilestoneTypeFilter}
+            options={milestoneTypeOptions}
+            value={milestoneTypeFilter}
+          />
+
+        </FilterToolbar>
+
+        <SummaryRow chips={milestoneSummary} />
+
+        <View style={styles.tableHeaderRow}>
+          <Pressable
+            onPress={() => toggleMilestoneSort("title")}
+            style={styles.tableHeaderButtonPrimary}
+          >
+            <Text style={[styles.tableHeaderText, styles.tableHeaderPrimary]}>
+              Milestone{getMilestoneSortIcon("title")}
+            </Text>
+          </Pressable>
+          <Pressable onPress={() => toggleMilestoneSort("type")} style={styles.tableHeaderButton}>
+            <Text style={styles.tableHeaderText}>Type{getMilestoneSortIcon("type")}</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => toggleMilestoneSort("startDateTime")}
+            style={styles.tableHeaderButton}
+          >
+            <Text style={styles.tableHeaderText}>
+              Start{getMilestoneSortIcon("startDateTime")}
+            </Text>
+          </Pressable>
+          <Text style={styles.tableHeaderText}>End</Text>
+          <Text style={styles.tableHeaderText}>Subsystems</Text>
+        </View>
+
+        {filteredMilestones.map((milestone) => {
+          const eventStyle = EVENT_TYPE_STYLES[milestone.type];
+          const subsystemNames = milestone.relatedSubsystemIds
+            .map((subsystemId) => subsystemsById[subsystemId]?.name ?? "Unknown subsystem")
+            .join(", ");
+
+          return (
+            <Pressable
+              key={milestone.id}
+              onPress={() => openEditMilestoneEditor(milestone)}
+              style={styles.queueRowCard}
+            >
+              <View style={styles.queueRowHeader}>
+                <View style={styles.queueRowPrimaryText}>
+                  <Text style={styles.queueRowTitle}>{milestone.title}</Text>
+                  <Text style={styles.queueMetaLine}>
+                    {milestone.description || "No description provided."}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: eventStyle.borderColor,
+                    backgroundColor: eventStyle.chipBackground,
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                  }}
+                >
+                  <Text style={{ color: eventStyle.chipText, fontSize: 11, fontWeight: "700" }}>
+                    {eventStyle.label}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.queueMetaLine}>
+                Start {formatDateTime(milestone.startDateTime)} | End{" "}
+                {milestone.endDateTime ? formatDateTime(milestone.endDateTime) : "No end"}
+              </Text>
+              <Text style={styles.queueMetaLine}>
+                Subsystems {subsystemNames || "All subsystems"} | {milestone.isExternal ? "External" : "Internal"}
+              </Text>
+            </Pressable>
+          );
+        })}
+
+        {filteredMilestones.length === 0 ? (
+          <EmptyState text="No milestones match the current filters." />
+        ) : null}
+
+        <InteractionNote text={SUBVIEW_INTERACTION_GUIDANCE.milestones} />
+      </WorkspacePanel>
+    );
+  };
+
   const renderTasks = () => {
     return (
       <>
@@ -1633,7 +2024,11 @@ export default function App() {
             label: option.label,
           }))}
         />
-        {taskView === "timeline" ? renderTaskTimeline() : renderTaskQueue()}
+        {taskView === "timeline"
+          ? renderTaskTimeline()
+          : taskView === "queue"
+            ? renderTaskQueue()
+            : renderTaskMilestones()}
       </>
     );
   };
@@ -2332,13 +2727,31 @@ export default function App() {
     return renderRoster();
   };
 
-  const renderEditorModals = () => {
+    const renderEditorModals = () => {
     const taskOptions = tasks.map((task) => ({ id: task.id, name: task.title }));
     const memberOptions = members.map((member) => ({ id: member.id, name: member.name }));
     const subsystemOptions = subsystems.map((subsystem) => ({
       id: subsystem.id,
       name: subsystem.name,
     }));
+    const disciplineOptions = mecoSnapshot.disciplines.map((discipline) => ({
+      id: discipline.id,
+      name: discipline.name,
+    }));
+    const mechanismOptions = mecoSnapshot.mechanisms
+      .filter((mechanism) => mechanism.subsystemId === taskDraft.subsystemId)
+      .map((mechanism) => ({
+        id: mechanism.id,
+        name: mechanism.name,
+      }));
+    const mechanismAndTaskPartOptions = taskDraft.mechanismId
+      ? partInstances
+          .filter((partInstance) => partInstance.mechanismId === taskDraft.mechanismId)
+          .map((partInstance) => ({
+            id: partInstance.id,
+            name: `${partInstance.name} (${partDefinitionsById[partInstance.partDefinitionId]?.name ?? "part"})`,
+          }))
+      : [];
 
     return (
       <>
@@ -2372,10 +2785,77 @@ export default function App() {
           <OptionChipRow
             allLabel="Subsystem"
             onChange={(value) =>
-              setTaskDraft((current) => ({ ...current, subsystemId: value === "all" ? "" : value }))
+              setTaskDraft((current) => {
+                const subsystemId = value === "all" ? "" : value;
+                const nextMechanisms = mecoSnapshot.mechanisms.filter(
+                  (mechanism) => mechanism.subsystemId === subsystemId,
+                );
+                const mechanismId = nextMechanisms[0]?.id ?? null;
+                const partInstanceId = mechanismId
+                  ? partInstances.find((partInstance) => partInstance.mechanismId === mechanismId)
+                      ?.id ?? null
+                  : null;
+
+                return {
+                  ...current,
+                  subsystemId,
+                  mechanismId,
+                  partInstanceId,
+                };
+              })
             }
             options={subsystemOptions}
             value={taskDraft.subsystemId || "all"}
+          />
+          <OptionChipRow
+            allLabel="Discipline"
+            onChange={(value) =>
+              setTaskDraft((current) => ({ ...current, disciplineId: value === "all" ? "" : value }))
+            }
+            options={disciplineOptions}
+            value={taskDraft.disciplineId || "all"}
+          />
+          <OptionChipRow
+            allLabel="Mechanism"
+            onChange={(value) =>
+              setTaskDraft((current) => {
+                const mechanismId = value === "all" ? null : value;
+                const partInstanceId = mechanismId
+                  ? partInstances.find((partInstance) => partInstance.mechanismId === mechanismId)
+                      ?.id ?? null
+                  : null;
+
+                return {
+                  ...current,
+                  mechanismId,
+                  partInstanceId,
+                };
+              })
+            }
+            options={mechanismOptions}
+            value={taskDraft.mechanismId || "all"}
+          />
+          <OptionChipRow
+            allLabel="Part instance"
+            onChange={(value) =>
+              setTaskDraft((current) => ({
+                ...current,
+                partInstanceId: value === "all" ? null : value,
+              }))
+            }
+            options={mechanismAndTaskPartOptions}
+            value={taskDraft.partInstanceId || "all"}
+          />
+          <OptionChipRow
+            allLabel="Target event"
+            onChange={(value) =>
+              setTaskDraft((current) => ({
+                ...current,
+                targetEventId: value === "all" ? null : value,
+              }))
+            }
+            options={eventOptions}
+            value={taskDraft.targetEventId || "all"}
           />
           <OptionChipRow
             allLabel="Owner"
@@ -2415,6 +2895,16 @@ export default function App() {
             options={TASK_PRIORITY_OPTIONS}
             value={taskDraft.priority}
           />
+          <View style={styles.modalField}>
+            <Text style={styles.modalFieldLabel}>Traceability</Text>
+            <Text style={styles.modalFieldInput}>
+              {`${subsystemsById[taskDraft.subsystemId]?.name ?? "No subsystem"} / `}
+              {`${disciplinesById[taskDraft.disciplineId]?.name ?? "No discipline"} / `}
+              {`${taskDraft.mechanismId ? mechanismsById[taskDraft.mechanismId]?.name : "No mechanism"} / `}
+              {`${taskDraft.partInstanceId ? partInstancesById[taskDraft.partInstanceId]?.name : "No part instance"} / `}
+              {`${taskDraft.targetEventId ? eventsById[taskDraft.targetEventId]?.title : "No event"}`}
+            </Text>
+          </View>
           <ModalField
             label="Blockers (comma separated)"
             onChangeText={(value) =>
@@ -2423,6 +2913,88 @@ export default function App() {
             placeholder="Waiting on batch, cable routing"
             value={taskDraft.blockersText}
           />
+        </EditorModal>
+
+        <EditorModal
+          onCancel={closeMilestoneEditor}
+          onDelete={milestoneEditorMode === "edit" ? deleteMilestoneDraft : undefined}
+          onSave={saveMilestoneDraft}
+          saveLabel={milestoneEditorMode === "edit" ? "Update milestone" : "Create milestone"}
+          title={milestoneEditorMode === "edit" ? "Edit milestone" : "Create milestone"}
+          visible={Boolean(milestoneEditorMode)}
+        >
+          <ModalField
+            label="Title"
+            onChangeText={(value) =>
+              setMilestoneDraft((current) => ({ ...current, title: value }))
+            }
+            placeholder="Milestone title"
+            value={milestoneDraft.title}
+          />
+          <OptionChipRow
+            allLabel="Type"
+            onChange={(value) =>
+              setMilestoneDraft((current) => ({
+                ...current,
+                type: value === "all" ? "internal-review" : (value as EventType),
+              }))
+            }
+            options={EVENT_TYPE_OPTIONS}
+            value={milestoneDraft.type}
+          />
+          <ModalField
+            label="Start date (YYYY-MM-DD)"
+            onChangeText={(value) => setMilestoneStartDate(value)}
+            placeholder={localTodayDate()}
+            value={milestoneStartDate}
+          />
+          <ModalField
+            label="Start time (HH:mm)"
+            onChangeText={(value) => setMilestoneStartTime(value)}
+            placeholder="18:00"
+            value={milestoneStartTime}
+          />
+          <ModalField
+            label="End date (optional, YYYY-MM-DD)"
+            onChangeText={(value) => setMilestoneEndDate(value)}
+            placeholder="2026-04-30"
+            value={milestoneEndDate}
+          />
+          <ModalField
+            label="End time (optional, HH:mm)"
+            onChangeText={(value) => setMilestoneEndTime(value)}
+            placeholder="20:00"
+            value={milestoneEndTime}
+          />
+          <ModalField
+            label="Description"
+            multiline
+            onChangeText={(value) =>
+              setMilestoneDraft((current) => ({ ...current, description: value }))
+            }
+            placeholder="Milestone details"
+            value={milestoneDraft.description}
+          />
+          <ModalField
+            label="Related subsystem IDs (comma separated)"
+            onChangeText={(value) =>
+              setMilestoneDraft((current) => ({
+                ...current,
+                relatedSubsystemIdsText: value,
+              }))
+            }
+            placeholder="drive, controls"
+            value={milestoneDraft.relatedSubsystemIdsText}
+          />
+          <ToggleField
+            label="External milestone"
+            onToggle={(value) =>
+              setMilestoneDraft((current) => ({ ...current, isExternal: value }))
+            }
+            value={milestoneDraft.isExternal}
+          />
+
+          {milestoneError ? <Text style={{ color: colors.orangeInk }}>{milestoneError}</Text> : null}
         </EditorModal>
 
         <EditorModal
@@ -3193,6 +3765,16 @@ function buildTaskDraft(seed?: Partial<Task>): TaskDraft {
   };
 }
 
+function buildMilestoneDraft(seed?: Partial<Event>): MilestoneDraft {
+  return {
+    title: seed?.title ?? "",
+    type: seed?.type ?? "internal-review",
+    isExternal: seed?.isExternal ?? false,
+    description: seed?.description ?? "",
+    relatedSubsystemIdsText: seed?.relatedSubsystemIds?.join(", ") ?? "",
+  };
+}
+
 function buildWorkLogDraft(seed?: Partial<WorkLog>): WorkLogDraft {
   return {
     taskId: seed?.taskId ?? "",
@@ -3376,6 +3958,41 @@ function derivePartLifecycleStatus(
 
 function formatDate(value: string) {
   return value.slice(5);
+}
+
+function datePortion(dateTime: string) {
+  return dateTime.slice(0, 10);
+}
+
+function timePortion(dateTime: string) {
+  if (dateTime.length < 16) {
+    return "12:00";
+  }
+
+  return dateTime.slice(11, 16);
+}
+
+function buildDateTime(date: string, time: string) {
+  return `${date}T${time}:00`;
+}
+
+function compareDateTimes(a: string, b: string) {
+  return new Date(a).getTime() - new Date(b).getTime();
+}
+
+function localTodayDate() {
+  const now = new Date();
+  const offsetAdjusted = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return offsetAdjusted.toISOString().slice(0, 10);
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function capitalize(value: string) {
@@ -3734,6 +4351,14 @@ const styles = StyleSheet.create({
   },
   tableHeaderPrimary: {
     flex: 2,
+  },
+  tableHeaderButton: {
+    flex: 1,
+    alignItems: "flex-start",
+  },
+  tableHeaderButtonPrimary: {
+    flex: 2,
+    alignItems: "flex-start",
   },
   queueRowCard: {
     borderRadius: radii.lg,
