@@ -25,6 +25,14 @@ npm run start
 npm run typecheck
 ```
 
+## Release automation
+
+- `CI` workflow runs `npm run typecheck` on pull requests and `main`.
+- `Mobile Release` workflow builds iOS + Android via EAS after `CI` succeeds on `main`, or manually via `workflow_dispatch`.
+- Set GitHub repository secret `EXPO_TOKEN` before running release builds.
+- Set GitHub repository secret `EXPO_PUBLIC_API_BASE_URL` so production builds point at the hosted API.
+- Ensure `expo.ios.bundleIdentifier` and `expo.android.package` are set in `app.json` for non-interactive EAS builds.
+
 ## Next product steps
 
 1. Replace the mock snapshot in `src/data/mockData.ts` with API calls to `meco-platform`.

@@ -1,340 +1,149 @@
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Modal,
   Pressable,
   SafeAreaView,
   ScrollView,
-  StyleSheet,
   Text,
-  TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 
+import {
+  EVENT_TYPE_OPTIONS,
+  EVENT_TYPE_STYLES,
+  INVENTORY_VIEW_OPTIONS,
+  MANUFACTURING_STATUS_OPTIONS,
+  MANUFACTURING_VIEW_OPTIONS,
+  MATERIAL_CATEGORY_OPTIONS,
+  PART_STATUS_OPTIONS,
+  PURCHASE_APPROVAL_OPTIONS,
+  PURCHASE_STATUS_OPTIONS,
+  STATUS_LABELS,
+  SUBVIEW_INTERACTION_GUIDANCE,
+  TASK_PRIORITY_OPTIONS,
+  TASK_STATUS_OPTIONS,
+  TASK_VIEW_OPTIONS,
+  WORKLOG_SORT_OPTIONS,
+} from "./src/app/constants";
+import {
+  buildDateTime,
+  buildManufacturingDraft,
+  buildMemberDraft,
+  buildMilestoneDraft,
+  buildPartDefinitionDraft,
+  buildPurchaseDraft,
+  buildSubsystemDraft,
+  buildTaskDraft,
+  buildWorkLogDraft,
+  capitalize,
+  compareDateTimes,
+  datePortion,
+  derivePartLifecycleStatus,
+  formatDate,
+  formatDateTime,
+  inferMaterialCategory,
+  isoToday,
+  localTodayDate,
+  splitList,
+  timePortion,
+  timelineProgress,
+} from "./src/app/helpers";
+import { styles } from "./src/app/styles";
+import type {
+  EditorMode,
+  InventoryViewTab,
+  ManufacturingDraft,
+  ManufacturingViewTab,
+  MaterialRollup,
+  MemberDraft,
+  MilestoneDraft,
+  MilestoneSortField,
+  NavItem,
+  PartDefinitionDraft,
+  PurchaseDraft,
+  SummaryChipData,
+  SubsystemDraft,
+  TaskDraft,
+  TaskViewTab,
+  ViewTab,
+  WorkLogDraft,
+  WorkLogSortMode,
+} from "./src/app/types";
+import {
+  EditorModal,
+  EmptyState,
+  FilterToolbar,
+  InteractionNote,
+  ModalField,
+  OptionChipRow,
+  SearchField,
+  SectionTabs,
+  StatusPill,
+  SummaryRow,
+  ToggleField,
+  WorkspacePanel,
+} from "./src/app/ui";
+import {
+  ApiRequestError,
+  requestJson,
+  resolveApiBaseUrl,
+} from "./src/data/api";
 import { mecoSnapshot } from "./src/data/mockData";
 import type {
   MemberRole,
   ManufacturingItem,
   Event,
   EventType,
+  PlatformBootstrapPayload,
+  PublicAuthConfig,
   PurchaseItem,
-  PartInstance,
+  SessionResponse,
   Subsystem,
   Task,
   TaskPriority,
   TaskStatus,
   WorkLog,
 } from "./src/types/domain";
-import { colors, radii, shadows, spacing } from "./src/theme";
+import { colors } from "./src/theme";
 
-type ViewTab =
-  | "tasks"
-  | "worklogs"
-  | "manufacturing"
-  | "inventory"
-  | "subsystems"
-  | "roster";
+function parseClientError(error: unknown) {
+  if (error instanceof ApiRequestError) {
+    return error.message;
+  }
 
-type TaskViewTab = "timeline" | "queue" | "milestones";
-type ManufacturingViewTab = "cnc" | "prints" | "fabrication";
-type InventoryViewTab = "materials" | "parts" | "purchases";
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
 
-type StatusGroup = "success" | "info" | "warning" | "danger" | "neutral";
-
-type PartLifecycleStatus = "planned" | "needed" | "available" | "installed" | "retired";
-
-type WorkLogSortMode = "recent" | "oldest" | "longest" | "shortest";
-
-type NavItem = {
-  key: ViewTab;
-  label: string;
-  shortLabel: string;
-  count: number;
-};
-
-type Option = {
-  id: string;
-  name: string;
-};
-
-type SummaryChipData = {
-  label: string;
-  value: string;
-};
-
-type MaterialRollup = {
-  id: string;
-  name: string;
-  category: string;
-  onHand: number;
-  reorderPoint: number;
-  openDemand: number;
-  vendor: string;
-  stock: "low" | "ok";
-};
-
-type EditorMode = "create" | "edit";
-
-type TaskDraft = {
-  title: string;
-  summary: string;
-  subsystemId: string;
-  disciplineId: string;
-  ownerId: string;
-  mentorId: string;
-  dueDate: string;
-  priority: TaskPriority;
-  status: TaskStatus;
-  mechanismId: string | null;
-  partInstanceId: string | null;
-  targetEventId: string | null;
-  blockersText: string;
-};
-
-type WorkLogDraft = {
-  taskId: string;
-  date: string;
-  hours: string;
-  participantIdsText: string;
-  notes: string;
-};
-
-type ManufacturingDraft = {
-  title: string;
-  subsystemId: string;
-  requestedById: string;
-  process: ManufacturingItem["process"];
-  dueDate: string;
-  material: string;
-  quantity: string;
-  status: ManufacturingItem["status"];
-  mentorReviewed: boolean;
-  batchLabel: string;
-  qaReviewCount: string;
-};
-
-type PurchaseDraft = {
-  title: string;
-  subsystemId: string;
-  requestedById: string;
-  quantity: string;
-  vendor: string;
-  linkLabel: string;
-  estimatedCost: string;
-  finalCost: string;
-  approvedByMentor: boolean;
-  status: PurchaseItem["status"];
-};
-
-type MemberDraft = {
-  name: string;
-  role: MemberRole;
-};
-
-type SubsystemDraft = {
-  name: string;
-  description: string;
-  responsibleEngineerId: string;
-  mentorIdsText: string;
-  risksText: string;
-};
-
-type PartDefinitionDraft = {
-  name: string;
-  partNumber: string;
-  revision: string;
-  type: string;
-  source: string;
-};
-
-type MilestoneDraft = {
-  title: string;
-  type: EventType;
-  isExternal: boolean;
-  description: string;
-  relatedSubsystemIdsText: string;
-};
-
-type MilestoneSortField = "startDateTime" | "title" | "type";
-
-type EventStyle = {
-  label: string;
-  borderColor: string;
-  chipBackground: string;
-  chipText: string;
-};
-
-const TASK_VIEW_OPTIONS: { value: TaskViewTab; label: string }[] = [
-  { value: "timeline", label: "Timeline" },
-  { value: "queue", label: "Queue" },
-  { value: "milestones", label: "Milestones" },
-];
-
-const MANUFACTURING_VIEW_OPTIONS: { value: ManufacturingViewTab; label: string }[] = [
-  { value: "cnc", label: "CNC" },
-  { value: "prints", label: "3D print" },
-  { value: "fabrication", label: "Fabrication" },
-];
-
-const INVENTORY_VIEW_OPTIONS: { value: InventoryViewTab; label: string }[] = [
-  { value: "materials", label: "Materials" },
-  { value: "parts", label: "Parts" },
-  { value: "purchases", label: "Purchases" },
-];
-
-const TASK_STATUS_OPTIONS: Option[] = [
-  { id: "not-started", name: "Not started" },
-  { id: "in-progress", name: "In progress" },
-  { id: "waiting-for-qa", name: "Waiting for QA" },
-  { id: "complete", name: "Complete" },
-];
-
-const TASK_PRIORITY_OPTIONS: Option[] = [
-  { id: "critical", name: "Critical" },
-  { id: "high", name: "High" },
-  { id: "medium", name: "Medium" },
-  { id: "low", name: "Low" },
-];
-
-const MANUFACTURING_STATUS_OPTIONS: Option[] = [
-  { id: "requested", name: "Requested" },
-  { id: "approved", name: "Approved" },
-  { id: "in-progress", name: "In progress" },
-  { id: "qa", name: "QA" },
-  { id: "complete", name: "Complete" },
-];
-
-const PART_STATUS_OPTIONS: Option[] = [
-  { id: "planned", name: "Planned" },
-  { id: "needed", name: "Needed" },
-  { id: "available", name: "Available" },
-  { id: "installed", name: "Installed" },
-  { id: "retired", name: "Retired" },
-];
-
-const PURCHASE_STATUS_OPTIONS: Option[] = [
-  { id: "requested", name: "Requested" },
-  { id: "approved", name: "Approved" },
-  { id: "purchased", name: "Purchased" },
-  { id: "shipped", name: "Shipped" },
-  { id: "delivered", name: "Delivered" },
-];
-
-const PURCHASE_APPROVAL_OPTIONS: Option[] = [
-  { id: "approved", name: "Approved" },
-  { id: "waiting", name: "Waiting" },
-];
-
-const MATERIAL_CATEGORY_OPTIONS: Option[] = [
-  { id: "metal", name: "Metal" },
-  { id: "plastic", name: "Plastic" },
-  { id: "filament", name: "Filament" },
-  { id: "electronics", name: "Electronics" },
-  { id: "hardware", name: "Hardware" },
-  { id: "consumable", name: "Consumable" },
-  { id: "other", name: "Other" },
-];
-
-const WORKLOG_SORT_OPTIONS: { id: WorkLogSortMode; name: string }[] = [
-  { id: "recent", name: "Newest first" },
-  { id: "oldest", name: "Oldest first" },
-  { id: "longest", name: "Longest first" },
-  { id: "shortest", name: "Shortest first" },
-];
-
-const EVENT_TYPE_OPTIONS: Option[] = [
-  { id: "drive-practice", name: "Drive practice" },
-  { id: "competition", name: "Competition" },
-  { id: "deadline", name: "Deadline" },
-  { id: "internal-review", name: "Internal review" },
-  { id: "demo", name: "Demo" },
-];
-
-const EVENT_TYPE_STYLES: Record<EventType, EventStyle> = {
-  "drive-practice": {
-    label: "Drive practice",
-    borderColor: "rgba(22, 71, 142, 0.32)",
-    chipBackground: "rgba(22, 71, 142, 0.18)",
-    chipText: "#0d2e5c",
-  },
-  competition: {
-    label: "Competition",
-    borderColor: "rgba(76, 121, 207, 0.35)",
-    chipBackground: "rgba(76, 121, 207, 0.2)",
-    chipText: "#1f3f7a",
-  },
-  deadline: {
-    label: "Deadline",
-    borderColor: "rgba(234, 28, 45, 0.36)",
-    chipBackground: "rgba(234, 28, 45, 0.18)",
-    chipText: "#8e1120",
-  },
-  "internal-review": {
-    label: "Internal review",
-    borderColor: "rgba(36, 104, 71, 0.34)",
-    chipBackground: "rgba(36, 104, 71, 0.18)",
-    chipText: "#1d5338",
-  },
-  demo: {
-    label: "Demo",
-    borderColor: "rgba(84, 98, 123, 0.35)",
-    chipBackground: "rgba(84, 98, 123, 0.22)",
-    chipText: "#36475f",
-  },
-};
-
-const STATUS_GROUPS: Record<Exclude<StatusGroup, "neutral">, Set<string>> = {
-  success: new Set(["complete", "delivered", "available", "installed", "pass"]),
-  info: new Set(["in-progress", "shipped", "purchased", "approved"]),
-  warning: new Set(["waiting-for-qa", "qa", "requested", "high", "waiting", "needed"]),
-  danger: new Set(["not-started", "critical", "retired", "iteration-worthy"]),
-};
-
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  "not-started": "Not started",
-  "in-progress": "In progress",
-  "waiting-for-qa": "Waiting for QA",
-  complete: "Complete",
-};
-
-const SUBVIEW_INTERACTION_GUIDANCE: Record<string, string> = {
-  timeline:
-    "Use the filters to focus ownership and due dates, then tap any item to inspect linked mechanism and QA status.",
-  queue:
-    "Use search and quick filters, then scan queue rows for owner, due date, status, and priority in one card.",
-  milestones:
-    "Use search and filters to review milestones, edit rows to adjust dates/type, and use Add to create new milestones tied to subsystems.",
-  worklogs:
-    "Search notes and tasks, sort by date or hours, and keep the hours, people, and touched-task metrics visible.",
-  cnc:
-    "Filter CNC jobs by subsystem, requester, material, and status to keep machine utilization visible.",
-  prints:
-    "Filter print jobs by subsystem and status, and review mentor/QA readiness before marking complete.",
-  fabrication:
-    "Track freeform fabrication requests in the same queue format used for CNC and print work.",
-  materials:
-    "Use material rollups to identify low stock and upcoming demand from the fabrication queue.",
-  parts:
-    "Review reusable definitions first, then inspect subsystem instances and lifecycle state below.",
-  purchases:
-    "Filter by status, vendor, requester, and mentor approval to keep buying decisions transparent.",
-  subsystems:
-    "Tap a subsystem card to expand mechanism coverage and compare open work against ownership.",
-  roster:
-    "Select people from each role section to keep ownership and mentor assignment easy to read.",
-};
+  return "Request failed unexpectedly.";
+}
 
 export default function App() {
+  const { width } = useWindowDimensions();
+  const isCompactLayout = width < 430;
+  const isVeryCompactLayout = width < 360;
+  const apiBaseUrl = useMemo(() => resolveApiBaseUrl(), []);
+
+  const [apiToken, setApiToken] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<
+    "connecting" | "connected" | "offline"
+  >("connecting");
+  const [syncError, setSyncError] = useState<string | null>(null);
+
   const [activeTab, setActiveTab] = useState<ViewTab>("tasks");
   const [taskView, setTaskView] = useState<TaskViewTab>("queue");
   const [manufacturingView, setManufacturingView] =
     useState<ManufacturingViewTab>("cnc");
   const [inventoryView, setInventoryView] = useState<InventoryViewTab>("purchases");
-  const [isNavCollapsed, setIsNavCollapsed] = useState(false);
+  const [isNavCollapsed, setIsNavCollapsed] = useState(() => isCompactLayout);
   const [activePersonFilter, setActivePersonFilter] = useState("all");
 
   const [members, setMembers] = useState(() => mecoSnapshot.members);
   const [subsystems, setSubsystems] = useState(() => mecoSnapshot.subsystems);
+  const [disciplines, setDisciplines] = useState(() => mecoSnapshot.disciplines);
+  const [mechanisms, setMechanisms] = useState(() => mecoSnapshot.mechanisms);
   const [tasks, setTasks] = useState(() => mecoSnapshot.tasks);
   const [events, setEvents] = useState(() => mecoSnapshot.events);
   const [workLogs, setWorkLogs] = useState(() => mecoSnapshot.workLogs);
@@ -447,6 +256,89 @@ export default function App() {
     buildPartDefinitionDraft(),
   );
 
+  const applyBootstrapPayload = useCallback((payload: PlatformBootstrapPayload) => {
+    setMembers(payload.members);
+    setSubsystems(payload.subsystems);
+    setDisciplines(payload.disciplines);
+    setMechanisms(payload.mechanisms);
+    setTasks(payload.tasks);
+    setEvents(payload.events);
+    setWorkLogs(payload.workLogs);
+    setManufacturingItems(payload.manufacturingItems);
+    setPurchaseItems(payload.purchaseItems);
+    setPartDefinitions(payload.partDefinitions);
+    setPartInstances(payload.partInstances);
+  }, []);
+
+  const refreshWorkspaceFromServer = useCallback(
+    async (token: string | null) => {
+      const payload = await requestJson<PlatformBootstrapPayload>(
+        apiBaseUrl,
+        "/api/bootstrap",
+        undefined,
+        token,
+      );
+      applyBootstrapPayload(payload);
+    },
+    [apiBaseUrl, applyBootstrapPayload],
+  );
+
+  const syncFromBackend = useCallback(async () => {
+    setIsSyncing(true);
+    setBackendStatus("connecting");
+    setSyncError(null);
+
+    try {
+      const authConfig = await requestJson<PublicAuthConfig>(
+        apiBaseUrl,
+        "/api/auth/config",
+      );
+
+      let token = process.env.EXPO_PUBLIC_API_TOKEN?.trim() ?? "";
+      token = token.length > 0 ? token : "";
+
+      if (!token && authConfig.devBypassAvailable) {
+        const session = await requestJson<SessionResponse>(
+          apiBaseUrl,
+          "/api/auth/dev-bypass",
+          { method: "POST" },
+        );
+        token = session.token;
+      }
+
+      const resolvedToken = token || null;
+      setApiToken(resolvedToken);
+      await refreshWorkspaceFromServer(resolvedToken);
+      setBackendStatus("connected");
+    } catch (error) {
+      setBackendStatus("offline");
+      setSyncError(parseClientError(error));
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [apiBaseUrl, refreshWorkspaceFromServer]);
+
+  const runMutation = useCallback(
+    async (path: string, init: RequestInit) => {
+      setIsSyncing(true);
+      setSyncError(null);
+
+      try {
+        await requestJson(apiBaseUrl, path, init, apiToken);
+        await refreshWorkspaceFromServer(apiToken);
+        setBackendStatus("connected");
+        return true;
+      } catch (error) {
+        setBackendStatus("offline");
+        setSyncError(parseClientError(error));
+        return false;
+      } finally {
+        setIsSyncing(false);
+      }
+    },
+    [apiBaseUrl, apiToken, refreshWorkspaceFromServer],
+  );
+
   const membersById = useMemo(() => {
     return Object.fromEntries(
       members.map((member) => [member.id, member]),
@@ -461,15 +353,15 @@ export default function App() {
 
   const disciplinesById = useMemo(() => {
     return Object.fromEntries(
-      mecoSnapshot.disciplines.map((discipline) => [discipline.id, discipline]),
-    ) as Record<string, (typeof mecoSnapshot.disciplines)[number]>;
-  }, []);
+      disciplines.map((discipline) => [discipline.id, discipline]),
+    ) as Record<string, (typeof disciplines)[number]>;
+  }, [disciplines]);
 
   const mechanismsById = useMemo(() => {
     return Object.fromEntries(
-      mecoSnapshot.mechanisms.map((mechanism) => [mechanism.id, mechanism]),
-    ) as Record<string, (typeof mecoSnapshot.mechanisms)[number]>;
-  }, []);
+      mechanisms.map((mechanism) => [mechanism.id, mechanism]),
+    ) as Record<string, (typeof mechanisms)[number]>;
+  }, [mechanisms]);
 
   const partDefinitionsById = useMemo(() => {
     return Object.fromEntries(
@@ -486,7 +378,7 @@ export default function App() {
   const eventsById = useMemo(() => {
     return Object.fromEntries(
       events.map((event) => [event.id, event]),
-    ) as Record<string, (typeof mecoSnapshot.events)[number]>;
+    ) as Record<string, (typeof events)[number]>;
   }, [events]);
 
   const taskById = useMemo(() => {
@@ -591,7 +483,7 @@ export default function App() {
         }
 
         const subsystemName = subsystemsById[task.subsystemId]?.name ?? "";
-        const ownerName = membersById[task.ownerId]?.name ?? "";
+        const ownerName = task.ownerId ? (membersById[task.ownerId]?.name ?? "") : "";
         const mechanismName = task.mechanismId ? (mechanismsById[task.mechanismId]?.name ?? "") : "";
 
         return `${task.title} ${task.summary} ${subsystemName} ${ownerName} ${mechanismName}`
@@ -825,7 +717,9 @@ export default function App() {
         }
 
         const subsystemName = subsystemsById[item.subsystemId]?.name ?? "";
-        const requesterName = membersById[item.requestedById]?.name ?? "";
+        const requesterName = item.requestedById
+          ? (membersById[item.requestedById]?.name ?? "")
+          : "";
 
         return `${item.title} ${item.material} ${subsystemName} ${requesterName}`
           .toLowerCase()
@@ -1023,7 +917,9 @@ export default function App() {
         return true;
       }
 
-      const requesterName = membersById[item.requestedById]?.name ?? "";
+      const requesterName = item.requestedById
+        ? (membersById[item.requestedById]?.name ?? "")
+        : "";
       const subsystemName = subsystemsById[item.subsystemId]?.name ?? "";
 
       return `${item.title} ${item.vendor} ${requesterName} ${subsystemName}`
@@ -1051,19 +947,26 @@ export default function App() {
       ]),
     ) as Record<string, { mechanisms: number; tasks: number; openTasks: number; risks: number }>;
 
-    for (const mechanism of mecoSnapshot.mechanisms) {
-      counts[mechanism.subsystemId].mechanisms += 1;
+    for (const mechanism of mechanisms) {
+      if (counts[mechanism.subsystemId]) {
+        counts[mechanism.subsystemId].mechanisms += 1;
+      }
     }
 
     for (const task of tasks) {
-      counts[task.subsystemId].tasks += 1;
+      const bucket = counts[task.subsystemId];
+      if (!bucket) {
+        continue;
+      }
+
+      bucket.tasks += 1;
       if (task.status !== "complete") {
-        counts[task.subsystemId].openTasks += 1;
+        bucket.openTasks += 1;
       }
     }
 
     return counts;
-  }, [subsystems, tasks]);
+  }, [mechanisms, subsystems, tasks]);
 
   const filteredSubsystems = useMemo(() => {
     const search = subsystemSearch.trim().toLowerCase();
@@ -1073,11 +976,13 @@ export default function App() {
         return true;
       }
 
-      const leadName = membersById[subsystem.responsibleEngineerId]?.name ?? "";
+      const leadName = subsystem.responsibleEngineerId
+        ? (membersById[subsystem.responsibleEngineerId]?.name ?? "")
+        : "";
       const mentorNames = subsystem.mentorIds
         .map((mentorId) => membersById[mentorId]?.name ?? "")
         .join(" ");
-      const mechanismNames = mecoSnapshot.mechanisms
+      const mechanismNames = mechanisms
         .filter((mechanism) => mechanism.subsystemId === subsystem.id)
         .map((mechanism) => mechanism.name)
         .join(" ");
@@ -1086,16 +991,36 @@ export default function App() {
         .toLowerCase()
         .includes(search);
     });
-  }, [membersById, subsystemSearch, subsystems]);
+  }, [mechanisms, membersById, subsystemSearch, subsystems]);
 
   const selectedSubsystem =
     filteredSubsystems.find((subsystem) => subsystem.id === selectedSubsystemId) ?? null;
 
   const rosterStudents = members.filter((member) => member.role === "student");
-  const rosterMentors = members.filter((member) => member.role === "mentor");
+  const rosterMentors = members.filter(
+    (member) => member.role === "mentor" || member.role === "lead",
+  );
   const rosterAdmins = members.filter((member) => member.role === "admin");
 
   const activeTabLabel = navigationItems.find((item) => item.key === activeTab)?.label ?? "Tasks";
+  const syncStatusLabel =
+    backendStatus === "connected"
+      ? isSyncing
+        ? "Syncing"
+        : "Backend live"
+      : backendStatus === "connecting"
+        ? "Connecting"
+        : "Backend offline";
+
+  useEffect(() => {
+    void syncFromBackend();
+  }, [syncFromBackend]);
+
+  useEffect(() => {
+    if (isCompactLayout) {
+      setIsNavCollapsed(true);
+    }
+  }, [isCompactLayout]);
 
   useEffect(() => {
     if (activePersonFilter === "all") {
@@ -1124,9 +1049,12 @@ export default function App() {
     setTaskDraft(
       buildTaskDraft({
         subsystemId: subsystems[0]?.id ?? "",
-        disciplineId: mecoSnapshot.disciplines[0]?.id ?? "",
+        disciplineId: disciplines[0]?.id ?? "",
         ownerId: members[0]?.id ?? "",
-        mentorId: members.find((member) => member.role === "mentor")?.id ?? members[0]?.id ?? "",
+        mentorId:
+          members.find((member) => member.role === "mentor" || member.role === "lead")?.id ??
+          members[0]?.id ??
+          "",
         dueDate: isoToday(),
       }),
     );
@@ -1144,7 +1072,7 @@ export default function App() {
     setActiveTaskId(null);
   };
 
-  const saveTaskDraft = () => {
+  const saveTaskDraft = async () => {
     const blockers = splitList(taskDraft.blockersText);
     const title = taskDraft.title.trim();
     const summary = taskDraft.summary.trim();
@@ -1153,14 +1081,12 @@ export default function App() {
       return;
     }
 
-    const payload: Task = {
-      id: activeTaskId ?? buildId("task", title),
+    const payload = {
       title,
       summary,
       subsystemId: taskDraft.subsystemId,
       disciplineId:
-        taskDraft.disciplineId || mecoSnapshot.disciplines[0]?.id || "mechanical",
-      requirementId: null,
+        taskDraft.disciplineId || disciplines[0]?.id || "mechanical",
       mechanismId: taskDraft.mechanismId,
       partInstanceId: taskDraft.partInstanceId,
       targetEventId: taskDraft.targetEventId,
@@ -1177,14 +1103,18 @@ export default function App() {
       actualHours: 0,
     };
 
-    setTasks((current) => {
-      if (taskEditorMode === "edit" && activeTaskId) {
-        return current.map((task) => (task.id === activeTaskId ? payload : task));
-      }
+    const isEdit = taskEditorMode === "edit" && activeTaskId;
+    const ok = await runMutation(
+      isEdit ? `/api/tasks/${activeTaskId}` : "/api/tasks",
+      {
+        method: isEdit ? "PATCH" : "POST",
+        body: JSON.stringify(payload),
+      },
+    );
 
-      return [payload, ...current];
-    });
-    closeTaskEditor();
+    if (ok) {
+      closeTaskEditor();
+    }
   };
 
   const openCreateMilestoneEditor = () => {
@@ -1221,7 +1151,7 @@ export default function App() {
     setMilestoneError(null);
   };
 
-  const saveMilestoneDraft = () => {
+  const saveMilestoneDraft = async () => {
     const title = milestoneDraft.title.trim();
 
     if (!milestoneStartDate || !title) {
@@ -1250,8 +1180,7 @@ export default function App() {
       return;
     }
 
-    const payload: Event = {
-      id: activeMilestoneId ?? buildId("event", title),
+    const payload = {
       title,
       type: milestoneDraft.type,
       startDateTime,
@@ -1261,44 +1190,46 @@ export default function App() {
       relatedSubsystemIds: Array.from(new Set(parsedSubsystemIds)),
     };
 
-    setEvents((current) => {
-      if (milestoneEditorMode === "edit" && activeMilestoneId) {
-        return current.map((event) =>
-          event.id === activeMilestoneId ? payload : event,
-        );
-      }
+    const isEdit = milestoneEditorMode === "edit" && activeMilestoneId;
+    const ok = await runMutation(
+      isEdit ? `/api/events/${activeMilestoneId}` : "/api/events",
+      {
+        method: isEdit ? "PATCH" : "POST",
+        body: JSON.stringify(payload),
+      },
+    );
 
-      return [payload, ...current];
-    });
-
-    closeMilestoneEditor();
+    if (ok) {
+      closeMilestoneEditor();
+    }
   };
 
-  const deleteMilestoneDraft = () => {
+  const deleteMilestoneDraft = async () => {
     if (!activeMilestoneId) {
       return;
     }
 
-    setEvents((current) => current.filter((event) => event.id !== activeMilestoneId));
-    setTasks((current) =>
-      current.map((task) => {
-        if (task.targetEventId !== activeMilestoneId) {
-          return task;
-        }
+    const ok = await runMutation(`/api/events/${activeMilestoneId}`, {
+      method: "DELETE",
+    });
 
-        return { ...task, targetEventId: null };
-      }),
-    );
-    closeMilestoneEditor();
+    if (ok) {
+      closeMilestoneEditor();
+    }
   };
 
-  const deleteTaskDraft = () => {
+  const deleteTaskDraft = async () => {
     if (!activeTaskId) {
       return;
     }
 
-    setTasks((current) => current.filter((task) => task.id !== activeTaskId));
-    closeTaskEditor();
+    const ok = await runMutation(`/api/tasks/${activeTaskId}`, {
+      method: "DELETE",
+    });
+
+    if (ok) {
+      closeTaskEditor();
+    }
   };
 
   const openCreateWorkLogEditor = () => {
@@ -1324,7 +1255,7 @@ export default function App() {
     setActiveWorkLogId(null);
   };
 
-  const saveWorkLogDraft = () => {
+  const saveWorkLogDraft = async () => {
     const participants = splitList(workLogDraft.participantIdsText).filter((participantId) =>
       members.some((member) => member.id === participantId),
     );
@@ -1334,8 +1265,7 @@ export default function App() {
       return;
     }
 
-    const payload: WorkLog = {
-      id: activeWorkLogId ?? buildId("log", workLogDraft.taskId),
+    const payload = {
       taskId: workLogDraft.taskId,
       date: workLogDraft.date || isoToday(),
       hours: parsedHours,
@@ -1343,23 +1273,32 @@ export default function App() {
       notes: workLogDraft.notes.trim(),
     };
 
-    setWorkLogs((current) => {
-      if (workLogEditorMode === "edit" && activeWorkLogId) {
-        return current.map((workLog) => (workLog.id === activeWorkLogId ? payload : workLog));
-      }
+    const isEdit = workLogEditorMode === "edit" && activeWorkLogId;
+    const ok = await runMutation(
+      isEdit ? `/api/work-logs/${activeWorkLogId}` : "/api/work-logs",
+      {
+        method: isEdit ? "PATCH" : "POST",
+        body: JSON.stringify(payload),
+      },
+    );
 
-      return [payload, ...current];
-    });
-    closeWorkLogEditor();
+    if (ok) {
+      closeWorkLogEditor();
+    }
   };
 
-  const deleteWorkLogDraft = () => {
+  const deleteWorkLogDraft = async () => {
     if (!activeWorkLogId) {
       return;
     }
 
-    setWorkLogs((current) => current.filter((workLog) => workLog.id !== activeWorkLogId));
-    closeWorkLogEditor();
+    const ok = await runMutation(`/api/work-logs/${activeWorkLogId}`, {
+      method: "DELETE",
+    });
+
+    if (ok) {
+      closeWorkLogEditor();
+    }
   };
 
   const openCreateManufacturingEditor = () => {
@@ -1392,9 +1331,8 @@ export default function App() {
     setActiveManufacturingId(null);
   };
 
-  const saveManufacturingDraft = () => {
+  const saveManufacturingDraft = async () => {
     const parsedQty = Number(manufacturingDraft.quantity);
-    const parsedQa = Number(manufacturingDraft.qaReviewCount);
 
     if (
       !manufacturingDraft.title.trim() ||
@@ -1406,8 +1344,7 @@ export default function App() {
       return;
     }
 
-    const payload: ManufacturingItem = {
-      id: activeManufacturingId ?? buildId("mf", manufacturingDraft.title),
+    const payload = {
       title: manufacturingDraft.title.trim(),
       subsystemId: manufacturingDraft.subsystemId,
       requestedById: manufacturingDraft.requestedById,
@@ -1418,26 +1355,34 @@ export default function App() {
       status: manufacturingDraft.status,
       mentorReviewed: manufacturingDraft.mentorReviewed,
       batchLabel: manufacturingDraft.batchLabel.trim() || undefined,
-      qaReviewCount: Number.isNaN(parsedQa) ? 0 : Math.max(0, parsedQa),
     };
 
-    setManufacturingItems((current) => {
-      if (manufacturingEditorMode === "edit" && activeManufacturingId) {
-        return current.map((item) => (item.id === activeManufacturingId ? payload : item));
-      }
+    const isEdit = manufacturingEditorMode === "edit" && activeManufacturingId;
+    const ok = await runMutation(
+      isEdit ? `/api/manufacturing/${activeManufacturingId}` : "/api/manufacturing",
+      {
+        method: isEdit ? "PATCH" : "POST",
+        body: JSON.stringify(payload),
+      },
+    );
 
-      return [payload, ...current];
-    });
-    closeManufacturingEditor();
+    if (ok) {
+      closeManufacturingEditor();
+    }
   };
 
-  const deleteManufacturingDraft = () => {
+  const deleteManufacturingDraft = async () => {
     if (!activeManufacturingId) {
       return;
     }
 
-    setManufacturingItems((current) => current.filter((item) => item.id !== activeManufacturingId));
-    closeManufacturingEditor();
+    const ok = await runMutation(`/api/manufacturing/${activeManufacturingId}`, {
+      method: "DELETE",
+    });
+
+    if (ok) {
+      closeManufacturingEditor();
+    }
   };
 
   const openCreatePurchaseEditor = () => {
@@ -1462,7 +1407,7 @@ export default function App() {
     setActivePurchaseId(null);
   };
 
-  const savePurchaseDraft = () => {
+  const savePurchaseDraft = async () => {
     const parsedQty = Number(purchaseDraft.quantity);
     const parsedEstimate = Number(purchaseDraft.estimatedCost);
     const parsedFinal = purchaseDraft.finalCost.trim() ? Number(purchaseDraft.finalCost) : undefined;
@@ -1478,8 +1423,7 @@ export default function App() {
       return;
     }
 
-    const payload: PurchaseItem = {
-      id: activePurchaseId ?? buildId("buy", purchaseDraft.title),
+    const payload = {
       title: purchaseDraft.title.trim(),
       subsystemId: purchaseDraft.subsystemId,
       requestedById: purchaseDraft.requestedById,
@@ -1493,23 +1437,32 @@ export default function App() {
       status: purchaseDraft.status,
     };
 
-    setPurchaseItems((current) => {
-      if (purchaseEditorMode === "edit" && activePurchaseId) {
-        return current.map((item) => (item.id === activePurchaseId ? payload : item));
-      }
+    const isEdit = purchaseEditorMode === "edit" && activePurchaseId;
+    const ok = await runMutation(
+      isEdit ? `/api/purchases/${activePurchaseId}` : "/api/purchases",
+      {
+        method: isEdit ? "PATCH" : "POST",
+        body: JSON.stringify(payload),
+      },
+    );
 
-      return [payload, ...current];
-    });
-    closePurchaseEditor();
+    if (ok) {
+      closePurchaseEditor();
+    }
   };
 
-  const deletePurchaseDraft = () => {
+  const deletePurchaseDraft = async () => {
     if (!activePurchaseId) {
       return;
     }
 
-    setPurchaseItems((current) => current.filter((item) => item.id !== activePurchaseId));
-    closePurchaseEditor();
+    const ok = await runMutation(`/api/purchases/${activePurchaseId}`, {
+      method: "DELETE",
+    });
+
+    if (ok) {
+      closePurchaseEditor();
+    }
   };
 
   const openCreateMemberEditor = () => {
@@ -1534,34 +1487,42 @@ export default function App() {
     setActiveMemberId(null);
   };
 
-  const saveMemberDraft = () => {
+  const saveMemberDraft = async () => {
     if (!memberDraft.name.trim()) {
       return;
     }
 
     const payload = {
-      id: activeMemberId ?? buildId("member", memberDraft.name),
       name: memberDraft.name.trim(),
       role: memberDraft.role,
     };
 
-    setMembers((current) => {
-      if (memberEditorMode === "edit" && activeMemberId) {
-        return current.map((member) => (member.id === activeMemberId ? payload : member));
-      }
+    const isEdit = memberEditorMode === "edit" && activeMemberId;
+    const ok = await runMutation(
+      isEdit ? `/api/members/${activeMemberId}` : "/api/members",
+      {
+        method: isEdit ? "PATCH" : "POST",
+        body: JSON.stringify(payload),
+      },
+    );
 
-      return [payload, ...current];
-    });
-    closeMemberEditor();
+    if (ok) {
+      closeMemberEditor();
+    }
   };
 
-  const deleteMemberDraft = () => {
+  const deleteMemberDraft = async () => {
     if (!activeMemberId) {
       return;
     }
 
-    setMembers((current) => current.filter((member) => member.id !== activeMemberId));
-    closeMemberEditor();
+    const ok = await runMutation(`/api/members/${activeMemberId}`, {
+      method: "DELETE",
+    });
+
+    if (ok) {
+      closeMemberEditor();
+    }
   };
 
   const openCreateSubsystemEditor = () => {
@@ -1585,46 +1546,53 @@ export default function App() {
     setActiveSubsystemId(null);
   };
 
-  const saveSubsystemDraft = () => {
+  const saveSubsystemDraft = async () => {
     const mentors = splitList(subsystemDraft.mentorIdsText).filter((mentorId) =>
       members.some((member) => member.id === mentorId),
     );
     const risks = splitList(subsystemDraft.risksText);
+    const name = subsystemDraft.name.trim();
+    const description = subsystemDraft.description.trim() || "No description provided.";
 
-    if (!subsystemDraft.name.trim() || !subsystemDraft.responsibleEngineerId) {
+    if (!name || !subsystemDraft.responsibleEngineerId) {
       return;
     }
 
-    const payload: Subsystem = {
-      id: activeSubsystemId ?? buildId("subsystem", subsystemDraft.name),
-      name: subsystemDraft.name.trim(),
-      description: subsystemDraft.description.trim(),
-      isCore: false,
+    const payload = {
+      name,
+      description,
       parentSubsystemId: null,
       responsibleEngineerId: subsystemDraft.responsibleEngineerId,
       mentorIds: mentors,
       risks,
     };
 
-    setSubsystems((current) => {
-      if (subsystemEditorMode === "edit" && activeSubsystemId) {
-        return current.map((subsystem) =>
-          subsystem.id === activeSubsystemId ? payload : subsystem,
-        );
-      }
+    const isEdit = subsystemEditorMode === "edit" && activeSubsystemId;
+    const ok = await runMutation(
+      isEdit ? `/api/subsystems/${activeSubsystemId}` : "/api/subsystems",
+      {
+        method: isEdit ? "PATCH" : "POST",
+        body: JSON.stringify(payload),
+      },
+    );
 
-      return [payload, ...current];
-    });
-    closeSubsystemEditor();
+    if (ok) {
+      closeSubsystemEditor();
+    }
   };
 
-  const deleteSubsystemDraft = () => {
+  const deleteSubsystemDraft = async () => {
     if (!activeSubsystemId) {
       return;
     }
 
-    setSubsystems((current) => current.filter((subsystem) => subsystem.id !== activeSubsystemId));
-    closeSubsystemEditor();
+    const ok = await runMutation(`/api/subsystems/${activeSubsystemId}`, {
+      method: "DELETE",
+    });
+
+    if (ok) {
+      closeSubsystemEditor();
+    }
   };
 
   const openCreatePartDefinitionEditor = () => {
@@ -1649,53 +1617,51 @@ export default function App() {
     setActivePartDefinitionId(null);
   };
 
-  const savePartDefinitionDraft = () => {
+  const savePartDefinitionDraft = async () => {
     if (!partDefinitionDraft.name.trim() || !partDefinitionDraft.partNumber.trim()) {
       return;
     }
 
     const payload = {
-      id: activePartDefinitionId ?? buildId("part", partDefinitionDraft.name),
       name: partDefinitionDraft.name.trim(),
       partNumber: partDefinitionDraft.partNumber.trim(),
       revision: partDefinitionDraft.revision.trim() || "A",
       type: partDefinitionDraft.type.trim() || "custom",
       source: partDefinitionDraft.source.trim() || "unknown",
+      description: "",
     };
 
-    setPartDefinitions((current) => {
-      if (partDefinitionEditorMode === "edit" && activePartDefinitionId) {
-        return current.map((partDefinition) =>
-          partDefinition.id === activePartDefinitionId ? payload : partDefinition,
-        );
-      }
+    const isEdit = partDefinitionEditorMode === "edit" && activePartDefinitionId;
+    const ok = await runMutation(
+      isEdit
+        ? `/api/part-definitions/${activePartDefinitionId}`
+        : "/api/part-definitions",
+      {
+        method: isEdit ? "PATCH" : "POST",
+        body: JSON.stringify(payload),
+      },
+    );
 
-      return [payload, ...current];
-    });
-    closePartDefinitionEditor();
+    if (ok) {
+      closePartDefinitionEditor();
+    }
   };
 
-  const deletePartDefinitionDraft = () => {
+  const deletePartDefinitionDraft = async () => {
     if (!activePartDefinitionId) {
       return;
     }
 
-    setPartDefinitions((current) =>
-      current.filter((partDefinition) => partDefinition.id !== activePartDefinitionId),
-    );
-    closePartDefinitionEditor();
+    const ok = await runMutation(`/api/part-definitions/${activePartDefinitionId}`, {
+      method: "DELETE",
+    });
+
+    if (ok) {
+      closePartDefinitionEditor();
+    }
   };
 
   const resetWorkspaceData = () => {
-    setMembers(mecoSnapshot.members);
-    setSubsystems(mecoSnapshot.subsystems);
-    setTasks(mecoSnapshot.tasks);
-    setEvents(mecoSnapshot.events);
-    setWorkLogs(mecoSnapshot.workLogs);
-    setManufacturingItems(mecoSnapshot.manufacturingItems);
-    setPurchaseItems(mecoSnapshot.purchaseItems);
-    setPartDefinitions(mecoSnapshot.partDefinitions);
-    setPartInstances(mecoSnapshot.partInstances);
     setActivePersonFilter("all");
     closeTaskEditor();
     closeWorkLogEditor();
@@ -1705,6 +1671,7 @@ export default function App() {
     closeMemberEditor();
     closeSubsystemEditor();
     closePartDefinitionEditor();
+    void syncFromBackend();
   };
 
   const renderTaskTimeline = () => {
@@ -1723,7 +1690,9 @@ export default function App() {
         {timelineTasks.map((task) => {
           const progress = timelineProgress(task.status);
           const subsystemName = subsystemsById[task.subsystemId]?.name ?? "Unknown";
-          const ownerName = membersById[task.ownerId]?.name ?? "Unassigned";
+          const ownerName = task.ownerId
+            ? (membersById[task.ownerId]?.name ?? "Unassigned")
+            : "Unassigned";
 
           return (
             <Pressable
@@ -1808,16 +1777,20 @@ export default function App() {
 
         <SummaryRow chips={taskSummary} />
 
-        <View style={styles.tableHeaderRow}>
-          <Text style={[styles.tableHeaderText, styles.tableHeaderPrimary]}>Task</Text>
-          <Text style={styles.tableHeaderText}>Owner</Text>
-          <Text style={styles.tableHeaderText}>Due</Text>
-          <Text style={styles.tableHeaderText}>Status</Text>
-        </View>
+        {!isCompactLayout ? (
+          <View style={styles.tableHeaderRow}>
+            <Text style={[styles.tableHeaderText, styles.tableHeaderPrimary]}>Task</Text>
+            <Text style={styles.tableHeaderText}>Owner</Text>
+            <Text style={styles.tableHeaderText}>Due</Text>
+            <Text style={styles.tableHeaderText}>Status</Text>
+          </View>
+        ) : null}
 
         {filteredTaskQueue.map((task) => {
           const subsystemName = subsystemsById[task.subsystemId]?.name ?? "Unknown";
-          const ownerName = membersById[task.ownerId]?.name ?? "Unassigned";
+          const ownerName = task.ownerId
+            ? (membersById[task.ownerId]?.name ?? "Unassigned")
+            : "Unassigned";
           const disciplineName = disciplinesById[task.disciplineId]?.name ?? "Unknown discipline";
           const mechanismName = task.mechanismId
             ? (mechanismsById[task.mechanismId]?.name ?? "Unknown mechanism")
@@ -1934,29 +1907,31 @@ export default function App() {
 
         <SummaryRow chips={milestoneSummary} />
 
-        <View style={styles.tableHeaderRow}>
-          <Pressable
-            onPress={() => toggleMilestoneSort("title")}
-            style={styles.tableHeaderButtonPrimary}
-          >
-            <Text style={[styles.tableHeaderText, styles.tableHeaderPrimary]}>
-              Milestone{getMilestoneSortIcon("title")}
-            </Text>
-          </Pressable>
-          <Pressable onPress={() => toggleMilestoneSort("type")} style={styles.tableHeaderButton}>
-            <Text style={styles.tableHeaderText}>Type{getMilestoneSortIcon("type")}</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => toggleMilestoneSort("startDateTime")}
-            style={styles.tableHeaderButton}
-          >
-            <Text style={styles.tableHeaderText}>
-              Start{getMilestoneSortIcon("startDateTime")}
-            </Text>
-          </Pressable>
-          <Text style={styles.tableHeaderText}>End</Text>
-          <Text style={styles.tableHeaderText}>Subsystems</Text>
-        </View>
+        {!isCompactLayout ? (
+          <View style={styles.tableHeaderRow}>
+            <Pressable
+              onPress={() => toggleMilestoneSort("title")}
+              style={styles.tableHeaderButtonPrimary}
+            >
+              <Text style={[styles.tableHeaderText, styles.tableHeaderPrimary]}>
+                Milestone{getMilestoneSortIcon("title")}
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => toggleMilestoneSort("type")} style={styles.tableHeaderButton}>
+              <Text style={styles.tableHeaderText}>Type{getMilestoneSortIcon("type")}</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => toggleMilestoneSort("startDateTime")}
+              style={styles.tableHeaderButton}
+            >
+              <Text style={styles.tableHeaderText}>
+                Start{getMilestoneSortIcon("startDateTime")}
+              </Text>
+            </Pressable>
+            <Text style={styles.tableHeaderText}>End</Text>
+            <Text style={styles.tableHeaderText}>Subsystems</Text>
+          </View>
+        ) : null}
 
         {filteredMilestones.map((milestone) => {
           const eventStyle = EVENT_TYPE_STYLES[milestone.type];
@@ -2191,7 +2166,9 @@ export default function App() {
 
           {filteredManufacturing.map((item) => {
             const subsystemName = subsystemsById[item.subsystemId]?.name ?? "Unknown";
-            const requesterName = membersById[item.requestedById]?.name ?? "Unassigned";
+            const requesterName = item.requestedById
+              ? (membersById[item.requestedById]?.name ?? "Unassigned")
+              : "Unassigned";
 
             return (
               <Pressable
@@ -2464,7 +2441,9 @@ export default function App() {
 
         {filteredPurchases.map((item) => {
           const subsystemName = subsystemsById[item.subsystemId]?.name ?? "Unknown";
-          const requesterName = membersById[item.requestedById]?.name ?? "Unassigned";
+          const requesterName = item.requestedById
+            ? (membersById[item.requestedById]?.name ?? "Unassigned")
+            : "Unassigned";
 
           return (
             <Pressable
@@ -2531,7 +2510,7 @@ export default function App() {
   };
 
   const renderSubsystems = () => {
-    const visibleMechanismCount = mecoSnapshot.mechanisms.filter((mechanism) => {
+    const visibleMechanismCount = mechanisms.filter((mechanism) => {
       return filteredSubsystems.some((subsystem) => subsystem.id === mechanism.subsystemId);
     }).length;
 
@@ -2566,7 +2545,7 @@ export default function App() {
           const mentorNames = subsystem.mentorIds
             .map((mentorId) => membersById[mentorId]?.name ?? "Unknown")
             .join(", ");
-          const subsystemMechanisms = mecoSnapshot.mechanisms.filter(
+          const subsystemMechanisms = mechanisms.filter(
             (mechanism) => mechanism.subsystemId === subsystem.id,
           );
 
@@ -2584,7 +2563,11 @@ export default function App() {
                 <View style={styles.queueRowPrimaryText}>
                   <Text style={styles.queueRowTitle}>{subsystem.name}</Text>
                   <Text style={styles.queueRowSubtitle}>
-                    Lead {membersById[subsystem.responsibleEngineerId]?.name ?? "Unassigned"} - Mentors {mentorNames || "None"}
+                    Lead{" "}
+                    {subsystem.responsibleEngineerId
+                      ? (membersById[subsystem.responsibleEngineerId]?.name ?? "Unassigned")
+                      : "Unassigned"}{" "}
+                    - Mentors {mentorNames || "None"}
                   </Text>
                 </View>
                 <Text style={styles.editTag}>{isSelected ? "HIDE" : "OPEN"}</Text>
@@ -2637,7 +2620,7 @@ export default function App() {
 
   const renderRosterSection = (
     title: string,
-    memberList: (typeof mecoSnapshot.members)[number][],
+    memberList: (typeof members)[number][],
   ) => {
     return (
       <View style={styles.rosterSection}>
@@ -2734,11 +2717,11 @@ export default function App() {
       id: subsystem.id,
       name: subsystem.name,
     }));
-    const disciplineOptions = mecoSnapshot.disciplines.map((discipline) => ({
+    const disciplineOptions = disciplines.map((discipline) => ({
       id: discipline.id,
       name: discipline.name,
     }));
-    const mechanismOptions = mecoSnapshot.mechanisms
+    const mechanismOptions = mechanisms
       .filter((mechanism) => mechanism.subsystemId === taskDraft.subsystemId)
       .map((mechanism) => ({
         id: mechanism.id,
@@ -2787,7 +2770,7 @@ export default function App() {
             onChange={(value) =>
               setTaskDraft((current) => {
                 const subsystemId = value === "all" ? "" : value;
-                const nextMechanisms = mecoSnapshot.mechanisms.filter(
+                const nextMechanisms = mechanisms.filter(
                   (mechanism) => mechanism.subsystemId === subsystemId,
                 );
                 const mechanismId = nextMechanisms[0]?.id ?? null;
@@ -3326,6 +3309,7 @@ export default function App() {
             }
             options={[
               { id: "student", name: "Student" },
+              { id: "lead", name: "Lead" },
               { id: "mentor", name: "Mentor" },
               { id: "admin", name: "Admin" },
             ]}
@@ -3394,8 +3378,12 @@ export default function App() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
 
-      <ScrollView style={styles.screen} contentContainerStyle={styles.screenContent}>
-        <View style={styles.topbar}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        style={styles.screen}
+        contentContainerStyle={styles.screenContent}
+      >
+        <View style={[styles.topbar, isCompactLayout && styles.topbarCompact]}>
           <View style={styles.topbarLeft}>
             <Pressable
               onPress={() => setIsNavCollapsed((current) => !current)}
@@ -3406,14 +3394,21 @@ export default function App() {
 
             <View style={styles.brandWrap}>
               <Text style={styles.brandEyebrow}>MECO Robotics</Text>
-              <Text style={styles.brandTitle}>{activeTabLabel}</Text>
+              <Text
+                numberOfLines={1}
+                style={[styles.brandTitle, isCompactLayout && styles.brandTitleCompact]}
+              >
+                {activeTabLabel}
+              </Text>
             </View>
           </View>
 
-          <View style={styles.topbarRight}>
-            <View style={styles.userChip}>
-              <Text style={styles.userChipLabel}>Local access</Text>
-            </View>
+          <View style={[styles.topbarRight, isCompactLayout && styles.topbarRightCompact]}>
+            {!isVeryCompactLayout ? (
+              <View style={styles.userChip}>
+                <Text style={styles.userChipLabel}>{syncStatusLabel}</Text>
+              </View>
+            ) : null}
 
             <Pressable onPress={resetWorkspaceData} style={styles.iconButton}>
               <Text style={styles.iconButtonLabel}>REF</Text>
@@ -3421,10 +3416,20 @@ export default function App() {
           </View>
         </View>
 
+        {syncError ? (
+          <View style={styles.calloutBox}>
+            <Text style={styles.calloutTitle}>Backend sync issue</Text>
+            <Text style={styles.calloutBody}>{syncError}</Text>
+          </View>
+        ) : null}
+
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.sidebarNavRow}
+          contentContainerStyle={[
+            styles.sidebarNavRow,
+            isCompactLayout && styles.sidebarNavRowCompact,
+          ]}
         >
           {navigationItems.map((item) => {
             const isActive = activeTab === item.key;
@@ -3457,7 +3462,7 @@ export default function App() {
           })}
         </ScrollView>
 
-        <View style={styles.personFilterStrip}>
+        <View style={[styles.personFilterStrip, isCompactLayout && styles.personFilterStripCompact]}>
           <OptionChipRow
             allLabel="All people"
             onChange={setActivePersonFilter}
@@ -3472,1255 +3477,4 @@ export default function App() {
     </SafeAreaView>
   );
 }
-
-function WorkspacePanel({
-  title,
-  subtitle,
-  actions,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  actions?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <View style={styles.panel}>
-      <View style={styles.panelHeader}>
-        <View style={styles.panelHeaderCopy}>
-          <Text style={styles.panelTitle}>{title}</Text>
-          <Text style={styles.panelSubtitle}>{subtitle}</Text>
-        </View>
-        {actions ? <View style={styles.panelActions}>{actions}</View> : null}
-      </View>
-
-      <View style={styles.panelContent}>{children}</View>
-    </View>
-  );
-}
-
-function SectionTabs<T extends string>({
-  activeValue,
-  onChange,
-  options,
-}: {
-  activeValue: T;
-  onChange: (value: T) => void;
-  options: { value: T; label: string }[];
-}) {
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.sectionTabsRow}
-    >
-      {options.map((option) => {
-        const isActive = option.value === activeValue;
-
-        return (
-          <Pressable
-            key={option.value}
-            onPress={() => onChange(option.value)}
-            style={[styles.sectionTab, isActive && styles.sectionTabActive]}
-          >
-            <Text style={[styles.sectionTabLabel, isActive && styles.sectionTabLabelActive]}>
-              {option.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
-  );
-}
-
-function FilterToolbar({ children }: { children: ReactNode }) {
-  return <View style={styles.filterToolbar}>{children}</View>;
-}
-
-function SearchField({
-  placeholder,
-  value,
-  onChangeText,
-}: {
-  placeholder: string;
-  value: string;
-  onChangeText: (value: string) => void;
-}) {
-  return (
-    <View style={styles.searchFieldWrap}>
-      <TextInput
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.subtleText}
-        style={styles.searchFieldInput}
-        value={value}
-      />
-    </View>
-  );
-}
-
-function OptionChipRow({
-  allLabel,
-  options,
-  value,
-  onChange,
-}: {
-  allLabel: string;
-  options: Option[];
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.optionChipRow}
-    >
-      <Pressable
-        onPress={() => onChange("all")}
-        style={[styles.optionChip, value === "all" && styles.optionChipActive]}
-      >
-        <Text style={[styles.optionChipLabel, value === "all" && styles.optionChipLabelActive]}>
-          {allLabel}
-        </Text>
-      </Pressable>
-
-      {options.map((option) => {
-        const isActive = value === option.id;
-
-        return (
-          <Pressable
-            key={option.id}
-            onPress={() => onChange(option.id)}
-            style={[styles.optionChip, isActive && styles.optionChipActive]}
-          >
-            <Text style={[styles.optionChipLabel, isActive && styles.optionChipLabelActive]}>
-              {option.name}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
-  );
-}
-
-function SummaryRow({ chips }: { chips: SummaryChipData[] }) {
-  return (
-    <View style={styles.summaryRow}>
-      {chips.map((chip) => (
-        <View key={chip.label} style={styles.summaryChip}>
-          <Text style={styles.summaryChipLabel}>{chip.label}</Text>
-          <Text style={styles.summaryChipValue}>{chip.value}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-function StatusPill({ label, value }: { label: string; value: string }) {
-  const group = getStatusGroup(value);
-
-  return (
-    <View style={[styles.statusPill, statusToneStyles[group]]}>
-      <Text style={[styles.statusPillLabel, statusToneLabelStyles[group]]}>{label}</Text>
-    </View>
-  );
-}
-
-function InteractionNote({ text }: { text: string }) {
-  return (
-    <View style={styles.interactionNote}>
-      <Text style={styles.interactionNoteLabel}>How to use this view</Text>
-      <Text style={styles.interactionNoteText}>{text}</Text>
-    </View>
-  );
-}
-
-function EmptyState({ text }: { text: string }) {
-  return (
-    <View style={styles.emptyStateWrap}>
-      <Text style={styles.emptyStateText}>{text}</Text>
-    </View>
-  );
-}
-
-function EditorModal({
-  visible,
-  title,
-  saveLabel,
-  onSave,
-  onCancel,
-  onDelete,
-  children,
-}: {
-  visible: boolean;
-  title: string;
-  saveLabel: string;
-  onSave: () => void;
-  onCancel: () => void;
-  onDelete?: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <Modal
-      animationType="fade"
-      onRequestClose={onCancel}
-      transparent
-      visible={visible}
-    >
-      <View style={styles.modalScrim}>
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>{title}</Text>
-          <ScrollView
-            contentContainerStyle={styles.modalContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {children}
-          </ScrollView>
-          <View style={styles.modalActions}>
-            {onDelete ? (
-              <Pressable onPress={onDelete} style={styles.modalDeleteButton}>
-                <Text style={styles.modalDeleteButtonLabel}>Delete</Text>
-              </Pressable>
-            ) : null}
-            <Pressable onPress={onCancel} style={styles.modalCancelButton}>
-              <Text style={styles.modalCancelButtonLabel}>Cancel</Text>
-            </Pressable>
-            <Pressable onPress={onSave} style={styles.modalSaveButton}>
-              <Text style={styles.modalSaveButtonLabel}>{saveLabel}</Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function ModalField({
-  label,
-  value,
-  placeholder,
-  onChangeText,
-  multiline = false,
-}: {
-  label: string;
-  value: string;
-  placeholder: string;
-  onChangeText: (value: string) => void;
-  multiline?: boolean;
-}) {
-  return (
-    <View style={styles.modalField}>
-      <Text style={styles.modalFieldLabel}>{label}</Text>
-      <TextInput
-        multiline={multiline}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.subtleText}
-        style={[styles.modalFieldInput, multiline && styles.modalFieldInputMultiline]}
-        textAlignVertical={multiline ? "top" : "center"}
-        value={value}
-      />
-    </View>
-  );
-}
-
-function ToggleField({
-  label,
-  value,
-  onToggle,
-}: {
-  label: string;
-  value: boolean;
-  onToggle: (value: boolean) => void;
-}) {
-  return (
-    <Pressable
-      onPress={() => onToggle(!value)}
-      style={[styles.toggleField, value && styles.toggleFieldActive]}
-    >
-      <Text style={styles.toggleFieldLabel}>{label}</Text>
-      <Text style={[styles.toggleFieldValue, value && styles.toggleFieldValueActive]}>
-        {value ? "Yes" : "No"}
-      </Text>
-    </Pressable>
-  );
-}
-
-function buildTaskDraft(seed?: Partial<Task>): TaskDraft {
-  return {
-    title: seed?.title ?? "",
-    summary: seed?.summary ?? "",
-    subsystemId: seed?.subsystemId ?? "",
-    disciplineId: seed?.disciplineId ?? "",
-    ownerId: seed?.ownerId ?? "",
-    mentorId: seed?.mentorId ?? "",
-    dueDate: seed?.dueDate ?? isoToday(),
-    priority: seed?.priority ?? "medium",
-    status: seed?.status ?? "not-started",
-    mechanismId: seed?.mechanismId ?? null,
-    partInstanceId: seed?.partInstanceId ?? null,
-    targetEventId: seed?.targetEventId ?? null,
-    blockersText: seed?.blockers?.join(", ") ?? "",
-  };
-}
-
-function buildMilestoneDraft(seed?: Partial<Event>): MilestoneDraft {
-  return {
-    title: seed?.title ?? "",
-    type: seed?.type ?? "internal-review",
-    isExternal: seed?.isExternal ?? false,
-    description: seed?.description ?? "",
-    relatedSubsystemIdsText: seed?.relatedSubsystemIds?.join(", ") ?? "",
-  };
-}
-
-function buildWorkLogDraft(seed?: Partial<WorkLog>): WorkLogDraft {
-  return {
-    taskId: seed?.taskId ?? "",
-    date: seed?.date ?? isoToday(),
-    hours: typeof seed?.hours === "number" ? String(seed.hours) : "",
-    participantIdsText: seed?.participantIds?.join(",") ?? "",
-    notes: seed?.notes ?? "",
-  };
-}
-
-function buildManufacturingDraft(
-  process: ManufacturingItem["process"],
-  seed?: Partial<ManufacturingItem>,
-): ManufacturingDraft {
-  return {
-    title: seed?.title ?? "",
-    subsystemId: seed?.subsystemId ?? "",
-    requestedById: seed?.requestedById ?? "",
-    process: seed?.process ?? process,
-    dueDate: seed?.dueDate ?? isoToday(),
-    material: seed?.material ?? "",
-    quantity: typeof seed?.quantity === "number" ? String(seed.quantity) : "1",
-    status: seed?.status ?? "requested",
-    mentorReviewed: seed?.mentorReviewed ?? false,
-    batchLabel: seed?.batchLabel ?? "",
-    qaReviewCount: typeof seed?.qaReviewCount === "number" ? String(seed.qaReviewCount) : "0",
-  };
-}
-
-function buildPurchaseDraft(seed?: Partial<PurchaseItem>): PurchaseDraft {
-  return {
-    title: seed?.title ?? "",
-    subsystemId: seed?.subsystemId ?? "",
-    requestedById: seed?.requestedById ?? "",
-    quantity: typeof seed?.quantity === "number" ? String(seed.quantity) : "1",
-    vendor: seed?.vendor ?? "",
-    linkLabel: seed?.linkLabel ?? "",
-    estimatedCost:
-      typeof seed?.estimatedCost === "number" ? String(seed.estimatedCost) : "",
-    finalCost: typeof seed?.finalCost === "number" ? String(seed.finalCost) : "",
-    approvedByMentor: seed?.approvedByMentor ?? false,
-    status: seed?.status ?? "requested",
-  };
-}
-
-function buildMemberDraft(seed?: Partial<{ name: string; role: MemberRole }>): MemberDraft {
-  return {
-    name: seed?.name ?? "",
-    role: seed?.role ?? "student",
-  };
-}
-
-function buildSubsystemDraft(seed?: Partial<Subsystem>): SubsystemDraft {
-  return {
-    name: seed?.name ?? "",
-    description: seed?.description ?? "",
-    responsibleEngineerId: seed?.responsibleEngineerId ?? "",
-    mentorIdsText: seed?.mentorIds?.join(",") ?? "",
-    risksText: seed?.risks?.join(", ") ?? "",
-  };
-}
-
-function buildPartDefinitionDraft(
-  seed?: Partial<{
-    name: string;
-    partNumber: string;
-    revision: string;
-    type: string;
-    source: string;
-  }>,
-): PartDefinitionDraft {
-  return {
-    name: seed?.name ?? "",
-    partNumber: seed?.partNumber ?? "",
-    revision: seed?.revision ?? "A",
-    type: seed?.type ?? "custom",
-    source: seed?.source ?? "",
-  };
-}
-
-function buildId(prefix: string, seed: string) {
-  const normalized = seed
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-  const suffix = Math.random().toString(36).slice(2, 6);
-  return `${prefix}-${normalized || "item"}-${suffix}`;
-}
-
-function splitList(value: string): string[] {
-  return value
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
-function isoToday() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function getStatusGroup(value: string): StatusGroup {
-  for (const [group, candidates] of Object.entries(STATUS_GROUPS) as Array<
-    [Exclude<StatusGroup, "neutral">, Set<string>]
-  >) {
-    if (candidates.has(value)) {
-      return group;
-    }
-  }
-
-  return "neutral";
-}
-
-function timelineProgress(status: TaskStatus): number {
-  if (status === "complete") {
-    return 1;
-  }
-
-  if (status === "waiting-for-qa") {
-    return 0.8;
-  }
-
-  if (status === "in-progress") {
-    return 0.55;
-  }
-
-  return 0.18;
-}
-
-function inferMaterialCategory(materialName: string): string {
-  const name = materialName.toLowerCase();
-
-  if (name.includes("poly") || name.includes("abs") || name.includes("pla")) {
-    return "plastic";
-  }
-
-  if (name.includes("onyx") || name.includes("filament")) {
-    return "filament";
-  }
-
-  if (name.includes("wire") || name.includes("sensor") || name.includes("pcb")) {
-    return "electronics";
-  }
-
-  if (name.includes("bolt") || name.includes("screw") || name.includes("nut")) {
-    return "hardware";
-  }
-
-  if (name.includes("alu") || name.includes("steel") || name.includes("metal")) {
-    return "metal";
-  }
-
-  return "other";
-}
-
-function derivePartLifecycleStatus(
-  partInstance: PartInstance,
-  tasks: Task[],
-): PartLifecycleStatus {
-  const linkedTasks = tasks.filter((task) => task.partInstanceId === partInstance.id);
-
-  if (linkedTasks.length === 0) {
-    return "planned";
-  }
-
-  if (linkedTasks.every((task) => task.status === "complete")) {
-    return "installed";
-  }
-
-  if (linkedTasks.some((task) => task.status === "waiting-for-qa")) {
-    return "available";
-  }
-
-  if (linkedTasks.some((task) => task.status === "in-progress")) {
-    return "needed";
-  }
-
-  return "planned";
-}
-
-function formatDate(value: string) {
-  return value.slice(5);
-}
-
-function datePortion(dateTime: string) {
-  return dateTime.slice(0, 10);
-}
-
-function timePortion(dateTime: string) {
-  if (dateTime.length < 16) {
-    return "12:00";
-  }
-
-  return dateTime.slice(11, 16);
-}
-
-function buildDateTime(date: string, time: string) {
-  return `${date}T${time}:00`;
-}
-
-function compareDateTimes(a: string, b: string) {
-  return new Date(a).getTime() - new Date(b).getTime();
-}
-
-function localTodayDate() {
-  const now = new Date();
-  const offsetAdjusted = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return offsetAdjusted.toISOString().slice(0, 10);
-}
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function capitalize(value: string) {
-  if (value.length === 0) {
-    return value;
-  }
-
-  return `${value[0].toUpperCase()}${value.slice(1)}`;
-}
-
-const statusToneStyles = StyleSheet.create({
-  success: {
-    backgroundColor: "rgba(61, 153, 108, 0.16)",
-  },
-  info: {
-    backgroundColor: "rgba(76, 121, 207, 0.12)",
-  },
-  warning: {
-    backgroundColor: "rgba(233, 131, 53, 0.14)",
-  },
-  danger: {
-    backgroundColor: "rgba(234, 28, 45, 0.12)",
-  },
-  neutral: {
-    backgroundColor: "rgba(112, 128, 154, 0.16)",
-  },
-});
-
-const statusToneLabelStyles = StyleSheet.create({
-  success: {
-    color: "#246847",
-  },
-  info: {
-    color: "#275098",
-  },
-  warning: {
-    color: "#a84712",
-  },
-  danger: {
-    color: "#b31222",
-  },
-  neutral: {
-    color: "#54627b",
-  },
-});
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.canvas,
-  },
-  screen: {
-    flex: 1,
-    backgroundColor: colors.canvas,
-  },
-  screenContent: {
-    paddingBottom: spacing.xxl,
-  },
-  topbar: {
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.sm,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: spacing.sm,
-    ...shadows.card,
-  },
-  topbarLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    flex: 1,
-  },
-  topbarRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  iconButton: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.canvas,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 8,
-  },
-  iconButtonLabel: {
-    fontWeight: "800",
-    color: colors.navyInk,
-    fontSize: 12,
-    letterSpacing: 0.5,
-  },
-  brandWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-  brandEyebrow: {
-    color: colors.subtleText,
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  brandTitle: {
-    color: colors.ink,
-    fontSize: 18,
-    fontWeight: "800",
-    marginTop: 2,
-  },
-  userChip: {
-    borderRadius: 999,
-    backgroundColor: colors.navySurface,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 7,
-  },
-  userChipLabel: {
-    color: colors.navyInk,
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  sidebarNavRow: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    gap: spacing.sm,
-  },
-  personFilterStrip: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-  },
-  sidebarTab: {
-    minHeight: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  sidebarTabActive: {
-    borderColor: colors.blue,
-    backgroundColor: colors.navySurface,
-  },
-  sidebarIconBubble: {
-    width: 28,
-    height: 28,
-    borderRadius: 999,
-    backgroundColor: colors.canvas,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sidebarIconBubbleActive: {
-    backgroundColor: colors.blue,
-  },
-  sidebarIconLabel: {
-    color: colors.navyInk,
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.3,
-  },
-  sidebarIconLabelActive: {
-    color: colors.white,
-  },
-  sidebarTabLabel: {
-    color: colors.ink,
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  sidebarTabLabelActive: {
-    color: colors.navyInk,
-  },
-  sidebarCountPill: {
-    minWidth: 26,
-    height: 26,
-    borderRadius: 999,
-    backgroundColor: colors.canvas,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 6,
-  },
-  sidebarCountPillActive: {
-    backgroundColor: colors.blue,
-  },
-  sidebarCountLabel: {
-    color: colors.ink,
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  sidebarCountLabelActive: {
-    color: colors.white,
-  },
-  sectionTabsRow: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    gap: spacing.sm,
-  },
-  sectionTab: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    backgroundColor: colors.surface,
-  },
-  sectionTabActive: {
-    backgroundColor: colors.navySurface,
-    borderColor: colors.blue,
-  },
-  sectionTabLabel: {
-    color: colors.subtleText,
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  sectionTabLabelActive: {
-    color: colors.navyInk,
-  },
-  panel: {
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    borderRadius: radii.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    ...shadows.card,
-  },
-  panelHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: spacing.md,
-  },
-  panelHeaderCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  panelActions: {
-    alignItems: "flex-end",
-  },
-  panelTitle: {
-    color: colors.ink,
-    fontSize: 20,
-    fontWeight: "800",
-  },
-  panelSubtitle: {
-    color: colors.subtleText,
-    marginTop: 4,
-    lineHeight: 19,
-  },
-  panelContent: {
-    marginTop: spacing.md,
-    gap: spacing.md,
-  },
-  primaryAction: {
-    borderRadius: 999,
-    backgroundColor: colors.blue,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-  },
-  primaryActionLabel: {
-    color: colors.white,
-    fontWeight: "800",
-    fontSize: 13,
-  },
-  filterToolbar: {
-    gap: spacing.sm,
-  },
-  searchFieldWrap: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.canvas,
-    paddingHorizontal: spacing.md,
-    height: 42,
-    justifyContent: "center",
-  },
-  searchFieldInput: {
-    color: colors.ink,
-    fontSize: 14,
-  },
-  optionChipRow: {
-    gap: spacing.xs,
-  },
-  optionChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.canvas,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 7,
-  },
-  optionChipActive: {
-    backgroundColor: colors.navySurface,
-    borderColor: colors.blue,
-  },
-  optionChipLabel: {
-    color: colors.subtleText,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  optionChipLabelActive: {
-    color: colors.navyInk,
-  },
-  summaryRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  summaryChip: {
-    minWidth: 120,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.canvas,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    flex: 1,
-  },
-  summaryChipLabel: {
-    color: colors.subtleText,
-    textTransform: "uppercase",
-    fontSize: 10,
-    letterSpacing: 0.8,
-    fontWeight: "700",
-  },
-  summaryChipValue: {
-    color: colors.ink,
-    fontSize: 20,
-    fontWeight: "800",
-    marginTop: 4,
-  },
-  tableHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingBottom: 6,
-    marginTop: 2,
-  },
-  tableHeaderText: {
-    color: colors.subtleText,
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    fontWeight: "700",
-    flex: 1,
-  },
-  tableHeaderPrimary: {
-    flex: 2,
-  },
-  tableHeaderButton: {
-    flex: 1,
-    alignItems: "flex-start",
-  },
-  tableHeaderButtonPrimary: {
-    flex: 2,
-    alignItems: "flex-start",
-  },
-  queueRowCard: {
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.canvas,
-    padding: spacing.md,
-    gap: 6,
-  },
-  queueRowHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-  },
-  queueRowPrimaryText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  queueRowTitle: {
-    color: colors.ink,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  queueRowSubtitle: {
-    color: colors.subtleText,
-    fontSize: 13,
-    marginTop: 3,
-    lineHeight: 18,
-  },
-  queueRowBody: {
-    color: colors.ink,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  queueMetaLine: {
-    color: colors.subtleText,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  editTag: {
-    borderRadius: 999,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    fontSize: 11,
-    color: colors.subtleText,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-  },
-  editTagButton: {
-    borderRadius: 999,
-  },
-  queuePillRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.xs,
-    marginTop: 4,
-  },
-  statusPill: {
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  statusPillLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "capitalize",
-  },
-  calloutBox: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    padding: spacing.sm,
-    marginTop: 4,
-  },
-  calloutTitle: {
-    color: colors.orangeInk,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  calloutBody: {
-    color: colors.ink,
-    lineHeight: 19,
-  },
-  interactionNote: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: colors.border,
-    backgroundColor: colors.navySurface,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    gap: 4,
-  },
-  interactionNoteLabel: {
-    color: colors.navyInk,
-    textTransform: "uppercase",
-    letterSpacing: 0.7,
-    fontSize: 10,
-    fontWeight: "800",
-  },
-  interactionNoteText: {
-    color: colors.subtleText,
-    lineHeight: 18,
-    fontSize: 13,
-  },
-  emptyStateWrap: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: "dashed",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.canvas,
-  },
-  emptyStateText: {
-    color: colors.subtleText,
-    lineHeight: 18,
-  },
-  timelineRow: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.canvas,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  timelineRowHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: spacing.sm,
-  },
-  timelineRowText: {
-    flex: 1,
-  },
-  timelineTitle: {
-    color: colors.ink,
-    fontWeight: "800",
-    fontSize: 15,
-  },
-  timelineMeta: {
-    color: colors.subtleText,
-    fontSize: 13,
-    marginTop: 2,
-  },
-  timelineTrack: {
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: colors.track,
-    overflow: "hidden",
-  },
-  timelineFill: {
-    height: "100%",
-    backgroundColor: colors.blue,
-  },
-  subsectionLabel: {
-    color: colors.ink,
-    fontWeight: "800",
-    fontSize: 16,
-    marginTop: 2,
-  },
-  subsystemCard: {
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.canvas,
-    padding: spacing.md,
-    gap: 7,
-  },
-  subsystemCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: spacing.sm,
-  },
-  subsystemExpansion: {
-    marginTop: spacing.xs,
-    gap: spacing.xs,
-  },
-  mechanismCard: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    padding: spacing.sm,
-  },
-  rosterSection: {
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.canvas,
-    padding: spacing.md,
-    gap: spacing.xs,
-  },
-  rosterSectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  memberRow: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    padding: spacing.sm,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  memberRowSelected: {
-    borderColor: colors.blue,
-    backgroundColor: colors.navySurface,
-  },
-  memberAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 999,
-    backgroundColor: colors.navySurface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  memberAvatarLabel: {
-    color: colors.navyInk,
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  memberCopy: {
-    flex: 1,
-  },
-  memberName: {
-    color: colors.ink,
-    fontWeight: "800",
-  },
-  memberRole: {
-    color: colors.subtleText,
-    marginTop: 2,
-    fontSize: 12,
-  },
-  modalScrim: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.45)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.lg,
-  },
-  modalCard: {
-    width: "100%",
-    maxWidth: 560,
-    maxHeight: "88%",
-    borderRadius: radii.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    ...shadows.card,
-  },
-  modalTitle: {
-    color: colors.ink,
-    fontSize: 20,
-    fontWeight: "800",
-  },
-  modalContent: {
-    gap: spacing.sm,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-  },
-  modalField: {
-    gap: 6,
-  },
-  modalFieldLabel: {
-    color: colors.subtleText,
-    fontSize: 12,
-    textTransform: "uppercase",
-    letterSpacing: 0.7,
-    fontWeight: "700",
-  },
-  modalFieldInput: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.canvas,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    color: colors.ink,
-    minHeight: 42,
-  },
-  modalFieldInputMultiline: {
-    minHeight: 92,
-  },
-  toggleField: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.canvas,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  toggleFieldActive: {
-    borderColor: colors.blue,
-    backgroundColor: colors.navySurface,
-  },
-  toggleFieldLabel: {
-    color: colors.ink,
-    fontWeight: "700",
-  },
-  toggleFieldValue: {
-    color: colors.subtleText,
-    fontWeight: "700",
-  },
-  toggleFieldValueActive: {
-    color: colors.navyInk,
-  },
-  modalActions: {
-    marginTop: spacing.sm,
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: spacing.sm,
-    alignItems: "center",
-  },
-  modalDeleteButton: {
-    borderRadius: 999,
-    backgroundColor: colors.orangeSurface,
-    borderWidth: 1,
-    borderColor: colors.orange,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    marginRight: "auto",
-  },
-  modalDeleteButtonLabel: {
-    color: colors.orangeInk,
-    fontWeight: "800",
-  },
-  modalCancelButton: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.canvas,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-  },
-  modalCancelButtonLabel: {
-    color: colors.subtleText,
-    fontWeight: "700",
-  },
-  modalSaveButton: {
-    borderRadius: 999,
-    backgroundColor: colors.blue,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-  },
-  modalSaveButtonLabel: {
-    color: colors.white,
-    fontWeight: "800",
-  },
-});
 

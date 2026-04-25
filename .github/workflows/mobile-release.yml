@@ -1,0 +1,200 @@
+name: Mobile Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Optional git tag for the release (defaults to app-version + SHA)
+        required: false
+        type: string
+      release_name:
+        description: Optional release title
+        required: false
+        type: string
+      profile:
+        description: EAS build profile
+        required: true
+        default: production
+        type: string
+      draft:
+        description: Create as draft release
+        required: true
+        default: false
+        type: boolean
+  workflow_run:
+    workflows:
+      - CI
+    branches:
+      - main
+    types:
+      - completed
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_PUBLIC_API_BASE_URL: ${{ secrets.EXPO_PUBLIC_API_BASE_URL }}
+      BUILD_PROFILE: ${{ github.event.inputs.profile || 'production' }}
+    steps:
+      - name: Resolve target commit
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.sha }}
+
+      - name: Validate required secret
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "EXPO_TOKEN secret is required to run EAS builds." >&2
+            exit 1
+          fi
+          if [ -z "$EXPO_PUBLIC_API_BASE_URL" ]; then
+            echo "EXPO_PUBLIC_API_BASE_URL secret is required for mobile runtime API calls." >&2
+            exit 1
+          fi
+
+      - name: Validate app identifiers
+        run: |
+          node <<'NODE'
+          const app = require('./app.json')?.expo ?? {};
+          const missing = [];
+          if (!app?.ios?.bundleIdentifier) missing.push('expo.ios.bundleIdentifier');
+          if (!app?.android?.package) missing.push('expo.android.package');
+          if (missing.length > 0) {
+            console.error(`Missing required app identifiers in app.json: ${missing.join(', ')}`);
+            process.exit(1);
+          }
+          NODE
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Authenticate Expo / EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Sync EAS public API URL environment variable
+        run: |
+          for EAS_ENV in production preview development; do
+            npx --yes eas-cli env:create "$EAS_ENV" \
+              --name EXPO_PUBLIC_API_BASE_URL \
+              --value "$EXPO_PUBLIC_API_BASE_URL" \
+              --visibility sensitive \
+              --scope project \
+              --force \
+              --non-interactive
+          done
+
+      - name: Build iOS
+        run: eas build --platform ios --profile "$BUILD_PROFILE" --non-interactive --wait --json > ios-build.json
+
+      - name: Build Android
+        run: eas build --platform android --profile "$BUILD_PROFILE" --non-interactive --wait --json > android-build.json
+
+      - name: Extract iOS artifact metadata
+        id: ios
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const raw = JSON.parse(fs.readFileSync('ios-build.json', 'utf8'));
+          const build = Array.isArray(raw) ? raw[0] : raw;
+          const archiveUrl = build?.artifacts?.applicationArchiveUrl;
+          if (!archiveUrl) {
+            console.error('Could not find iOS application archive URL in ios-build.json');
+            process.exit(1);
+          }
+          const filename = archiveUrl.split('?')[0].split('/').pop() || 'meco-mobile-ios.ipa';
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `build_id=${build?.id ?? ''}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `url=${archiveUrl}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `filename=${filename}\n`);
+          NODE
+
+      - name: Extract Android artifact metadata
+        id: android
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const raw = JSON.parse(fs.readFileSync('android-build.json', 'utf8'));
+          const build = Array.isArray(raw) ? raw[0] : raw;
+          const archiveUrl = build?.artifacts?.applicationArchiveUrl;
+          if (!archiveUrl) {
+            console.error('Could not find Android application archive URL in android-build.json');
+            process.exit(1);
+          }
+          const filename = archiveUrl.split('?')[0].split('/').pop() || 'meco-mobile-android.aab';
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `build_id=${build?.id ?? ''}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `url=${archiveUrl}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `filename=${filename}\n`);
+          NODE
+
+      - name: Download build artifacts
+        run: |
+          mkdir -p release-artifacts
+          curl --fail --location "${{ steps.ios.outputs.url }}" --output "release-artifacts/${{ steps.ios.outputs.filename }}"
+          curl --fail --location "${{ steps.android.outputs.url }}" --output "release-artifacts/${{ steps.android.outputs.filename }}"
+
+      - name: Resolve release metadata
+        id: release_meta
+        run: |
+          APP_VERSION="$(node -e "const app = require('./app.json'); const pkg = require('./package.json'); console.log(app?.expo?.version || pkg.version || '0.0.0')")"
+          SHORT_SHA="$(echo "${{ steps.target.outputs.sha }}" | cut -c1-7)"
+
+          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            TAG="${{ github.event.inputs.release_tag }}"
+          else
+            TAG="v${APP_VERSION}-${SHORT_SHA}"
+          fi
+
+          if [ -n "${{ github.event.inputs.release_name }}" ]; then
+            NAME="${{ github.event.inputs.release_name }}"
+          else
+            NAME="MECO Mobile ${APP_VERSION} (${SHORT_SHA})"
+          fi
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            DRAFT="${{ github.event.inputs.draft }}"
+          else
+            DRAFT="false"
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "draft=$DRAFT" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_meta.outputs.tag }}
+          name: ${{ steps.release_meta.outputs.name }}
+          target_commitish: ${{ steps.target.outputs.sha }}
+          draft: ${{ steps.release_meta.outputs.draft }}
+          generate_release_notes: true
+          body: |
+            EAS build profile: `${{ env.BUILD_PROFILE }}`
+            iOS build ID: `${{ steps.ios.outputs.build_id }}`
+            Android build ID: `${{ steps.android.outputs.build_id }}`
+          files: |
+            release-artifacts/*

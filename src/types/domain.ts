@@ -1,4 +1,4 @@
-export type MemberRole = "student" | "mentor" | "admin";
+export type MemberRole = "student" | "lead" | "mentor" | "admin";
 export type EventType =
   | "drive-practice"
   | "competition"
@@ -32,21 +32,31 @@ export type PurchaseStatus =
   | "purchased"
   | "shipped"
   | "delivered";
+export type PartInstanceStatus =
+  | "planned"
+  | "needed"
+  | "available"
+  | "installed"
+  | "retired";
 export type QaResult = "pass" | "minor-fix" | "iteration-worthy";
 
 export interface Member {
   id: string;
   name: string;
   role: MemberRole;
+  email?: string;
+  elevated?: boolean;
+  seasonId?: string;
 }
 
 export interface Subsystem {
   id: string;
+  projectId?: string;
   name: string;
   description: string;
   isCore: boolean;
   parentSubsystemId: string | null;
-  responsibleEngineerId: string;
+  responsibleEngineerId: string | null;
   mentorIds: string[];
   risks: string[];
 }
@@ -80,6 +90,8 @@ export interface PartDefinition {
   revision: string;
   type: string;
   source: string;
+  materialId?: string | null;
+  description?: string;
 }
 
 export interface PartInstance {
@@ -90,20 +102,24 @@ export interface PartInstance {
   name: string;
   quantity: number;
   trackIndividually: boolean;
+  status?: PartInstanceStatus;
 }
 
 export interface Task {
   id: string;
+  projectId?: string;
+  workstreamId?: string | null;
   title: string;
   summary: string;
   subsystemId: string;
   disciplineId: string;
-  requirementId: string | null;
+  requirementId?: string | null;
   mechanismId: string | null;
   partInstanceId: string | null;
   targetEventId: string | null;
-  ownerId: string;
-  mentorId: string;
+  ownerId: string | null;
+  mentorId: string | null;
+  startDate?: string;
   dueDate: string;
   priority: TaskPriority;
   status: TaskStatus;
@@ -113,6 +129,8 @@ export interface Task {
   linkedPurchaseIds: string[];
   estimatedHours: number;
   actualHours: number;
+  requiresDocumentation?: boolean;
+  documentationLinked?: boolean;
 }
 
 export interface Event {
@@ -156,10 +174,11 @@ export interface ManufacturingItem {
   id: string;
   title: string;
   subsystemId: string;
-  requestedById: string;
+  requestedById: string | null;
   process: ManufacturingProcess;
   dueDate: string;
   material: string;
+  partDefinitionId?: string | null;
   quantity: number;
   status: ManufacturingStatus;
   mentorReviewed: boolean;
@@ -171,7 +190,8 @@ export interface PurchaseItem {
   id: string;
   title: string;
   subsystemId: string;
-  requestedById: string;
+  requestedById: string | null;
+  partDefinitionId?: string | null;
   quantity: number;
   vendor: string;
   linkLabel: string;
@@ -194,4 +214,40 @@ export interface Escalation {
   title: string;
   detail: string;
   severity: "high" | "medium";
+}
+
+export interface PlatformBootstrapPayload {
+  members: Member[];
+  subsystems: Subsystem[];
+  disciplines: Discipline[];
+  mechanisms: Mechanism[];
+  partDefinitions: PartDefinition[];
+  partInstances: PartInstance[];
+  tasks: Task[];
+  events: Event[];
+  workLogs: WorkLog[];
+  manufacturingItems: ManufacturingItem[];
+  purchaseItems: PurchaseItem[];
+}
+
+export interface PublicAuthConfig {
+  enabled: boolean;
+  googleClientId: string | null;
+  hostedDomain: string;
+  emailEnabled: boolean;
+  devBypassAvailable?: boolean;
+}
+
+export interface SessionUser {
+  accountId: string;
+  authProvider: "google" | "email";
+  email: string;
+  name: string;
+  picture: string | null;
+  hostedDomain: string;
+}
+
+export interface SessionResponse {
+  token: string;
+  user: SessionUser;
 }

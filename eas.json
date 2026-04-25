@@ -1,0 +1,13 @@
+{
+  "cli": {
+    "version": ">= 16.22.0"
+  },
+  "build": {
+    "production": {
+      "environment": "production",
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  }
+}

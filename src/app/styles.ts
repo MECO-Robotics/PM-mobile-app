@@ -1,0 +1,772 @@
+import { StyleSheet } from "react-native";
+
+import { colors, radii, shadows, spacing } from "../theme";
+export const statusToneStyles = StyleSheet.create({
+  success: {
+    backgroundColor: "rgba(61, 153, 108, 0.16)",
+  },
+  info: {
+    backgroundColor: "rgba(76, 121, 207, 0.12)",
+  },
+  warning: {
+    backgroundColor: "rgba(233, 131, 53, 0.14)",
+  },
+  danger: {
+    backgroundColor: "rgba(234, 28, 45, 0.12)",
+  },
+  neutral: {
+    backgroundColor: "rgba(112, 128, 154, 0.16)",
+  },
+});
+
+export const statusToneLabelStyles = StyleSheet.create({
+  success: {
+    color: "#246847",
+  },
+  info: {
+    color: "#275098",
+  },
+  warning: {
+    color: "#a84712",
+  },
+  danger: {
+    color: "#b31222",
+  },
+  neutral: {
+    color: "#54627b",
+  },
+});
+
+export const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.canvas,
+  },
+  screen: {
+    flex: 1,
+    backgroundColor: colors.canvas,
+  },
+  screenContent: {
+    paddingBottom: spacing.xxl,
+  },
+  topbar: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: spacing.sm,
+    ...shadows.card,
+  },
+  topbarCompact: {
+    marginHorizontal: spacing.md,
+  },
+  topbarLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    flex: 1,
+  },
+  topbarRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  topbarRightCompact: {
+    gap: spacing.xs,
+  },
+  iconButton: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    minHeight: 40,
+    justifyContent: "center",
+  },
+  iconButtonLabel: {
+    fontWeight: "800",
+    color: colors.navyInk,
+    fontSize: 12,
+    letterSpacing: 0.5,
+  },
+  brandWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  brandEyebrow: {
+    color: colors.subtleText,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  brandTitle: {
+    color: colors.ink,
+    fontSize: 18,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  brandTitleCompact: {
+    fontSize: 16,
+  },
+  userChip: {
+    borderRadius: 999,
+    backgroundColor: colors.navySurface,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+  },
+  userChipLabel: {
+    color: colors.navyInk,
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  sidebarNavRow: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    gap: spacing.sm,
+  },
+  sidebarNavRowCompact: {
+    paddingHorizontal: spacing.md,
+  },
+  personFilterStrip: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  personFilterStripCompact: {
+    paddingHorizontal: spacing.md,
+  },
+  sidebarTab: {
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  sidebarTabActive: {
+    borderColor: colors.blue,
+    backgroundColor: colors.navySurface,
+  },
+  sidebarIconBubble: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    backgroundColor: colors.canvas,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sidebarIconBubbleActive: {
+    backgroundColor: colors.blue,
+  },
+  sidebarIconLabel: {
+    color: colors.navyInk,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  sidebarIconLabelActive: {
+    color: colors.white,
+  },
+  sidebarTabLabel: {
+    color: colors.ink,
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  sidebarTabLabelActive: {
+    color: colors.navyInk,
+  },
+  sidebarCountPill: {
+    minWidth: 26,
+    height: 26,
+    borderRadius: 999,
+    backgroundColor: colors.canvas,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+  },
+  sidebarCountPillActive: {
+    backgroundColor: colors.blue,
+  },
+  sidebarCountLabel: {
+    color: colors.ink,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  sidebarCountLabelActive: {
+    color: colors.white,
+  },
+  sectionTabsRow: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    gap: spacing.sm,
+  },
+  sectionTab: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    backgroundColor: colors.surface,
+  },
+  sectionTabActive: {
+    backgroundColor: colors.navySurface,
+    borderColor: colors.blue,
+  },
+  sectionTabLabel: {
+    color: colors.subtleText,
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  sectionTabLabelActive: {
+    color: colors.navyInk,
+  },
+  panel: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  panelCompact: {
+    marginHorizontal: spacing.md,
+  },
+  panelHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: spacing.md,
+  },
+  panelHeaderCompact: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: spacing.sm,
+  },
+  panelHeaderCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  panelActions: {
+    alignItems: "flex-end",
+  },
+  panelActionsCompact: {
+    alignItems: "stretch",
+  },
+  panelTitle: {
+    color: colors.ink,
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  panelSubtitle: {
+    color: colors.subtleText,
+    marginTop: 4,
+    lineHeight: 19,
+  },
+  panelContent: {
+    marginTop: spacing.md,
+    gap: spacing.md,
+  },
+  primaryAction: {
+    borderRadius: 999,
+    backgroundColor: colors.blue,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    minHeight: 40,
+    justifyContent: "center",
+  },
+  primaryActionLabel: {
+    color: colors.white,
+    fontWeight: "800",
+    fontSize: 13,
+  },
+  filterToolbar: {
+    gap: spacing.sm,
+  },
+  searchFieldWrap: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    paddingHorizontal: spacing.md,
+    height: 42,
+    justifyContent: "center",
+  },
+  searchFieldInput: {
+    color: colors.ink,
+    fontSize: 14,
+  },
+  optionChipRow: {
+    gap: spacing.xs,
+  },
+  optionChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+  },
+  optionChipActive: {
+    backgroundColor: colors.navySurface,
+    borderColor: colors.blue,
+  },
+  optionChipLabel: {
+    color: colors.subtleText,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  optionChipLabelActive: {
+    color: colors.navyInk,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  summaryChip: {
+    minWidth: 120,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    flex: 1,
+  },
+  summaryChipLabel: {
+    color: colors.subtleText,
+    textTransform: "uppercase",
+    fontSize: 10,
+    letterSpacing: 0.8,
+    fontWeight: "700",
+  },
+  summaryChipValue: {
+    color: colors.ink,
+    fontSize: 20,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+  tableHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingBottom: 6,
+    marginTop: 2,
+  },
+  tableHeaderText: {
+    color: colors.subtleText,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    fontWeight: "700",
+    flex: 1,
+  },
+  tableHeaderPrimary: {
+    flex: 2,
+  },
+  tableHeaderButton: {
+    flex: 1,
+    alignItems: "flex-start",
+  },
+  tableHeaderButtonPrimary: {
+    flex: 2,
+    alignItems: "flex-start",
+  },
+  queueRowCard: {
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    padding: spacing.md,
+    gap: 6,
+  },
+  queueRowHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  queueRowPrimaryText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  queueRowTitle: {
+    color: colors.ink,
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  queueRowSubtitle: {
+    color: colors.subtleText,
+    fontSize: 13,
+    marginTop: 3,
+    lineHeight: 18,
+  },
+  queueRowBody: {
+    color: colors.ink,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  queueMetaLine: {
+    color: colors.subtleText,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  editTag: {
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    fontSize: 11,
+    color: colors.subtleText,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  editTagButton: {
+    borderRadius: 999,
+  },
+  queuePillRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    marginTop: 4,
+  },
+  statusPill: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  statusPillLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "capitalize",
+  },
+  calloutBox: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.sm,
+    marginTop: 4,
+  },
+  calloutTitle: {
+    color: colors.orangeInk,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  calloutBody: {
+    color: colors.ink,
+    lineHeight: 19,
+  },
+  interactionNote: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: colors.border,
+    backgroundColor: colors.navySurface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: 4,
+  },
+  interactionNoteLabel: {
+    color: colors.navyInk,
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  interactionNoteText: {
+    color: colors.subtleText,
+    lineHeight: 18,
+    fontSize: 13,
+  },
+  emptyStateWrap: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: "dashed",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.canvas,
+  },
+  emptyStateText: {
+    color: colors.subtleText,
+    lineHeight: 18,
+  },
+  timelineRow: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  timelineRowHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+  },
+  timelineRowText: {
+    flex: 1,
+  },
+  timelineTitle: {
+    color: colors.ink,
+    fontWeight: "800",
+    fontSize: 15,
+  },
+  timelineMeta: {
+    color: colors.subtleText,
+    fontSize: 13,
+    marginTop: 2,
+  },
+  timelineTrack: {
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: colors.track,
+    overflow: "hidden",
+  },
+  timelineFill: {
+    height: "100%",
+    backgroundColor: colors.blue,
+  },
+  subsectionLabel: {
+    color: colors.ink,
+    fontWeight: "800",
+    fontSize: 16,
+    marginTop: 2,
+  },
+  subsystemCard: {
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    padding: spacing.md,
+    gap: 7,
+  },
+  subsystemCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+  },
+  subsystemExpansion: {
+    marginTop: spacing.xs,
+    gap: spacing.xs,
+  },
+  mechanismCard: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.sm,
+  },
+  rosterSection: {
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  rosterSectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  memberRow: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  memberRowSelected: {
+    borderColor: colors.blue,
+    backgroundColor: colors.navySurface,
+  },
+  memberAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    backgroundColor: colors.navySurface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  memberAvatarLabel: {
+    color: colors.navyInk,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  memberCopy: {
+    flex: 1,
+  },
+  memberName: {
+    color: colors.ink,
+    fontWeight: "800",
+  },
+  memberRole: {
+    color: colors.subtleText,
+    marginTop: 2,
+    fontSize: 12,
+  },
+  modalScrim: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.lg,
+  },
+  modalScrimCompact: {
+    padding: spacing.md,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 560,
+    maxHeight: "88%",
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    ...shadows.card,
+  },
+  modalCardCompact: {
+    maxHeight: "92%",
+    padding: spacing.sm,
+  },
+  modalTitle: {
+    color: colors.ink,
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  modalContent: {
+    gap: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+  },
+  modalField: {
+    gap: 6,
+  },
+  modalFieldLabel: {
+    color: colors.subtleText,
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+    fontWeight: "700",
+  },
+  modalFieldInput: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    color: colors.ink,
+    minHeight: 42,
+  },
+  modalFieldInputMultiline: {
+    minHeight: 92,
+  },
+  toggleField: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  toggleFieldActive: {
+    borderColor: colors.blue,
+    backgroundColor: colors.navySurface,
+  },
+  toggleFieldLabel: {
+    color: colors.ink,
+    fontWeight: "700",
+  },
+  toggleFieldValue: {
+    color: colors.subtleText,
+    fontWeight: "700",
+  },
+  toggleFieldValueActive: {
+    color: colors.navyInk,
+  },
+  modalActions: {
+    marginTop: spacing.sm,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: spacing.sm,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  modalActionsCompact: {
+    gap: spacing.xs,
+  },
+  modalActionButtonCompact: {
+    width: "100%",
+    minHeight: 40,
+    marginRight: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalDeleteButton: {
+    borderRadius: 999,
+    backgroundColor: colors.orangeSurface,
+    borderWidth: 1,
+    borderColor: colors.orange,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    marginRight: "auto",
+  },
+  modalDeleteButtonLabel: {
+    color: colors.orangeInk,
+    fontWeight: "800",
+  },
+  modalCancelButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+  },
+  modalCancelButtonLabel: {
+    color: colors.subtleText,
+    fontWeight: "700",
+  },
+  modalSaveButton: {
+    borderRadius: 999,
+    backgroundColor: colors.blue,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+  },
+  modalSaveButtonLabel: {
+    color: colors.white,
+    fontWeight: "800",
+  },
+});
+
