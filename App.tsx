@@ -1946,7 +1946,7 @@ export default function App() {
           );
         })}
 
-        <InteractionNote text={SUBVIEW_INTERACTION_GUIDANCE.timeline} />
+        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.timeline} />
       </WorkspacePanel>
     );
   };
@@ -2087,7 +2087,7 @@ export default function App() {
 
         {filteredTaskQueue.length === 0 ? <EmptyState text="No tasks match the current filters." /> : null}
 
-        <InteractionNote text={SUBVIEW_INTERACTION_GUIDANCE.queue} />
+        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.queue} />
       </WorkspacePanel>
     );
   };
@@ -2226,7 +2226,7 @@ export default function App() {
           <EmptyState text="No milestones match the current filters." />
         ) : null}
 
-        <InteractionNote text={SUBVIEW_INTERACTION_GUIDANCE.milestones} />
+        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.milestones} />
       </WorkspacePanel>
     );
   };
@@ -2323,7 +2323,7 @@ export default function App() {
 
         {filteredWorkLogs.length === 0 ? <EmptyState text="No work logs match the current filters." /> : null}
 
-        <InteractionNote text={SUBVIEW_INTERACTION_GUIDANCE.worklogs} />
+        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.worklogs} />
       </WorkspacePanel>
     );
   };
@@ -2515,7 +2515,7 @@ export default function App() {
             <EmptyState text="No manufacturing items match the current filters." />
           ) : null}
 
-          <InteractionNote text={SUBVIEW_INTERACTION_GUIDANCE[guidanceKey]} />
+          <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE[guidanceKey]} />
         </WorkspacePanel>
       </>
     );
@@ -2586,7 +2586,7 @@ export default function App() {
           <EmptyState text="No materials match the current filters." />
         ) : null}
 
-        <InteractionNote text={SUBVIEW_INTERACTION_GUIDANCE.materials} />
+        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.materials} />
       </WorkspacePanel>
     );
   };
@@ -2684,7 +2684,7 @@ export default function App() {
           <EmptyState text="No parts match the current filters." />
         ) : null}
 
-        <InteractionNote text={SUBVIEW_INTERACTION_GUIDANCE.parts} />
+        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.parts} />
       </WorkspacePanel>
     );
   };
@@ -2793,7 +2793,7 @@ export default function App() {
           <EmptyState text="No purchase items match the current filters." />
         ) : null}
 
-        <InteractionNote text={SUBVIEW_INTERACTION_GUIDANCE.purchases} />
+        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.purchases} />
       </WorkspacePanel>
     );
   };
@@ -2923,7 +2923,7 @@ export default function App() {
           <EmptyState text="No subsystems match the current search." />
         ) : null}
 
-        <InteractionNote text={SUBVIEW_INTERACTION_GUIDANCE.subsystems} />
+        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.subsystems} />
       </WorkspacePanel>
     );
   };
@@ -2995,7 +2995,7 @@ export default function App() {
         {renderRosterSection("Mentors", rosterMentors)}
         {renderRosterSection("Admins", rosterAdmins)}
 
-        <InteractionNote text={SUBVIEW_INTERACTION_GUIDANCE.roster} />
+        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.roster} />
       </WorkspacePanel>
     );
   };

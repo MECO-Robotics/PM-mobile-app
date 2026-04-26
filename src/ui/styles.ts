@@ -583,6 +583,51 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
+  tutorialBody: {
+    gap: spacing.sm,
+  },
+  tutorialControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  tutorialButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+    minWidth: 64,
+    alignItems: "center",
+  },
+  tutorialButtonPrimary: {
+    backgroundColor: colors.blue,
+    borderColor: colors.blue,
+  },
+  tutorialButtonLabel: {
+    color: colors.navyInk,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  tutorialButtonPrimaryLabel: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  tutorialDots: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    flex: 1,
+  },
+  tutorialDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 999,
+  },
   emptyStateWrap: {
     borderRadius: radii.md,
     borderWidth: 1,

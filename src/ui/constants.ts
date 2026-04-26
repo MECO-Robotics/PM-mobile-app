@@ -141,30 +141,65 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   complete: "Complete",
 };
 
-export const SUBVIEW_INTERACTION_GUIDANCE: Record<string, string> = {
-  timeline:
-    "Use the filters to focus ownership and due dates, then tap any item to inspect linked mechanism and QA status.",
-  queue:
-    "Use search and quick filters, then scan queue rows for owner, due date, status, and priority in one card.",
-  milestones:
-    "Use search and filters to review milestones, edit rows to adjust dates/type, and use Add to create new milestones tied to subsystems.",
-  worklogs:
-    "Search notes and tasks, sort by date or hours, and keep the hours, people, and touched-task metrics visible.",
-  cnc:
-    "Filter CNC jobs by subsystem, requester, material, and status to keep machine utilization visible.",
-  prints:
-    "Filter print jobs by subsystem and status, and review mentor/QA readiness before marking complete.",
-  fabrication:
-    "Track freeform fabrication requests in the same queue format used for CNC and print work.",
-  materials:
-    "Use material rollups to identify low stock and upcoming demand from the fabrication queue.",
-  parts:
-    "Review reusable definitions first, then inspect subsystem instances and lifecycle state below.",
-  purchases:
-    "Filter by status, vendor, requester, and mentor approval to keep buying decisions transparent.",
-  subsystems:
-    "Tap a subsystem card to expand mechanism coverage and compare open work against ownership.",
-  roster:
-    "Select people from each role section to keep ownership and mentor assignment easy to read.",
+export const SUBVIEW_INTERACTION_GUIDANCE: Record<string, string[]> = {
+  timeline: [
+    "Start with the nearest due date and check who owns it.",
+    "Tap a task when you need the linked subsystem, part, or event.",
+    "Use the people filter when you only want your own work or a mentor's queue.",
+  ],
+  queue: [
+    "Search by task, subsystem, owner, or part when the list gets long.",
+    "Use the chips to narrow the queue before standup or shop time.",
+    "Tap a card to update status, priority, blockers, or ownership.",
+  ],
+  milestones: [
+    "Sort the list when you need the next deadline or review first.",
+    "Open a milestone to adjust the date, type, or related subsystems.",
+    "Add new events as soon as a review, demo, or competition date is confirmed.",
+  ],
+  worklogs: [
+    "Search notes when you need to find what changed during a work session.",
+    "Sort by date or hours depending on whether you are checking recency or effort.",
+    "Open a log to fix participants, hours, or the task it belongs to.",
+  ],
+  cnc: [
+    "Use Add to request a CNC job for the active project.",
+    "Requester is filled in from the signed-in person, so students do not need to pick themselves.",
+    "Mentors can approve from the card, then the manufacturer can start, send to QA, or complete it.",
+  ],
+  prints: [
+    "Filter print jobs by subsystem, requester, material, or status.",
+    "Mentors can approve a job from the card when it is ready.",
+    "Move the job through start, QA, and complete as the part moves through the shop.",
+  ],
+  fabrication: [
+    "Use this queue for shop work that is not CNC or 3D printing.",
+    "Keep material, quantity, due date, and batch notes current.",
+    "Approve, start, QA, and complete work from the card when the job changes hands.",
+  ],
+  materials: [
+    "Check low-stock rows before approving new fabrication work.",
+    "Use the category chips to find metal, filament, hardware, or electronics quickly.",
+    "Restock from this view when upcoming demand is larger than what is on hand.",
+  ],
+  parts: [
+    "Part definitions are reusable records like part number, revision, and source.",
+    "Part instances are the copies assigned to a subsystem or mechanism.",
+    "Filter by subsystem or lifecycle state when you need to know what is needed, available, or installed.",
+  ],
+  purchases: [
+    "Search the purchase list before adding a duplicate request.",
+    "Filter by requester, vendor, status, or mentor approval during buying review.",
+    "Open a card to update cost, vendor, status, or approval details.",
+  ],
+  subsystems: [
+    "Tap a subsystem to show or hide its mechanisms.",
+    "Long-press a subsystem when you need to edit ownership, mentors, or risks.",
+    "Use this view to compare open work against subsystem responsibility.",
+  ],
+  roster: [
+    "People are grouped by role so ownership and mentor coverage are easy to scan.",
+    "Tap a person to make them the current person for filtered views.",
+    "Use Edit when a name or role needs to change.",
+  ],
 };
-
