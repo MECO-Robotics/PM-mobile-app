@@ -49,6 +49,7 @@ import {
   timePortion,
   timelineProgress,
 } from "./src/app/helpers";
+import { getResponsiveMetrics, scaleFont } from "./src/app/responsive";
 import { styles } from "./src/app/styles";
 import type {
   EditorMode,
@@ -121,8 +122,9 @@ function parseClientError(error: unknown) {
 
 export default function App() {
   const { width } = useWindowDimensions();
-  const isCompactLayout = width < 430;
-  const isVeryCompactLayout = width < 360;
+  const responsiveMetrics = useMemo(() => getResponsiveMetrics(width), [width]);
+  const isCompactLayout = responsiveMetrics.isCompact;
+  const isVeryCompactLayout = responsiveMetrics.isVeryCompact;
   const apiBaseUrl = useMemo(() => resolveApiBaseUrl(), []);
 
   const [apiToken, setApiToken] = useState<string | null>(null);
@@ -1011,6 +1013,60 @@ export default function App() {
       : backendStatus === "connecting"
         ? "Connecting"
         : "Backend offline";
+  const appResponsiveStyles = useMemo(
+    () => ({
+      topbar: {
+        marginHorizontal: responsiveMetrics.gutter,
+        paddingHorizontal: responsiveMetrics.panelPadding,
+        paddingVertical: responsiveMetrics.isVeryCompact ? 8 : 10,
+      },
+      navStrip: {
+        paddingHorizontal: responsiveMetrics.gutter,
+      },
+      iconButton: {
+        minHeight: responsiveMetrics.controlHeight,
+        paddingHorizontal: responsiveMetrics.chipPaddingHorizontal,
+      },
+      iconButtonLabel: {
+        fontSize: scaleFont(12, responsiveMetrics),
+      },
+      brandEyebrow: {
+        fontSize: scaleFont(11, responsiveMetrics),
+      },
+      brandTitle: {
+        fontSize: scaleFont(isCompactLayout ? 16 : 18, responsiveMetrics),
+      },
+      userChipLabel: {
+        fontSize: scaleFont(12, responsiveMetrics),
+      },
+      primaryAction: {
+        minHeight: responsiveMetrics.controlHeight,
+        paddingHorizontal: responsiveMetrics.chipPaddingHorizontal + 4,
+      },
+      primaryActionLabel: {
+        fontSize: scaleFont(13, responsiveMetrics),
+      },
+      rowCard: {
+        padding: responsiveMetrics.cardPadding,
+      },
+      rowTitle: {
+        fontSize: scaleFont(15, responsiveMetrics),
+      },
+      rowSubtitle: {
+        fontSize: scaleFont(13, responsiveMetrics),
+        lineHeight: scaleFont(18, responsiveMetrics),
+      },
+      rowBody: {
+        fontSize: scaleFont(14, responsiveMetrics),
+        lineHeight: scaleFont(20, responsiveMetrics),
+      },
+      metaLine: {
+        fontSize: scaleFont(13, responsiveMetrics),
+        lineHeight: scaleFont(18, responsiveMetrics),
+      },
+    }),
+    [isCompactLayout, responsiveMetrics],
+  );
 
   useEffect(() => {
     void syncFromBackend();
@@ -1680,8 +1736,8 @@ export default function App() {
         title="Task timeline"
         subtitle="Calendar-ordered milestones and ownership cues for the next execution window."
         actions={
-          <Pressable onPress={openCreateTaskEditor} style={styles.primaryAction}>
-            <Text style={styles.primaryActionLabel}>Add task</Text>
+          <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add task</Text>
           </Pressable>
         }
       >
@@ -1698,12 +1754,12 @@ export default function App() {
             <Pressable
               key={task.id}
               onPress={() => openEditTaskEditor(task)}
-              style={styles.timelineRow}
+              style={[styles.timelineRow, appResponsiveStyles.rowCard]}
             >
               <View style={styles.timelineRowHeader}>
                 <View style={styles.timelineRowText}>
-                  <Text style={styles.timelineTitle}>{task.title}</Text>
-                  <Text style={styles.timelineMeta}>
+                  <Text style={[styles.timelineTitle, appResponsiveStyles.rowTitle]}>{task.title}</Text>
+                  <Text style={[styles.timelineMeta, appResponsiveStyles.metaLine]}>
                     {subsystemName} - {ownerName} - due {formatDate(task.dueDate)}
                   </Text>
                 </View>
@@ -1728,8 +1784,8 @@ export default function App() {
         title="Task queue"
         subtitle="Search and filter queue cards to keep ownership, due dates, and QA state in view."
         actions={
-          <Pressable onPress={openCreateTaskEditor} style={styles.primaryAction}>
-            <Text style={styles.primaryActionLabel}>Add</Text>
+          <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
           </Pressable>
         }
       >
@@ -1806,24 +1862,24 @@ export default function App() {
             <Pressable
               key={task.id}
               onPress={() => openEditTaskEditor(task)}
-              style={styles.queueRowCard}
+              style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
             >
               <View style={styles.queueRowHeader}>
                 <View style={styles.queueRowPrimaryText}>
-                  <Text style={styles.queueRowTitle}>{task.title}</Text>
-                  <Text style={styles.queueRowSubtitle}>
+                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{task.title}</Text>
+                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
                     {subsystemName} - {disciplineName}
                   </Text>
                 </View>
                 <Text style={styles.editTag}>EDIT</Text>
               </View>
 
-              <Text style={styles.queueRowBody}>{task.summary}</Text>
+              <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{task.summary}</Text>
 
-              <Text style={styles.queueMetaLine}>
+              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
                 Owner {ownerName} | Due {formatDate(task.dueDate)} | Event {targetEvent}
               </Text>
-              <Text style={styles.queueMetaLine}>
+              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
                 Mechanism {mechanismName} | Part {linkedPart}
               </Text>
 
@@ -1884,8 +1940,8 @@ export default function App() {
         title="Milestones"
         subtitle="Search, filter, and edit timeline events with subsystem context and linked task impact."
         actions={
-          <Pressable onPress={openCreateMilestoneEditor} style={styles.primaryAction}>
-            <Text style={styles.primaryActionLabel}>Add</Text>
+          <Pressable onPress={openCreateMilestoneEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
           </Pressable>
         }
       >
@@ -1943,12 +1999,12 @@ export default function App() {
             <Pressable
               key={milestone.id}
               onPress={() => openEditMilestoneEditor(milestone)}
-              style={styles.queueRowCard}
+              style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
             >
               <View style={styles.queueRowHeader}>
                 <View style={styles.queueRowPrimaryText}>
-                  <Text style={styles.queueRowTitle}>{milestone.title}</Text>
-                  <Text style={styles.queueMetaLine}>
+                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{milestone.title}</Text>
+                  <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
                     {milestone.description || "No description provided."}
                   </Text>
                 </View>
@@ -1968,11 +2024,11 @@ export default function App() {
                 </View>
               </View>
 
-              <Text style={styles.queueMetaLine}>
+              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
                 Start {formatDateTime(milestone.startDateTime)} | End{" "}
                 {milestone.endDateTime ? formatDateTime(milestone.endDateTime) : "No end"}
               </Text>
-              <Text style={styles.queueMetaLine}>
+              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
                 Subsystems {subsystemNames || "All subsystems"} | {milestone.isExternal ? "External" : "Internal"}
               </Text>
             </Pressable>
@@ -2014,8 +2070,8 @@ export default function App() {
         title="Work logs"
         subtitle="Search by task or notes, then verify hours, participants, and linked subsystem impact."
         actions={
-          <Pressable onPress={openCreateWorkLogEditor} style={styles.primaryAction}>
-            <Text style={styles.primaryActionLabel}>Add</Text>
+          <Pressable onPress={openCreateWorkLogEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
           </Pressable>
         }
       >
@@ -2060,20 +2116,20 @@ export default function App() {
             <Pressable
               key={workLog.id}
               onPress={() => openEditWorkLogEditor(workLog)}
-              style={styles.queueRowCard}
+              style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
             >
               <View style={styles.queueRowHeader}>
                 <View style={styles.queueRowPrimaryText}>
-                  <Text style={styles.queueRowTitle}>{formatDate(workLog.date)}</Text>
-                  <Text style={styles.queueRowSubtitle}>{workLog.hours.toFixed(1)}h logged</Text>
+                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{formatDate(workLog.date)}</Text>
+                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>{workLog.hours.toFixed(1)}h logged</Text>
                 </View>
                 <Text style={styles.editTag}>OPEN</Text>
               </View>
 
-              <Text style={styles.queueMetaLine}>Task: {task?.title ?? "Missing task"}</Text>
-              <Text style={styles.queueMetaLine}>Subsystem: {subsystemName}</Text>
-              <Text style={styles.queueMetaLine}>People: {people.join(", ") || "Unassigned"}</Text>
-              <Text style={styles.queueRowBody}>{workLog.notes || "No notes recorded."}</Text>
+              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>Task: {task?.title ?? "Missing task"}</Text>
+              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>Subsystem: {subsystemName}</Text>
+              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>People: {people.join(", ") || "Unassigned"}</Text>
+              <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{workLog.notes || "No notes recorded."}</Text>
             </Pressable>
           );
         })}
@@ -2115,8 +2171,8 @@ export default function App() {
           title={title}
           subtitle="Unified manufacturing rows for part, material, quantity, due date, status, and mentor review."
           actions={
-            <Pressable onPress={openCreateManufacturingEditor} style={styles.primaryAction}>
-              <Text style={styles.primaryActionLabel}>Add</Text>
+            <Pressable onPress={openCreateManufacturingEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+              <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
             </Pressable>
           }
         >
@@ -2174,22 +2230,22 @@ export default function App() {
               <Pressable
                 key={item.id}
                 onPress={() => openEditManufacturingEditor(item)}
-                style={styles.queueRowCard}
+                style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
               >
                 <View style={styles.queueRowHeader}>
                   <View style={styles.queueRowPrimaryText}>
-                    <Text style={styles.queueRowTitle}>{item.title}</Text>
-                    <Text style={styles.queueRowSubtitle}>
+                    <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{item.title}</Text>
+                    <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
                       {subsystemName} - {requesterName}
                     </Text>
                   </View>
                   <Text style={styles.editTag}>EDIT</Text>
                 </View>
 
-                <Text style={styles.queueMetaLine}>
+                <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
                   Material {item.material} | Qty {item.quantity} | Due {formatDate(item.dueDate)}
                 </Text>
-                <Text style={styles.queueMetaLine}>
+                <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
                   Batch {item.batchLabel ?? "Unbatched"} | Mentor {item.mentorReviewed ? "Reviewed" : "Pending"}
                 </Text>
 
@@ -2217,8 +2273,8 @@ export default function App() {
         title="Materials manager"
         subtitle="Rollup view for material demand, inferred on-hand stock, and reorder signals."
         actions={
-          <Pressable onPress={openCreatePurchaseEditor} style={styles.primaryAction}>
-            <Text style={styles.primaryActionLabel}>Restock</Text>
+          <Pressable onPress={openCreatePurchaseEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Restock</Text>
           </Pressable>
         }
       >
@@ -2248,18 +2304,18 @@ export default function App() {
         </FilterToolbar>
 
         {filteredMaterialRollups.map((row) => (
-          <View key={row.id} style={styles.queueRowCard}>
+          <View key={row.id} style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
             <View style={styles.queueRowHeader}>
               <View style={styles.queueRowPrimaryText}>
-                <Text style={styles.queueRowTitle}>{row.name}</Text>
-                <Text style={styles.queueRowSubtitle}>
+                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{row.name}</Text>
+                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
                   {capitalize(row.category)} - vendor {row.vendor}
                 </Text>
               </View>
               <Text style={styles.editTag}>EDIT</Text>
             </View>
 
-            <Text style={styles.queueMetaLine}>
+            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
               On hand {row.onHand} | Reorder {row.reorderPoint} | Open demand {row.openDemand}
             </Text>
 
@@ -2287,8 +2343,8 @@ export default function App() {
         title="Part manager"
         subtitle="Definition catalog on top with subsystem part instances and lifecycle state below."
         actions={
-          <Pressable onPress={openCreatePartDefinitionEditor} style={styles.primaryAction}>
-            <Text style={styles.primaryActionLabel}>Add</Text>
+          <Pressable onPress={openCreatePartDefinitionEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
           </Pressable>
         }
       >
@@ -2322,19 +2378,19 @@ export default function App() {
           <Pressable
             key={partDefinition.id}
             onPress={() => openEditPartDefinitionEditor(partDefinition.id)}
-            style={styles.queueRowCard}
+            style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
           >
             <View style={styles.queueRowHeader}>
               <View style={styles.queueRowPrimaryText}>
-                <Text style={styles.queueRowTitle}>{partDefinition.name}</Text>
-                <Text style={styles.queueRowSubtitle}>
+                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{partDefinition.name}</Text>
+                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
                   {partDefinition.partNumber} - rev {partDefinition.revision}
                 </Text>
               </View>
               <Text style={styles.editTag}>EDIT</Text>
             </View>
 
-            <Text style={styles.queueMetaLine}>
+            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
               Type {partDefinition.type} | Source {partDefinition.source}
             </Text>
           </Pressable>
@@ -2349,21 +2405,21 @@ export default function App() {
           const subsystemName = subsystemsById[partInstance.subsystemId]?.name ?? "Unknown";
 
           return (
-            <View key={partInstance.id} style={styles.queueRowCard}>
+            <View key={partInstance.id} style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
               <View style={styles.queueRowHeader}>
                 <View style={styles.queueRowPrimaryText}>
-                  <Text style={styles.queueRowTitle}>{partInstance.name}</Text>
-                  <Text style={styles.queueRowSubtitle}>
+                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{partInstance.name}</Text>
+                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
                     {definition?.name ?? "Unknown definition"} - {subsystemName}
                   </Text>
                 </View>
                 <StatusPill label={status} value={status} />
               </View>
 
-              <Text style={styles.queueMetaLine}>
+              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
                 Mechanism {mechanismName} | Qty {partInstance.quantity}
               </Text>
-              <Text style={styles.queueMetaLine}>
+              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
                 Tracking {partInstance.trackIndividually ? "Individual" : "Bulk"}
               </Text>
             </View>
@@ -2385,8 +2441,8 @@ export default function App() {
         title="Purchase list"
         subtitle="Review request status, vendor, mentor approval, and cost deltas in one queue."
         actions={
-          <Pressable onPress={openCreatePurchaseEditor} style={styles.primaryAction}>
-            <Text style={styles.primaryActionLabel}>Add</Text>
+          <Pressable onPress={openCreatePurchaseEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
           </Pressable>
         }
       >
@@ -2449,22 +2505,22 @@ export default function App() {
             <Pressable
               key={item.id}
               onPress={() => openEditPurchaseEditor(item)}
-              style={styles.queueRowCard}
+              style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
             >
               <View style={styles.queueRowHeader}>
                 <View style={styles.queueRowPrimaryText}>
-                  <Text style={styles.queueRowTitle}>{item.title}</Text>
-                  <Text style={styles.queueRowSubtitle}>
+                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{item.title}</Text>
+                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
                     {subsystemName} - requester {requesterName}
                   </Text>
                 </View>
                 <Text style={styles.editTag}>EDIT</Text>
               </View>
 
-              <Text style={styles.queueMetaLine}>
+              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
                 Vendor {item.vendor} | Qty {item.quantity}
               </Text>
-              <Text style={styles.queueMetaLine}>
+              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
                 Est ${item.estimatedCost.toFixed(0)} | Final {item.finalCost ? `$${item.finalCost.toFixed(0)}` : "pending"}
               </Text>
 
@@ -2519,8 +2575,8 @@ export default function App() {
         title="Subsystem manager"
         subtitle="Review ownership, risk, and mechanism coverage with expandable subsystem cards."
         actions={
-          <Pressable onPress={openCreateSubsystemEditor} style={styles.primaryAction}>
-            <Text style={styles.primaryActionLabel}>Add subsystem</Text>
+          <Pressable onPress={openCreateSubsystemEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add subsystem</Text>
           </Pressable>
         }
       >
@@ -2550,7 +2606,7 @@ export default function App() {
           );
 
           return (
-            <View key={subsystem.id} style={styles.subsystemCard}>
+            <View key={subsystem.id} style={[styles.subsystemCard, appResponsiveStyles.rowCard]}>
               <Pressable
                 onPress={() => {
                   setSelectedSubsystemId((current) =>
@@ -2561,8 +2617,8 @@ export default function App() {
                 style={styles.subsystemCardHeader}
               >
                 <View style={styles.queueRowPrimaryText}>
-                  <Text style={styles.queueRowTitle}>{subsystem.name}</Text>
-                  <Text style={styles.queueRowSubtitle}>
+                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{subsystem.name}</Text>
+                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
                     Lead{" "}
                     {subsystem.responsibleEngineerId
                       ? (membersById[subsystem.responsibleEngineerId]?.name ?? "Unassigned")
@@ -2573,8 +2629,8 @@ export default function App() {
                 <Text style={styles.editTag}>{isSelected ? "HIDE" : "OPEN"}</Text>
               </Pressable>
 
-              <Text style={styles.queueRowBody}>{subsystem.description}</Text>
-              <Text style={styles.queueMetaLine}>
+              <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{subsystem.description}</Text>
+              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
                 Mechanisms {counts.mechanisms} | Open tasks {counts.openTasks}/{counts.tasks} | Risks {counts.risks}
               </Text>
 
@@ -2589,11 +2645,11 @@ export default function App() {
               {isSelected ? (
                 <View style={styles.subsystemExpansion}>
                   {subsystemMechanisms.map((mechanism) => (
-                    <View key={mechanism.id} style={styles.mechanismCard}>
+                    <View key={mechanism.id} style={[styles.mechanismCard, appResponsiveStyles.rowCard]}>
                       <View style={styles.queueRowHeader}>
                         <View style={styles.queueRowPrimaryText}>
-                          <Text style={styles.queueRowTitle}>{mechanism.name}</Text>
-                          <Text style={styles.queueRowBody}>{mechanism.description}</Text>
+                          <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{mechanism.name}</Text>
+                          <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{mechanism.description}</Text>
                         </View>
                         <Text style={styles.editTag}>EDIT</Text>
                       </View>
@@ -2664,8 +2720,8 @@ export default function App() {
         title="Roster"
         subtitle="Role-grouped people lists with quick selection for ownership and mentorship updates."
         actions={
-          <Pressable onPress={openCreateMemberEditor} style={styles.primaryAction}>
-            <Text style={styles.primaryActionLabel}>Add person</Text>
+          <Pressable onPress={openCreateMemberEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add person</Text>
           </Pressable>
         }
       >
@@ -3383,20 +3439,22 @@ export default function App() {
         style={styles.screen}
         contentContainerStyle={styles.screenContent}
       >
-        <View style={[styles.topbar, isCompactLayout && styles.topbarCompact]}>
+        <View style={[styles.topbar, appResponsiveStyles.topbar]}>
           <View style={styles.topbarLeft}>
             <Pressable
               onPress={() => setIsNavCollapsed((current) => !current)}
-              style={styles.iconButton}
+              style={[styles.iconButton, appResponsiveStyles.iconButton]}
             >
-              <Text style={styles.iconButtonLabel}>NAV</Text>
+              <Text style={[styles.iconButtonLabel, appResponsiveStyles.iconButtonLabel]}>NAV</Text>
             </Pressable>
 
             <View style={styles.brandWrap}>
-              <Text style={styles.brandEyebrow}>MECO Robotics</Text>
+              <Text style={[styles.brandEyebrow, appResponsiveStyles.brandEyebrow]}>
+                MECO Robotics
+              </Text>
               <Text
                 numberOfLines={1}
-                style={[styles.brandTitle, isCompactLayout && styles.brandTitleCompact]}
+                style={[styles.brandTitle, appResponsiveStyles.brandTitle]}
               >
                 {activeTabLabel}
               </Text>
@@ -3406,12 +3464,14 @@ export default function App() {
           <View style={[styles.topbarRight, isCompactLayout && styles.topbarRightCompact]}>
             {!isVeryCompactLayout ? (
               <View style={styles.userChip}>
-                <Text style={styles.userChipLabel}>{syncStatusLabel}</Text>
+                <Text style={[styles.userChipLabel, appResponsiveStyles.userChipLabel]}>
+                  {syncStatusLabel}
+                </Text>
               </View>
             ) : null}
 
-            <Pressable onPress={resetWorkspaceData} style={styles.iconButton}>
-              <Text style={styles.iconButtonLabel}>REF</Text>
+            <Pressable onPress={resetWorkspaceData} style={[styles.iconButton, appResponsiveStyles.iconButton]}>
+              <Text style={[styles.iconButtonLabel, appResponsiveStyles.iconButtonLabel]}>REF</Text>
             </Pressable>
           </View>
         </View>
@@ -3428,7 +3488,7 @@ export default function App() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={[
             styles.sidebarNavRow,
-            isCompactLayout && styles.sidebarNavRowCompact,
+            appResponsiveStyles.navStrip,
           ]}
         >
           {navigationItems.map((item) => {
@@ -3462,7 +3522,7 @@ export default function App() {
           })}
         </ScrollView>
 
-        <View style={[styles.personFilterStrip, isCompactLayout && styles.personFilterStripCompact]}>
+        <View style={[styles.personFilterStrip, appResponsiveStyles.navStrip]}>
           <OptionChipRow
             allLabel="All people"
             onChange={setActivePersonFilter}
@@ -3477,4 +3537,3 @@ export default function App() {
     </SafeAreaView>
   );
 }
-

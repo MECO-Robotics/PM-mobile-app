@@ -47,7 +47,7 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.canvas,
   },
   screenContent: {
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.xl,
   },
   topbar: {
     marginHorizontal: spacing.lg,
@@ -72,11 +72,13 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
     flex: 1,
+    minWidth: 0,
   },
   topbarRight: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+    flexShrink: 0,
   },
   topbarRightCompact: {
     gap: spacing.xs,
@@ -89,6 +91,8 @@ export const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 8,
     minHeight: 40,
+    minWidth: 40,
+    alignItems: "center",
     justifyContent: "center",
   },
   iconButtonLabel: {
@@ -127,6 +131,7 @@ export const styles = StyleSheet.create({
     color: colors.navyInk,
     fontWeight: "700",
     fontSize: 12,
+    flexShrink: 1,
   },
   sidebarNavRow: {
     paddingHorizontal: spacing.lg,
@@ -209,7 +214,7 @@ export const styles = StyleSheet.create({
   },
   sectionTabsRow: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
     gap: spacing.sm,
   },
   sectionTab: {
@@ -234,12 +239,12 @@ export const styles = StyleSheet.create({
   },
   panel: {
     marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    borderRadius: radii.xl,
+    marginTop: spacing.sm,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    padding: spacing.md,
+    padding: spacing.sm,
     ...shadows.card,
   },
   panelCompact: {
@@ -268,17 +273,18 @@ export const styles = StyleSheet.create({
   },
   panelTitle: {
     color: colors.ink,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "800",
   },
   panelSubtitle: {
     color: colors.subtleText,
     marginTop: 4,
-    lineHeight: 19,
+    lineHeight: 18,
+    fontSize: 13,
   },
   panelContent: {
-    marginTop: spacing.md,
-    gap: spacing.md,
+    marginTop: spacing.sm,
+    gap: spacing.sm,
   },
   primaryAction: {
     borderRadius: 999,
@@ -286,6 +292,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 8,
     minHeight: 40,
+    alignItems: "center",
     justifyContent: "center",
   },
   primaryActionLabel: {
@@ -308,6 +315,7 @@ export const styles = StyleSheet.create({
   searchFieldInput: {
     color: colors.ink,
     fontSize: 14,
+    minWidth: 0,
   },
   optionChipRow: {
     gap: spacing.xs,
@@ -338,13 +346,13 @@ export const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   summaryChip: {
-    minWidth: 120,
+    minWidth: 104,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.canvas,
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
+    paddingVertical: 8,
     flex: 1,
   },
   summaryChipLabel: {
@@ -356,7 +364,7 @@ export const styles = StyleSheet.create({
   },
   summaryChipValue: {
     color: colors.ink,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "800",
     marginTop: 4,
   },
@@ -389,11 +397,11 @@ export const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   queueRowCard: {
-    borderRadius: radii.lg,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.canvas,
-    padding: spacing.md,
+    padding: spacing.sm,
     gap: 6,
   },
   queueRowHeader: {
@@ -408,7 +416,7 @@ export const styles = StyleSheet.create({
   },
   queueRowTitle: {
     color: colors.ink,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
   },
   queueRowSubtitle: {
@@ -438,6 +446,7 @@ export const styles = StyleSheet.create({
     color: colors.subtleText,
     fontWeight: "700",
     letterSpacing: 0.5,
+    flexShrink: 0,
   },
   editTagButton: {
     borderRadius: 999,
@@ -478,12 +487,19 @@ export const styles = StyleSheet.create({
   interactionNote: {
     borderRadius: radii.md,
     borderWidth: 1,
-    borderStyle: "dashed",
     borderColor: colors.border,
     backgroundColor: colors.navySurface,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+  },
+  interactionNoteExpanded: {
     gap: 4,
+  },
+  interactionNoteHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
   },
   interactionNoteLabel: {
     color: colors.navyInk,
@@ -496,6 +512,11 @@ export const styles = StyleSheet.create({
     color: colors.subtleText,
     lineHeight: 18,
     fontSize: 13,
+  },
+  interactionNoteToggle: {
+    color: colors.navyInk,
+    fontSize: 12,
+    fontWeight: "800",
   },
   emptyStateWrap: {
     borderRadius: radii.md,
@@ -769,4 +790,3 @@ export const styles = StyleSheet.create({
     fontWeight: "800",
   },
 });
-

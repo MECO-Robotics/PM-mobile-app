@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useState } from "react";
 import {
   Modal,
   Pressable,
@@ -11,6 +12,7 @@ import {
 
 import { colors } from "../theme";
 import { getStatusGroup } from "./helpers";
+import { getResponsiveMetrics, scaleFont } from "./responsive";
 import { statusToneLabelStyles, statusToneStyles, styles } from "./styles";
 import type { Option, SummaryChipData } from "./types";
 export function WorkspacePanel({
@@ -25,17 +27,37 @@ export function WorkspacePanel({
   children: ReactNode;
 }) {
   const { width } = useWindowDimensions();
-  const isCompactLayout = width < 430;
+  const metrics = getResponsiveMetrics(width);
 
   return (
-    <View style={[styles.panel, isCompactLayout && styles.panelCompact]}>
-      <View style={[styles.panelHeader, isCompactLayout && styles.panelHeaderCompact]}>
+    <View
+      style={[
+        styles.panel,
+        {
+          marginHorizontal: metrics.gutter,
+          padding: metrics.panelPadding,
+        },
+      ]}
+    >
+      <View style={[styles.panelHeader, metrics.isCompact && styles.panelHeaderCompact]}>
         <View style={styles.panelHeaderCopy}>
-          <Text style={styles.panelTitle}>{title}</Text>
-          <Text style={styles.panelSubtitle}>{subtitle}</Text>
+          <Text style={[styles.panelTitle, { fontSize: scaleFont(18, metrics) }]}>
+            {title}
+          </Text>
+          <Text
+            style={[
+              styles.panelSubtitle,
+              {
+                fontSize: scaleFont(13, metrics),
+                lineHeight: scaleFont(18, metrics),
+              },
+            ]}
+          >
+            {subtitle}
+          </Text>
         </View>
         {actions ? (
-          <View style={[styles.panelActions, isCompactLayout && styles.panelActionsCompact]}>
+          <View style={[styles.panelActions, metrics.isCompact && styles.panelActionsCompact]}>
             {actions}
           </View>
         ) : null}
@@ -55,11 +77,14 @@ export function SectionTabs<T extends string>({
   onChange: (value: T) => void;
   options: { value: T; label: string }[];
 }) {
+  const { width } = useWindowDimensions();
+  const metrics = getResponsiveMetrics(width);
+
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.sectionTabsRow}
+      contentContainerStyle={[styles.sectionTabsRow, { paddingHorizontal: metrics.gutter }]}
     >
       {options.map((option) => {
         const isActive = option.value === activeValue;
@@ -68,9 +93,22 @@ export function SectionTabs<T extends string>({
           <Pressable
             key={option.value}
             onPress={() => onChange(option.value)}
-            style={[styles.sectionTab, isActive && styles.sectionTabActive]}
+            style={[
+              styles.sectionTab,
+              {
+                paddingHorizontal: metrics.chipPaddingHorizontal + 4,
+                paddingVertical: metrics.chipPaddingVertical,
+              },
+              isActive && styles.sectionTabActive,
+            ]}
           >
-            <Text style={[styles.sectionTabLabel, isActive && styles.sectionTabLabelActive]}>
+            <Text
+              style={[
+                styles.sectionTabLabel,
+                { fontSize: scaleFont(13, metrics) },
+                isActive && styles.sectionTabLabelActive,
+              ]}
+            >
               {option.label}
             </Text>
           </Pressable>
@@ -93,13 +131,24 @@ export function SearchField({
   value: string;
   onChangeText: (value: string) => void;
 }) {
+  const { width } = useWindowDimensions();
+  const metrics = getResponsiveMetrics(width);
+
   return (
-    <View style={styles.searchFieldWrap}>
+    <View
+      style={[
+        styles.searchFieldWrap,
+        {
+          height: metrics.controlHeight,
+          paddingHorizontal: metrics.chipPaddingHorizontal + 4,
+        },
+      ]}
+    >
       <TextInput
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={colors.subtleText}
-        style={styles.searchFieldInput}
+        style={[styles.searchFieldInput, { fontSize: scaleFont(14, metrics) }]}
         value={value}
       />
     </View>
@@ -117,6 +166,9 @@ export function OptionChipRow({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const { width } = useWindowDimensions();
+  const metrics = getResponsiveMetrics(width);
+
   return (
     <ScrollView
       horizontal
@@ -125,9 +177,22 @@ export function OptionChipRow({
     >
       <Pressable
         onPress={() => onChange("all")}
-        style={[styles.optionChip, value === "all" && styles.optionChipActive]}
+        style={[
+          styles.optionChip,
+          {
+            paddingHorizontal: metrics.chipPaddingHorizontal,
+            paddingVertical: metrics.chipPaddingVertical,
+          },
+          value === "all" && styles.optionChipActive,
+        ]}
       >
-        <Text style={[styles.optionChipLabel, value === "all" && styles.optionChipLabelActive]}>
+        <Text
+          style={[
+            styles.optionChipLabel,
+            { fontSize: scaleFont(12, metrics) },
+            value === "all" && styles.optionChipLabelActive,
+          ]}
+        >
           {allLabel}
         </Text>
       </Pressable>
@@ -139,9 +204,22 @@ export function OptionChipRow({
           <Pressable
             key={option.id}
             onPress={() => onChange(option.id)}
-            style={[styles.optionChip, isActive && styles.optionChipActive]}
+            style={[
+              styles.optionChip,
+              {
+                paddingHorizontal: metrics.chipPaddingHorizontal,
+                paddingVertical: metrics.chipPaddingVertical,
+              },
+              isActive && styles.optionChipActive,
+            ]}
           >
-            <Text style={[styles.optionChipLabel, isActive && styles.optionChipLabelActive]}>
+            <Text
+              style={[
+                styles.optionChipLabel,
+                { fontSize: scaleFont(12, metrics) },
+                isActive && styles.optionChipLabelActive,
+              ]}
+            >
               {option.name}
             </Text>
           </Pressable>
@@ -152,12 +230,29 @@ export function OptionChipRow({
 }
 
 export function SummaryRow({ chips }: { chips: SummaryChipData[] }) {
+  const { width } = useWindowDimensions();
+  const metrics = getResponsiveMetrics(width);
+  const minChipWidth = metrics.isVeryCompact ? 92 : 104;
+
   return (
     <View style={styles.summaryRow}>
       {chips.map((chip) => (
-        <View key={chip.label} style={styles.summaryChip}>
-          <Text style={styles.summaryChipLabel}>{chip.label}</Text>
-          <Text style={styles.summaryChipValue}>{chip.value}</Text>
+        <View
+          key={chip.label}
+          style={[
+            styles.summaryChip,
+            {
+              minWidth: minChipWidth,
+              paddingVertical: metrics.isVeryCompact ? 7 : 8,
+            },
+          ]}
+        >
+          <Text style={[styles.summaryChipLabel, { fontSize: scaleFont(10, metrics) }]}>
+            {chip.label}
+          </Text>
+          <Text style={[styles.summaryChipValue, { fontSize: scaleFont(18, metrics) }]}>
+            {chip.value}
+          </Text>
         </View>
       ))}
     </View>
@@ -166,20 +261,40 @@ export function SummaryRow({ chips }: { chips: SummaryChipData[] }) {
 
 export function StatusPill({ label, value }: { label: string; value: string }) {
   const group = getStatusGroup(value);
+  const { width } = useWindowDimensions();
+  const metrics = getResponsiveMetrics(width);
 
   return (
     <View style={[styles.statusPill, statusToneStyles[group]]}>
-      <Text style={[styles.statusPillLabel, statusToneLabelStyles[group]]}>{label}</Text>
+      <Text
+        style={[
+          styles.statusPillLabel,
+          { fontSize: scaleFont(12, metrics) },
+          statusToneLabelStyles[group],
+        ]}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
 
 export function InteractionNote({ text }: { text: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   return (
-    <View style={styles.interactionNote}>
-      <Text style={styles.interactionNoteLabel}>How to use this view</Text>
-      <Text style={styles.interactionNoteText}>{text}</Text>
-    </View>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ expanded: isExpanded }}
+      onPress={() => setIsExpanded((current) => !current)}
+      style={[styles.interactionNote, isExpanded && styles.interactionNoteExpanded]}
+    >
+      <View style={styles.interactionNoteHeader}>
+        <Text style={styles.interactionNoteLabel}>Help for this view</Text>
+        <Text style={styles.interactionNoteToggle}>{isExpanded ? "Hide" : "Show"}</Text>
+      </View>
+      {isExpanded ? <Text style={styles.interactionNoteText}>{text}</Text> : null}
+    </Pressable>
   );
 }
 
@@ -309,4 +424,3 @@ export function ToggleField({
     </Pressable>
   );
 }
-
