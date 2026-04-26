@@ -6,9 +6,10 @@
     "node": ">=20 <24"
   },
   "scripts": {
+    "postinstall": "node scripts/patch-freeport-async.js",
     "start": "expo start",
     "android": "expo start --android",
-    "ios": "expo start --ios",
+    "ios": "expo start --ios --localhost --port 8081",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

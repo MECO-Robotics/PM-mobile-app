@@ -494,6 +494,34 @@ export const styles = StyleSheet.create({
     gap: spacing.xs,
     marginTop: 4,
   },
+  quickActionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    marginTop: 4,
+  },
+  quickActionButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+  },
+  quickActionButtonPrimary: {
+    backgroundColor: colors.blue,
+    borderColor: colors.blue,
+  },
+  quickActionButtonLabel: {
+    color: colors.navyInk,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  quickActionButtonPrimaryLabel: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: "800",
+  },
   statusPill: {
     borderRadius: 6,
     paddingHorizontal: 8,

@@ -102,6 +102,7 @@ import type {
   PublicAuthConfig,
   PurchaseItem,
   SessionResponse,
+  SessionUser,
   Subsystem,
   Task,
   TaskPriority,
@@ -130,6 +131,7 @@ export default function App() {
   const apiBaseUrl = useMemo(() => resolveApiBaseUrl(), []);
 
   const [apiToken, setApiToken] = useState<string | null>(null);
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [backendStatus, setBackendStatus] = useState<
     "connecting" | "connected" | "offline"
@@ -316,6 +318,7 @@ export default function App() {
           { method: "POST" },
         );
         token = session.token;
+        setSessionUser(session.user);
       }
 
       const resolvedToken = token || null;
@@ -356,6 +359,36 @@ export default function App() {
       members.map((member) => [member.id, member]),
     ) as Record<string, (typeof members)[number]>;
   }, [members]);
+  const signedInMember = useMemo(() => {
+    const sessionName = sessionUser?.name.trim().toLowerCase();
+    const sessionEmail = sessionUser?.email.trim().toLowerCase();
+    const sessionAccount = sessionUser?.accountId.trim().toLowerCase();
+    const sessionMatch = members.find((member) => {
+      return (
+        member.id.toLowerCase() === sessionAccount ||
+        member.name.trim().toLowerCase() === sessionName ||
+        member.email?.trim().toLowerCase() === sessionEmail
+      );
+    });
+
+    if (sessionMatch) {
+      return sessionMatch;
+    }
+
+    if (selectedMemberId && membersById[selectedMemberId]) {
+      return membersById[selectedMemberId];
+    }
+
+    if (activePersonFilter !== "all" && membersById[activePersonFilter]) {
+      return membersById[activePersonFilter];
+    }
+
+    return members[0] ?? null;
+  }, [activePersonFilter, members, membersById, selectedMemberId, sessionUser]);
+  const canMentorApprove =
+    signedInMember?.role === "mentor" ||
+    signedInMember?.role === "lead" ||
+    signedInMember?.role === "admin";
 
   const subsystemsById = useMemo(() => {
     return Object.fromEntries(
@@ -1159,6 +1192,14 @@ export default function App() {
       memberAvatar: {
         backgroundColor: themeColors.navySurface,
       },
+      quickActionButton: {
+        backgroundColor: themeColors.surface,
+        borderColor: themeColors.border,
+      },
+      quickActionButtonLabel: {
+        color: themeColors.navyInk,
+        fontSize: scaleFont(12, responsiveMetrics),
+      },
     }),
     [isCompactLayout, responsiveMetrics, themeColors],
   );
@@ -1466,12 +1507,13 @@ export default function App() {
         : manufacturingView === "prints"
           ? "3d-print"
           : "fabrication";
+    const requesterId = signedInMember?.id ?? members[0]?.id ?? "";
 
     setActiveManufacturingId(null);
     setManufacturingDraft(
       buildManufacturingDraft(process, {
         subsystemId: subsystems[0]?.id ?? "",
-        requestedById: members[0]?.id ?? "",
+        requestedById: requesterId,
         dueDate: isoToday(),
       }),
     );
@@ -1541,6 +1583,35 @@ export default function App() {
     if (ok) {
       closeManufacturingEditor();
     }
+  };
+
+  const patchManufacturingItem = async (
+    item: ManufacturingItem,
+    patch: Partial<Pick<ManufacturingItem, "mentorReviewed" | "status">>,
+  ) => {
+    const nextItem = { ...item, ...patch };
+
+    setManufacturingItems((current) =>
+      current.map((manufacturingItem) =>
+        manufacturingItem.id === item.id ? nextItem : manufacturingItem,
+      ),
+    );
+
+    await runMutation(`/api/manufacturing/${item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        title: nextItem.title,
+        subsystemId: nextItem.subsystemId,
+        requestedById: nextItem.requestedById,
+        process: nextItem.process,
+        dueDate: nextItem.dueDate,
+        material: nextItem.material,
+        quantity: nextItem.quantity,
+        status: nextItem.status,
+        mentorReviewed: nextItem.mentorReviewed,
+        batchLabel: nextItem.batchLabel,
+      }),
+    });
   };
 
   const openCreatePurchaseEditor = () => {
@@ -2260,7 +2331,7 @@ export default function App() {
   const renderManufacturing = () => {
     const title =
       manufacturingView === "cnc"
-        ? "CNC queue"
+        ? "CNC"
         : manufacturingView === "prints"
           ? "3D print queue"
           : "Fabrication queue";
@@ -2341,6 +2412,11 @@ export default function App() {
             const requesterName = item.requestedById
               ? (membersById[item.requestedById]?.name ?? "Unassigned")
               : "Unassigned";
+            const canApproveItem = canMentorApprove && !item.mentorReviewed;
+            const canStartItem =
+              item.mentorReviewed &&
+              (item.status === "requested" || item.status === "approved");
+            const canCompleteItem = item.status !== "complete";
 
             return (
               <Pressable
@@ -2368,6 +2444,68 @@ export default function App() {
                 <View style={styles.queuePillRow}>
                   <StatusPill label={item.status.replace("-", " ")} value={item.status} />
                   <StatusPill label={item.process === "3d-print" ? "3D print" : item.process} value="info" />
+                </View>
+
+                <View style={styles.quickActionRow}>
+                  {canApproveItem ? (
+                    <Pressable
+                      onPress={() =>
+                        patchManufacturingItem(item, {
+                          mentorReviewed: true,
+                          status: item.status === "requested" ? "approved" : item.status,
+                        })
+                      }
+                      style={[
+                        styles.quickActionButton,
+                        appResponsiveStyles.quickActionButton,
+                        styles.quickActionButtonPrimary,
+                      ]}
+                    >
+                      <Text style={styles.quickActionButtonPrimaryLabel}>Approve</Text>
+                    </Pressable>
+                  ) : null}
+
+                  {canStartItem ? (
+                    <Pressable
+                      onPress={() =>
+                        patchManufacturingItem(item, {
+                          status: item.status === "qa" ? "qa" : "in-progress",
+                        })
+                      }
+                      style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                    >
+                      <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                        Start
+                      </Text>
+                    </Pressable>
+                  ) : null}
+
+                  {item.status === "in-progress" ? (
+                    <Pressable
+                      onPress={() => patchManufacturingItem(item, { status: "qa" })}
+                      style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                    >
+                      <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                        QA
+                      </Text>
+                    </Pressable>
+                  ) : null}
+
+                  {canCompleteItem ? (
+                    <Pressable
+                      onPress={() =>
+                        patchManufacturingItem(item, {
+                          mentorReviewed: true,
+                          status: "complete",
+                        })
+                      }
+                      style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                    >
+                      <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                        Complete
+                      </Text>
+                    </Pressable>
+                  ) : null}
                 </View>
               </Pressable>
             );
@@ -3228,42 +3366,66 @@ export default function App() {
             options={subsystemOptions}
             value={manufacturingDraft.subsystemId || "all"}
           />
-          <OptionChipRow
-            allLabel="Requester"
-            onChange={(value) =>
-              setManufacturingDraft((current) => ({
-                ...current,
-                requestedById: value === "all" ? "" : value,
-              }))
-            }
-            options={memberOptions}
-            value={manufacturingDraft.requestedById || "all"}
-          />
-          <OptionChipRow
-            allLabel="Process"
-            onChange={(value) =>
-              setManufacturingDraft((current) => ({
-                ...current,
-                process: (value === "all" ? current.process : value) as ManufacturingItem["process"],
-              }))
-            }
-            options={MANUFACTURING_VIEW_OPTIONS.map((option) => ({
-              id: option.value === "prints" ? "3d-print" : option.value,
-              name: option.label,
-            }))}
-            value={manufacturingDraft.process}
-          />
-          <OptionChipRow
-            allLabel="Status"
-            onChange={(value) =>
-              setManufacturingDraft((current) => ({
-                ...current,
-                status: (value === "all" ? "requested" : value) as ManufacturingItem["status"],
-              }))
-            }
-            options={MANUFACTURING_STATUS_OPTIONS}
-            value={manufacturingDraft.status}
-          />
+          {manufacturingEditorMode === "create" ? (
+            <View style={styles.modalField}>
+              <Text style={[styles.modalFieldLabel, { color: themeColors.subtleText }]}>
+                Requester
+              </Text>
+              <Text
+                style={[
+                  styles.modalFieldInput,
+                  {
+                    backgroundColor: themeColors.canvas,
+                    borderColor: themeColors.border,
+                    color: themeColors.ink,
+                  },
+                ]}
+              >
+                {membersById[manufacturingDraft.requestedById]?.name ??
+                  signedInMember?.name ??
+                  "Signed-in person"}
+              </Text>
+            </View>
+          ) : (
+            <>
+              <OptionChipRow
+                allLabel="Requester"
+                onChange={(value) =>
+                  setManufacturingDraft((current) => ({
+                    ...current,
+                    requestedById: value === "all" ? "" : value,
+                  }))
+                }
+                options={memberOptions}
+                value={manufacturingDraft.requestedById || "all"}
+              />
+              <OptionChipRow
+                allLabel="Process"
+                onChange={(value) =>
+                  setManufacturingDraft((current) => ({
+                    ...current,
+                    process: (value === "all" ? current.process : value) as ManufacturingItem["process"],
+                  }))
+                }
+                options={MANUFACTURING_VIEW_OPTIONS.map((option) => ({
+                  id: option.value === "prints" ? "3d-print" : option.value,
+                  name: option.label,
+                }))}
+                value={manufacturingDraft.process}
+              />
+              <OptionChipRow
+                allLabel="Status"
+                onChange={(value) =>
+                  setManufacturingDraft((current) => ({
+                    ...current,
+                    status: (value === "all" ? "requested" : value) as ManufacturingItem["status"],
+                  }))
+                }
+                options={MANUFACTURING_STATUS_OPTIONS}
+                value={manufacturingDraft.status}
+              />
+            </>
+          )}
           <ModalField
             label="Material"
             onChangeText={(value) =>
@@ -3304,13 +3466,15 @@ export default function App() {
             placeholder="0"
             value={manufacturingDraft.qaReviewCount}
           />
-          <ToggleField
-            label="Mentor reviewed"
-            onToggle={(value) =>
-              setManufacturingDraft((current) => ({ ...current, mentorReviewed: value }))
-            }
-            value={manufacturingDraft.mentorReviewed}
-          />
+          {manufacturingEditorMode === "edit" ? (
+            <ToggleField
+              label="Mentor reviewed"
+              onToggle={(value) =>
+                setManufacturingDraft((current) => ({ ...current, mentorReviewed: value }))
+              }
+              value={manufacturingDraft.mentorReviewed}
+            />
+          ) : null}
         </EditorModal>
 
         <EditorModal
