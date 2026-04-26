@@ -29,6 +29,7 @@ nvm use
 npm install
 npm run start
 npm run ios
+npm run android
 npm run typecheck
 ```
 
@@ -37,6 +38,19 @@ Do not run Expo or npm scripts with `sudo`. If `node_modules` or `.expo` become 
 ```bash
 sudo chown -R "$USER":staff .expo node_modules
 ```
+
+For the Android simulator on Windows, this repo also has Codex actions wired through
+`script/build_and_run.ps1`. Use `Run Android` in Codex or run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ./script/build_and_run.ps1 --android
+```
+
+The Android launcher uses `10.0.2.2` as the emulator route back to the Windows
+host and keeps `adb reverse tcp:8081 tcp:8081` refreshed before Expo opens.
+The local Android simulator uses `.env.local` with
+`EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:8080` so it can reach a backend running
+on the Windows host.
 
 ## Release automation
 
