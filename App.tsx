@@ -830,7 +830,7 @@ export default function App() {
       const supplied = relatedPurchases
         .filter((item) => item.status === "delivered" || item.status === "purchased")
         .reduce((sum, item) => sum + item.quantity, 0);
-      const reorderPoint = Math.max(1, Math.ceil(openDemand * 0.6));
+      const reorderPoint = Math.max(1, Math.ceil(openDemand / 2));
       const onHand = Math.max(0, supplied - Math.ceil(openDemand * 0.35));
       const category = inferMaterialCategory(materialName);
       const vendor = relatedPurchases[0]?.vendor ?? "Mixed";

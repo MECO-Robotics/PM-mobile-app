@@ -1,4 +1,4 @@
-export const brandColors = {
+ export const brandColors = {
   blue: "#16478e",
   red: "#ea1c2d",
   grey: "#bbbbbb",
