@@ -17,9 +17,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "bundleIdentifier": "org.mecorobotics.mecoops",
       "supportsTablet": true
     },
     "android": {
+      "package": "org.mecorobotics.mecoops",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
