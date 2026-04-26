@@ -117,6 +117,8 @@ export interface Task {
   mechanismId: string | null;
   partInstanceId: string | null;
   targetEventId: string | null;
+  artifactId?: string | null;
+  artifactIds?: string[];
   ownerId: string | null;
   mentorId: string | null;
   startDate?: string;
@@ -210,6 +212,30 @@ export interface QaReview {
   notes: string;
 }
 
+export interface QAFinding {
+  id: string;
+  taskId?: string | null;
+  artifactId?: string | null;
+  artifactIds?: string[];
+  [key: string]: unknown;
+}
+
+export interface TestFinding {
+  id: string;
+  taskId?: string | null;
+  artifactId?: string | null;
+  artifactIds?: string[];
+  [key: string]: unknown;
+}
+
+export interface DesignIteration {
+  id: string;
+  taskId?: string | null;
+  artifactId?: string | null;
+  artifactIds?: string[];
+  [key: string]: unknown;
+}
+
 export interface Escalation {
   title: string;
   detail: string;
@@ -228,6 +254,9 @@ export interface PlatformBootstrapPayload {
   workLogs: WorkLog[];
   manufacturingItems: ManufacturingItem[];
   purchaseItems: PurchaseItem[];
+  qaFindings?: QAFinding[];
+  testFindings?: TestFinding[];
+  designIterations?: DesignIteration[];
 }
 
 export interface PublicAuthConfig {
