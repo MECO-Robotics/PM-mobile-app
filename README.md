@@ -22,7 +22,14 @@ The new `meco-web` repo complements this app with browser-first dashboards for m
 ```bash
 npm install
 npm run start
+npm run ios
 npm run typecheck
+```
+
+Do not run Expo or npm scripts with `sudo`. If `node_modules` or `.expo` become owned by `root`, fix ownership from the repo root before starting the app:
+
+```bash
+sudo chown -R "$USER":staff .expo node_modules
 ```
 
 ## Release automation
