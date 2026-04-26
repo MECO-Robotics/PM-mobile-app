@@ -2,6 +2,9 @@
   "name": "meco-mobile",
   "version": "1.0.0",
   "main": "index.ts",
+  "engines": {
+    "node": ">=20 <24"
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",

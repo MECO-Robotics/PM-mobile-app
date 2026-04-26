@@ -10,10 +10,10 @@ import {
   View,
 } from "react-native";
 
-import { colors } from "../theme";
 import { getStatusGroup } from "./helpers";
 import { getResponsiveMetrics, scaleFont } from "./responsive";
 import { statusToneLabelStyles, statusToneStyles, styles } from "./styles";
+import { useAppTheme } from "./themeContext";
 import type { Option, SummaryChipData } from "./types";
 export function WorkspacePanel({
   title,
@@ -28,11 +28,16 @@ export function WorkspacePanel({
 }) {
   const { width } = useWindowDimensions();
   const metrics = getResponsiveMetrics(width);
+  const { colors: themeColors } = useAppTheme();
 
   return (
     <View
       style={[
         styles.panel,
+        {
+          backgroundColor: themeColors.surface,
+          borderColor: themeColors.border,
+        },
         {
           marginHorizontal: metrics.gutter,
           padding: metrics.panelPadding,
@@ -41,13 +46,19 @@ export function WorkspacePanel({
     >
       <View style={[styles.panelHeader, metrics.isCompact && styles.panelHeaderCompact]}>
         <View style={styles.panelHeaderCopy}>
-          <Text style={[styles.panelTitle, { fontSize: scaleFont(18, metrics) }]}>
+          <Text
+            style={[
+              styles.panelTitle,
+              { color: themeColors.ink, fontSize: scaleFont(18, metrics) },
+            ]}
+          >
             {title}
           </Text>
           <Text
             style={[
               styles.panelSubtitle,
               {
+                color: themeColors.subtleText,
                 fontSize: scaleFont(13, metrics),
                 lineHeight: scaleFont(18, metrics),
               },
@@ -79,6 +90,7 @@ export function SectionTabs<T extends string>({
 }) {
   const { width } = useWindowDimensions();
   const metrics = getResponsiveMetrics(width);
+  const { colors: themeColors } = useAppTheme();
 
   return (
     <ScrollView
@@ -96,17 +108,19 @@ export function SectionTabs<T extends string>({
             style={[
               styles.sectionTab,
               {
+                backgroundColor: themeColors.surface,
+                borderColor: themeColors.border,
                 paddingHorizontal: metrics.chipPaddingHorizontal + 4,
                 paddingVertical: metrics.chipPaddingVertical,
               },
-              isActive && styles.sectionTabActive,
+              isActive && [styles.sectionTabActive, { backgroundColor: themeColors.navySurface }],
             ]}
           >
             <Text
               style={[
                 styles.sectionTabLabel,
-                { fontSize: scaleFont(13, metrics) },
-                isActive && styles.sectionTabLabelActive,
+                { color: themeColors.subtleText, fontSize: scaleFont(13, metrics) },
+                isActive && [styles.sectionTabLabelActive, { color: themeColors.navyInk }],
               ]}
             >
               {option.label}
@@ -133,12 +147,15 @@ export function SearchField({
 }) {
   const { width } = useWindowDimensions();
   const metrics = getResponsiveMetrics(width);
+  const { colors: themeColors } = useAppTheme();
 
   return (
     <View
       style={[
         styles.searchFieldWrap,
         {
+          backgroundColor: themeColors.canvas,
+          borderColor: themeColors.border,
           height: metrics.controlHeight,
           paddingHorizontal: metrics.chipPaddingHorizontal + 4,
         },
@@ -147,8 +164,11 @@ export function SearchField({
       <TextInput
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={colors.subtleText}
-        style={[styles.searchFieldInput, { fontSize: scaleFont(14, metrics) }]}
+        placeholderTextColor={themeColors.subtleText}
+        style={[
+          styles.searchFieldInput,
+          { color: themeColors.ink, fontSize: scaleFont(14, metrics) },
+        ]}
         value={value}
       />
     </View>
@@ -168,6 +188,7 @@ export function OptionChipRow({
 }) {
   const { width } = useWindowDimensions();
   const metrics = getResponsiveMetrics(width);
+  const { colors: themeColors } = useAppTheme();
 
   return (
     <ScrollView
@@ -180,17 +201,22 @@ export function OptionChipRow({
         style={[
           styles.optionChip,
           {
+            backgroundColor: themeColors.canvas,
+            borderColor: themeColors.border,
             paddingHorizontal: metrics.chipPaddingHorizontal,
             paddingVertical: metrics.chipPaddingVertical,
           },
-          value === "all" && styles.optionChipActive,
+          value === "all" && [
+            styles.optionChipActive,
+            { backgroundColor: themeColors.navySurface },
+          ],
         ]}
       >
         <Text
           style={[
             styles.optionChipLabel,
-            { fontSize: scaleFont(12, metrics) },
-            value === "all" && styles.optionChipLabelActive,
+            { color: themeColors.subtleText, fontSize: scaleFont(12, metrics) },
+            value === "all" && [styles.optionChipLabelActive, { color: themeColors.navyInk }],
           ]}
         >
           {allLabel}
@@ -207,17 +233,22 @@ export function OptionChipRow({
             style={[
               styles.optionChip,
               {
+                backgroundColor: themeColors.canvas,
+                borderColor: themeColors.border,
                 paddingHorizontal: metrics.chipPaddingHorizontal,
                 paddingVertical: metrics.chipPaddingVertical,
               },
-              isActive && styles.optionChipActive,
+              isActive && [
+                styles.optionChipActive,
+                { backgroundColor: themeColors.navySurface },
+              ],
             ]}
           >
             <Text
               style={[
                 styles.optionChipLabel,
-                { fontSize: scaleFont(12, metrics) },
-                isActive && styles.optionChipLabelActive,
+                { color: themeColors.subtleText, fontSize: scaleFont(12, metrics) },
+                isActive && [styles.optionChipLabelActive, { color: themeColors.navyInk }],
               ]}
             >
               {option.name}
@@ -232,6 +263,7 @@ export function OptionChipRow({
 export function SummaryRow({ chips }: { chips: SummaryChipData[] }) {
   const { width } = useWindowDimensions();
   const metrics = getResponsiveMetrics(width);
+  const { colors: themeColors } = useAppTheme();
   const minChipWidth = metrics.isVeryCompact ? 92 : 104;
 
   return (
@@ -242,15 +274,27 @@ export function SummaryRow({ chips }: { chips: SummaryChipData[] }) {
           style={[
             styles.summaryChip,
             {
+              backgroundColor: themeColors.canvas,
+              borderColor: themeColors.border,
               minWidth: minChipWidth,
               paddingVertical: metrics.isVeryCompact ? 7 : 8,
             },
           ]}
         >
-          <Text style={[styles.summaryChipLabel, { fontSize: scaleFont(10, metrics) }]}>
+          <Text
+            style={[
+              styles.summaryChipLabel,
+              { color: themeColors.subtleText, fontSize: scaleFont(10, metrics) },
+            ]}
+          >
             {chip.label}
           </Text>
-          <Text style={[styles.summaryChipValue, { fontSize: scaleFont(18, metrics) }]}>
+          <Text
+            style={[
+              styles.summaryChipValue,
+              { color: themeColors.ink, fontSize: scaleFont(18, metrics) },
+            ]}
+          >
             {chip.value}
           </Text>
         </View>
@@ -281,27 +325,50 @@ export function StatusPill({ label, value }: { label: string; value: string }) {
 
 export function InteractionNote({ text }: { text: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const { colors: themeColors } = useAppTheme();
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ expanded: isExpanded }}
       onPress={() => setIsExpanded((current) => !current)}
-      style={[styles.interactionNote, isExpanded && styles.interactionNoteExpanded]}
+      style={[
+        styles.interactionNote,
+        {
+          backgroundColor: themeColors.navySurface,
+          borderColor: themeColors.border,
+        },
+        isExpanded && styles.interactionNoteExpanded,
+      ]}
     >
       <View style={styles.interactionNoteHeader}>
-        <Text style={styles.interactionNoteLabel}>Help for this view</Text>
-        <Text style={styles.interactionNoteToggle}>{isExpanded ? "Hide" : "Show"}</Text>
+        <Text style={[styles.interactionNoteLabel, { color: themeColors.navyInk }]}>
+          Help for this view
+        </Text>
+        <Text style={[styles.interactionNoteToggle, { color: themeColors.navyInk }]}>
+          {isExpanded ? "Hide" : "Show"}
+        </Text>
       </View>
-      {isExpanded ? <Text style={styles.interactionNoteText}>{text}</Text> : null}
+      {isExpanded ? (
+        <Text style={[styles.interactionNoteText, { color: themeColors.subtleText }]}>
+          {text}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
 
 export function EmptyState({ text }: { text: string }) {
+  const { colors: themeColors } = useAppTheme();
+
   return (
-    <View style={styles.emptyStateWrap}>
-      <Text style={styles.emptyStateText}>{text}</Text>
+    <View
+      style={[
+        styles.emptyStateWrap,
+        { backgroundColor: themeColors.canvas, borderColor: themeColors.border },
+      ]}
+    >
+      <Text style={[styles.emptyStateText, { color: themeColors.subtleText }]}>{text}</Text>
     </View>
   );
 }
@@ -325,6 +392,7 @@ export function EditorModal({
 }) {
   const { width } = useWindowDimensions();
   const isCompactLayout = width < 430;
+  const { colors: themeColors } = useAppTheme();
 
   return (
     <Modal
@@ -334,8 +402,14 @@ export function EditorModal({
       visible={visible}
     >
       <View style={[styles.modalScrim, isCompactLayout && styles.modalScrimCompact]}>
-        <View style={[styles.modalCard, isCompactLayout && styles.modalCardCompact]}>
-          <Text style={styles.modalTitle}>{title}</Text>
+        <View
+          style={[
+            styles.modalCard,
+            { backgroundColor: themeColors.surface, borderColor: themeColors.border },
+            isCompactLayout && styles.modalCardCompact,
+          ]}
+        >
+          <Text style={[styles.modalTitle, { color: themeColors.ink }]}>{title}</Text>
           <ScrollView
             contentContainerStyle={styles.modalContent}
             keyboardShouldPersistTaps="handled"
@@ -357,9 +431,13 @@ export function EditorModal({
             ) : null}
             <Pressable
               onPress={onCancel}
-              style={[styles.modalCancelButton, isCompactLayout && styles.modalActionButtonCompact]}
+              style={[
+                styles.modalCancelButton,
+                { backgroundColor: themeColors.canvas, borderColor: themeColors.border },
+                isCompactLayout && styles.modalActionButtonCompact,
+              ]}
             >
-              <Text style={styles.modalCancelButtonLabel}>Cancel</Text>
+              <Text style={[styles.modalCancelButtonLabel, { color: themeColors.subtleText }]}>Cancel</Text>
             </Pressable>
             <Pressable
               onPress={onSave}
@@ -387,15 +465,25 @@ export function ModalField({
   onChangeText: (value: string) => void;
   multiline?: boolean;
 }) {
+  const { colors: themeColors } = useAppTheme();
+
   return (
     <View style={styles.modalField}>
-      <Text style={styles.modalFieldLabel}>{label}</Text>
+      <Text style={[styles.modalFieldLabel, { color: themeColors.subtleText }]}>{label}</Text>
       <TextInput
         multiline={multiline}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={colors.subtleText}
-        style={[styles.modalFieldInput, multiline && styles.modalFieldInputMultiline]}
+        placeholderTextColor={themeColors.subtleText}
+        style={[
+          styles.modalFieldInput,
+          {
+            backgroundColor: themeColors.canvas,
+            borderColor: themeColors.border,
+            color: themeColors.ink,
+          },
+          multiline && styles.modalFieldInputMultiline,
+        ]}
         textAlignVertical={multiline ? "top" : "center"}
         value={value}
       />
@@ -412,13 +500,25 @@ export function ToggleField({
   value: boolean;
   onToggle: (value: boolean) => void;
 }) {
+  const { colors: themeColors } = useAppTheme();
+
   return (
     <Pressable
       onPress={() => onToggle(!value)}
-      style={[styles.toggleField, value && styles.toggleFieldActive]}
+      style={[
+        styles.toggleField,
+        { backgroundColor: themeColors.canvas, borderColor: themeColors.border },
+        value && [styles.toggleFieldActive, { backgroundColor: themeColors.navySurface }],
+      ]}
     >
-      <Text style={styles.toggleFieldLabel}>{label}</Text>
-      <Text style={[styles.toggleFieldValue, value && styles.toggleFieldValueActive]}>
+      <Text style={[styles.toggleFieldLabel, { color: themeColors.ink }]}>{label}</Text>
+      <Text
+        style={[
+          styles.toggleFieldValue,
+          { color: themeColors.subtleText },
+          value && [styles.toggleFieldValueActive, { color: themeColors.navyInk }],
+        ]}
+      >
         {value ? "Yes" : "No"}
       </Text>
     </Pressable>

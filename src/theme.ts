@@ -34,6 +34,33 @@ export const colors = {
   ...toneColors,
 };
 
+export const darkColors = {
+  ...colors,
+  canvas: "#0b1220",
+  surface: "#121a2b",
+  border: "#283449",
+  track: "#253149",
+  ink: "#eef4ff",
+  subtleText: "#aab6cc",
+  softText: "#172033",
+  navySurface: "rgba(86, 141, 230, 0.2)",
+  navyInk: "#c9ddff",
+  orangeSurface: "rgba(234, 28, 45, 0.18)",
+  orangeInk: "#ff9aa5",
+  goldSurface: "rgba(187, 187, 187, 0.16)",
+  goldInk: "#d8deea",
+  mintSurface: "rgba(86, 141, 230, 0.18)",
+  mintInk: "#c9ddff",
+};
+
+export const appThemes = {
+  light: colors,
+  dark: darkColors,
+} as const;
+
+export type AppThemeName = keyof typeof appThemes;
+export type AppThemeColors = Record<keyof typeof colors, string>;
+
 export const spacing = {
   xs: 6,
   sm: 10,

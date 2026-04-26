@@ -1,6 +1,7 @@
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Modal,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -25,7 +26,7 @@ import {
   TASK_STATUS_OPTIONS,
   TASK_VIEW_OPTIONS,
   WORKLOG_SORT_OPTIONS,
-} from "./src/app/constants";
+} from "./src/ui/constants";
 import {
   buildDateTime,
   buildManufacturingDraft,
@@ -48,9 +49,9 @@ import {
   splitList,
   timePortion,
   timelineProgress,
-} from "./src/app/helpers";
-import { getResponsiveMetrics, scaleFont } from "./src/app/responsive";
-import { styles } from "./src/app/styles";
+} from "./src/ui/helpers";
+import { getResponsiveMetrics, scaleFont } from "./src/ui/responsive";
+import { styles } from "./src/ui/styles";
 import type {
   EditorMode,
   InventoryViewTab,
@@ -70,7 +71,7 @@ import type {
   ViewTab,
   WorkLogDraft,
   WorkLogSortMode,
-} from "./src/app/types";
+} from "./src/ui/types";
 import {
   EditorModal,
   EmptyState,
@@ -84,7 +85,8 @@ import {
   SummaryRow,
   ToggleField,
   WorkspacePanel,
-} from "./src/app/ui";
+} from "./src/ui/ui";
+import { AppThemeProvider } from "./src/ui/themeContext";
 import {
   ApiRequestError,
   requestJson,
@@ -106,7 +108,7 @@ import type {
   TaskStatus,
   WorkLog,
 } from "./src/types/domain";
-import { colors } from "./src/theme";
+import { appThemes, colors } from "./src/theme";
 
 function parseClientError(error: unknown) {
   if (error instanceof ApiRequestError) {
@@ -140,6 +142,12 @@ export default function App() {
     useState<ManufacturingViewTab>("cnc");
   const [inventoryView, setInventoryView] = useState<InventoryViewTab>("purchases");
   const [isNavCollapsed, setIsNavCollapsed] = useState(() => isCompactLayout);
+  const [isProjectOverlayVisible, setIsProjectOverlayVisible] = useState(false);
+  const [isPersonMenuVisible, setIsPersonMenuVisible] = useState(false);
+  const [isPeopleFilterVisible, setIsPeopleFilterVisible] = useState(
+    () => !isVeryCompactLayout,
+  );
+  const [isDarkModeEnabled, setIsDarkModeEnabled] = useState(false);
   const [activePersonFilter, setActivePersonFilter] = useState("all");
 
   const [members, setMembers] = useState(() => mecoSnapshot.members);
@@ -157,6 +165,8 @@ export default function App() {
     () => mecoSnapshot.partDefinitions,
   );
   const [partInstances, setPartInstances] = useState(() => mecoSnapshot.partInstances);
+  const themeMode = isDarkModeEnabled ? "dark" : "light";
+  const themeColors = appThemes[themeMode];
 
   const [taskSearch, setTaskSearch] = useState("");
   const [taskStatusFilter, setTaskStatusFilter] = useState("all");
@@ -1016,6 +1026,8 @@ export default function App() {
   const appResponsiveStyles = useMemo(
     () => ({
       topbar: {
+        backgroundColor: themeColors.surface,
+        borderColor: themeColors.border,
         marginHorizontal: responsiveMetrics.gutter,
         paddingHorizontal: responsiveMetrics.panelPadding,
         paddingVertical: responsiveMetrics.isVeryCompact ? 8 : 10,
@@ -1024,20 +1036,29 @@ export default function App() {
         paddingHorizontal: responsiveMetrics.gutter,
       },
       iconButton: {
+        backgroundColor: themeColors.canvas,
+        borderColor: themeColors.border,
         minHeight: responsiveMetrics.controlHeight,
         paddingHorizontal: responsiveMetrics.chipPaddingHorizontal,
       },
       iconButtonLabel: {
+        color: themeColors.navyInk,
         fontSize: scaleFont(12, responsiveMetrics),
       },
       brandEyebrow: {
+        color: themeColors.subtleText,
         fontSize: scaleFont(11, responsiveMetrics),
       },
       brandTitle: {
+        color: themeColors.ink,
         fontSize: scaleFont(isCompactLayout ? 16 : 18, responsiveMetrics),
       },
       userChipLabel: {
         fontSize: scaleFont(12, responsiveMetrics),
+      },
+      shellIconLabel: {
+        color: themeColors.navyInk,
+        fontSize: scaleFont(14, responsiveMetrics),
       },
       primaryAction: {
         minHeight: responsiveMetrics.controlHeight,
@@ -1047,26 +1068,101 @@ export default function App() {
         fontSize: scaleFont(13, responsiveMetrics),
       },
       rowCard: {
+        backgroundColor: themeColors.canvas,
+        borderColor: themeColors.border,
         padding: responsiveMetrics.cardPadding,
       },
       rowTitle: {
+        color: themeColors.ink,
         fontSize: scaleFont(15, responsiveMetrics),
       },
       rowSubtitle: {
+        color: themeColors.subtleText,
         fontSize: scaleFont(13, responsiveMetrics),
         lineHeight: scaleFont(18, responsiveMetrics),
       },
       rowBody: {
+        color: themeColors.ink,
         fontSize: scaleFont(14, responsiveMetrics),
         lineHeight: scaleFont(20, responsiveMetrics),
       },
       metaLine: {
+        color: themeColors.subtleText,
         fontSize: scaleFont(13, responsiveMetrics),
         lineHeight: scaleFont(18, responsiveMetrics),
       },
+      editTag: {
+        backgroundColor: themeColors.surface,
+        borderColor: themeColors.border,
+        color: themeColors.subtleText,
+      },
+      navTab: {
+        backgroundColor: themeColors.surface,
+        borderColor: themeColors.border,
+      },
+      navTabActive: {
+        backgroundColor: themeColors.navySurface,
+        borderColor: themeColors.blue,
+      },
+      navLabel: {
+        color: themeColors.ink,
+      },
+      navLabelActive: {
+        color: themeColors.navyInk,
+      },
+      navBubble: {
+        backgroundColor: themeColors.canvas,
+      },
+      navCount: {
+        backgroundColor: themeColors.canvas,
+      },
+      overlayCard: {
+        backgroundColor: themeColors.surface,
+        borderColor: themeColors.border,
+      },
+      settingsRow: {
+        backgroundColor: themeColors.canvas,
+        borderColor: themeColors.border,
+      },
+      settingsRowActive: {
+        backgroundColor: themeColors.navySurface,
+        borderColor: themeColors.blue,
+      },
+      tableHeaderText: {
+        color: themeColors.subtleText,
+      },
+      calloutBox: {
+        backgroundColor: themeColors.surface,
+        borderColor: themeColors.border,
+      },
+      calloutTitle: {
+        color: themeColors.orangeInk,
+      },
+      calloutBody: {
+        color: themeColors.ink,
+      },
+      subsectionLabel: {
+        color: themeColors.ink,
+      },
+      rosterSection: {
+        backgroundColor: themeColors.canvas,
+        borderColor: themeColors.border,
+      },
+      memberRow: {
+        backgroundColor: themeColors.surface,
+        borderColor: themeColors.border,
+      },
+      memberRowSelected: {
+        backgroundColor: themeColors.navySurface,
+        borderColor: themeColors.blue,
+      },
+      memberAvatar: {
+        backgroundColor: themeColors.navySurface,
+      },
     }),
-    [isCompactLayout, responsiveMetrics],
+    [isCompactLayout, responsiveMetrics, themeColors],
   );
+  const editTagStyle = [styles.editTag, appResponsiveStyles.editTag];
 
   useEffect(() => {
     void syncFromBackend();
@@ -1077,6 +1173,12 @@ export default function App() {
       setIsNavCollapsed(true);
     }
   }, [isCompactLayout]);
+
+  useEffect(() => {
+    if (isVeryCompactLayout) {
+      setIsPeopleFilterVisible(false);
+    }
+  }, [isVeryCompactLayout]);
 
   useEffect(() => {
     if (activePersonFilter === "all") {
@@ -1835,10 +1937,18 @@ export default function App() {
 
         {!isCompactLayout ? (
           <View style={styles.tableHeaderRow}>
-            <Text style={[styles.tableHeaderText, styles.tableHeaderPrimary]}>Task</Text>
-            <Text style={styles.tableHeaderText}>Owner</Text>
-            <Text style={styles.tableHeaderText}>Due</Text>
-            <Text style={styles.tableHeaderText}>Status</Text>
+            <Text
+              style={[
+                styles.tableHeaderText,
+                styles.tableHeaderPrimary,
+                appResponsiveStyles.tableHeaderText,
+              ]}
+            >
+              Task
+            </Text>
+            <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>Owner</Text>
+            <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>Due</Text>
+            <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>Status</Text>
           </View>
         ) : null}
 
@@ -1871,7 +1981,7 @@ export default function App() {
                     {subsystemName} - {disciplineName}
                   </Text>
                 </View>
-                <Text style={styles.editTag}>EDIT</Text>
+                <Text style={editTagStyle}>EDIT</Text>
               </View>
 
               <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{task.summary}</Text>
@@ -1895,9 +2005,9 @@ export default function App() {
               </View>
 
               {task.blockers.length > 0 ? (
-                <View style={styles.calloutBox}>
-                  <Text style={styles.calloutTitle}>Blockers</Text>
-                  <Text style={styles.calloutBody}>{task.blockers.join(" | ")}</Text>
+                <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+                  <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>Blockers</Text>
+                  <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>{task.blockers.join(" | ")}</Text>
                 </View>
               ) : null}
             </Pressable>
@@ -1969,23 +2079,29 @@ export default function App() {
               onPress={() => toggleMilestoneSort("title")}
               style={styles.tableHeaderButtonPrimary}
             >
-              <Text style={[styles.tableHeaderText, styles.tableHeaderPrimary]}>
+              <Text
+                style={[
+                  styles.tableHeaderText,
+                  styles.tableHeaderPrimary,
+                  appResponsiveStyles.tableHeaderText,
+                ]}
+              >
                 Milestone{getMilestoneSortIcon("title")}
               </Text>
             </Pressable>
             <Pressable onPress={() => toggleMilestoneSort("type")} style={styles.tableHeaderButton}>
-              <Text style={styles.tableHeaderText}>Type{getMilestoneSortIcon("type")}</Text>
+              <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>Type{getMilestoneSortIcon("type")}</Text>
             </Pressable>
             <Pressable
               onPress={() => toggleMilestoneSort("startDateTime")}
               style={styles.tableHeaderButton}
             >
-              <Text style={styles.tableHeaderText}>
+              <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>
                 Start{getMilestoneSortIcon("startDateTime")}
               </Text>
             </Pressable>
-            <Text style={styles.tableHeaderText}>End</Text>
-            <Text style={styles.tableHeaderText}>Subsystems</Text>
+            <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>End</Text>
+            <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>Subsystems</Text>
           </View>
         ) : null}
 
@@ -2123,7 +2239,7 @@ export default function App() {
                   <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{formatDate(workLog.date)}</Text>
                   <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>{workLog.hours.toFixed(1)}h logged</Text>
                 </View>
-                <Text style={styles.editTag}>OPEN</Text>
+                <Text style={editTagStyle}>OPEN</Text>
               </View>
 
               <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>Task: {task?.title ?? "Missing task"}</Text>
@@ -2239,7 +2355,7 @@ export default function App() {
                       {subsystemName} - {requesterName}
                     </Text>
                   </View>
-                  <Text style={styles.editTag}>EDIT</Text>
+                  <Text style={editTagStyle}>EDIT</Text>
                 </View>
 
                 <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
@@ -2312,7 +2428,7 @@ export default function App() {
                   {capitalize(row.category)} - vendor {row.vendor}
                 </Text>
               </View>
-              <Text style={styles.editTag}>EDIT</Text>
+              <Text style={editTagStyle}>EDIT</Text>
             </View>
 
             <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
@@ -2373,7 +2489,7 @@ export default function App() {
           />
         </FilterToolbar>
 
-        <Text style={styles.subsectionLabel}>Part definitions</Text>
+        <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>Part definitions</Text>
         {filteredPartDefinitions.map((partDefinition) => (
           <Pressable
             key={partDefinition.id}
@@ -2387,7 +2503,7 @@ export default function App() {
                   {partDefinition.partNumber} - rev {partDefinition.revision}
                 </Text>
               </View>
-              <Text style={styles.editTag}>EDIT</Text>
+              <Text style={editTagStyle}>EDIT</Text>
             </View>
 
             <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
@@ -2396,7 +2512,7 @@ export default function App() {
           </Pressable>
         ))}
 
-        <Text style={styles.subsectionLabel}>Part instances</Text>
+        <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>Part instances</Text>
         {filteredPartInstances.map(({ partInstance, status }) => {
           const definition = partDefinitionsById[partInstance.partDefinitionId];
           const mechanismName = partInstance.mechanismId
@@ -2514,7 +2630,7 @@ export default function App() {
                     {subsystemName} - requester {requesterName}
                   </Text>
                 </View>
-                <Text style={styles.editTag}>EDIT</Text>
+                <Text style={editTagStyle}>EDIT</Text>
               </View>
 
               <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
@@ -2626,7 +2742,7 @@ export default function App() {
                     - Mentors {mentorNames || "None"}
                   </Text>
                 </View>
-                <Text style={styles.editTag}>{isSelected ? "HIDE" : "OPEN"}</Text>
+                <Text style={editTagStyle}>{isSelected ? "HIDE" : "OPEN"}</Text>
               </Pressable>
 
               <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{subsystem.description}</Text>
@@ -2651,7 +2767,7 @@ export default function App() {
                           <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{mechanism.name}</Text>
                           <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{mechanism.description}</Text>
                         </View>
-                        <Text style={styles.editTag}>EDIT</Text>
+                        <Text style={editTagStyle}>EDIT</Text>
                       </View>
                     </View>
                   ))}
@@ -2679,11 +2795,11 @@ export default function App() {
     memberList: (typeof members)[number][],
   ) => {
     return (
-      <View style={styles.rosterSection}>
+      <View style={[styles.rosterSection, appResponsiveStyles.rosterSection]}>
         <View style={styles.rosterSectionHeader}>
-          <Text style={styles.subsectionLabel}>{title}</Text>
-          <View style={styles.sidebarCountPill}>
-            <Text style={styles.sidebarCountLabel}>{memberList.length}</Text>
+          <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>{title}</Text>
+          <View style={[styles.sidebarCountPill, appResponsiveStyles.navCount]}>
+            <Text style={[styles.sidebarCountLabel, { color: themeColors.ink }]}>{memberList.length}</Text>
           </View>
         </View>
 
@@ -2695,17 +2811,21 @@ export default function App() {
               key={member.id}
               onPress={() => setSelectedMemberId(member.id)}
               onLongPress={() => openEditMemberEditor(member.id)}
-              style={[styles.memberRow, isSelected && styles.memberRowSelected]}
+              style={[
+                styles.memberRow,
+                appResponsiveStyles.memberRow,
+                isSelected && [styles.memberRowSelected, appResponsiveStyles.memberRowSelected],
+              ]}
             >
-              <View style={styles.memberAvatar}>
-                <Text style={styles.memberAvatarLabel}>{member.name.slice(0, 1).toUpperCase()}</Text>
+              <View style={[styles.memberAvatar, appResponsiveStyles.memberAvatar]}>
+                <Text style={[styles.memberAvatarLabel, { color: themeColors.navyInk }]}>{member.name.slice(0, 1).toUpperCase()}</Text>
               </View>
               <View style={styles.memberCopy}>
-                <Text style={styles.memberName}>{member.name}</Text>
-                <Text style={styles.memberRole}>{capitalize(member.role)}</Text>
+                <Text style={[styles.memberName, { color: themeColors.ink }]}>{member.name}</Text>
+                <Text style={[styles.memberRole, { color: themeColors.subtleText }]}>{capitalize(member.role)}</Text>
               </View>
               <Pressable onPress={() => openEditMemberEditor(member.id)} style={styles.editTagButton}>
-                <Text style={styles.editTag}>EDIT</Text>
+                <Text style={editTagStyle}>EDIT</Text>
               </Pressable>
             </Pressable>
           );
@@ -3430,13 +3550,110 @@ export default function App() {
     );
   };
 
+  const renderProjectOverlay = () => (
+    <Modal
+      animationType="fade"
+      onRequestClose={() => setIsProjectOverlayVisible(false)}
+      transparent
+      visible={isProjectOverlayVisible}
+    >
+      <Pressable
+        onPress={() => setIsProjectOverlayVisible(false)}
+        style={styles.overlayScrim}
+      >
+        <Pressable onPress={() => undefined} style={[styles.overlayCard, appResponsiveStyles.overlayCard]}>
+          <View style={styles.overlayHeader}>
+            <View style={[styles.projectMark, { backgroundColor: themeColors.navySurface }]}>
+              <Text style={[styles.projectMarkLabel, { color: themeColors.navyInk }]}>RB</Text>
+            </View>
+            <View style={styles.overlayHeaderCopy}>
+              <Text style={[styles.overlayTitle, { color: themeColors.ink }]}>MECO Robotics</Text>
+              <Text style={[styles.overlaySubtitle, { color: themeColors.subtleText }]}>Robot project selector</Text>
+            </View>
+          </View>
+
+          <Text style={[styles.overlayBody, { color: themeColors.ink }]}>
+            Tap this project chip from the top bar to inspect or edit the active robot
+            workspace without leaving the current view.
+          </Text>
+
+          <View style={styles.overlayActionRow}>
+            <Pressable style={styles.overlayActionButton}>
+              <Text style={styles.overlayActionLabel}>Edit robot</Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.overlaySecondaryButton,
+                { backgroundColor: themeColors.canvas, borderColor: themeColors.border },
+              ]}
+            >
+              <Text style={[styles.overlaySecondaryLabel, { color: themeColors.navyInk }]}>Switch project</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+
+  const renderPersonMenu = () => (
+    <Modal
+      animationType="fade"
+      onRequestClose={() => setIsPersonMenuVisible(false)}
+      transparent
+      visible={isPersonMenuVisible}
+    >
+      <Pressable onPress={() => setIsPersonMenuVisible(false)} style={styles.overlayScrim}>
+        <Pressable onPress={() => undefined} style={[styles.overlayCard, appResponsiveStyles.overlayCard]}>
+          <View style={styles.overlayHeader}>
+            <View style={[styles.personMark, { backgroundColor: themeColors.navySurface }]}>
+              <Text style={[styles.personMarkLabel, { color: themeColors.navyInk }]}>ME</Text>
+            </View>
+            <View style={styles.overlayHeaderCopy}>
+              <Text style={[styles.overlayTitle, { color: themeColors.ink }]}>Personal settings</Text>
+              <Text style={[styles.overlaySubtitle, { color: themeColors.subtleText }]}>{syncStatusLabel}</Text>
+            </View>
+          </View>
+
+          <Pressable
+            onPress={() => setIsDarkModeEnabled((current) => !current)}
+            style={[
+              styles.settingsRow,
+              appResponsiveStyles.settingsRow,
+              isDarkModeEnabled && [styles.settingsRowActive, appResponsiveStyles.settingsRowActive],
+            ]}
+          >
+            <View>
+              <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>Dark mode</Text>
+              <Text style={[styles.settingsRowSubtitle, { color: themeColors.subtleText }]}>
+                {isDarkModeEnabled ? "Preference on" : "Preference off"}
+              </Text>
+            </View>
+            <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>{isDarkModeEnabled ? "On" : "Off"}</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={resetWorkspaceData}
+            style={[styles.settingsRow, appResponsiveStyles.settingsRow]}
+          >
+            <View>
+              <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>Refresh data</Text>
+              <Text style={[styles.settingsRowSubtitle, { color: themeColors.subtleText }]}>Sync the current workspace</Text>
+            </View>
+            <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>Run</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="dark" />
+    <AppThemeProvider value={{ colors: themeColors, mode: themeMode }}>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: themeColors.canvas }]}>
+      <StatusBar style={isDarkModeEnabled ? "light" : "dark"} />
 
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        style={styles.screen}
+        style={[styles.screen, { backgroundColor: themeColors.canvas }]}
         contentContainerStyle={styles.screenContent}
       >
         <View style={[styles.topbar, appResponsiveStyles.topbar]}>
@@ -3448,38 +3665,54 @@ export default function App() {
               <Text style={[styles.iconButtonLabel, appResponsiveStyles.iconButtonLabel]}>NAV</Text>
             </Pressable>
 
-            <View style={styles.brandWrap}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setIsProjectOverlayVisible(true)}
+              style={styles.brandWrap}
+            >
               <Text style={[styles.brandEyebrow, appResponsiveStyles.brandEyebrow]}>
                 MECO Robotics
               </Text>
-              <Text
-                numberOfLines={1}
-                style={[styles.brandTitle, appResponsiveStyles.brandTitle]}
-              >
-                {activeTabLabel}
-              </Text>
-            </View>
+              {!isCompactLayout ? (
+                <Text
+                  numberOfLines={1}
+                  style={[styles.brandTitle, appResponsiveStyles.brandTitle]}
+                >
+                  {activeTabLabel}
+                </Text>
+              ) : null}
+            </Pressable>
           </View>
 
           <View style={[styles.topbarRight, isCompactLayout && styles.topbarRightCompact]}>
-            {!isVeryCompactLayout ? (
-              <View style={styles.userChip}>
-                <Text style={[styles.userChipLabel, appResponsiveStyles.userChipLabel]}>
-                  {syncStatusLabel}
-                </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setIsPeopleFilterVisible((current) => !current)}
+              style={[styles.iconButton, appResponsiveStyles.iconButton]}
+            >
+              <View style={[styles.eyeIcon, { borderColor: themeColors.navyInk }]}>
+                <View style={[styles.eyePupil, { backgroundColor: themeColors.navyInk }]} />
               </View>
-            ) : null}
+            </Pressable>
 
-            <Pressable onPress={resetWorkspaceData} style={[styles.iconButton, appResponsiveStyles.iconButton]}>
-              <Text style={[styles.iconButtonLabel, appResponsiveStyles.iconButtonLabel]}>REF</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setIsPersonMenuVisible(true)}
+              style={[
+                styles.personButton,
+                appResponsiveStyles.iconButton,
+                { backgroundColor: themeColors.navySurface, borderColor: themeColors.blue },
+              ]}
+            >
+              <Text style={[styles.personButtonLabel, { color: themeColors.navyInk }]}>ME</Text>
             </Pressable>
           </View>
         </View>
 
         {syncError ? (
-          <View style={styles.calloutBox}>
-            <Text style={styles.calloutTitle}>Backend sync issue</Text>
-            <Text style={styles.calloutBody}>{syncError}</Text>
+          <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+            <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>Backend sync issue</Text>
+            <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>{syncError}</Text>
           </View>
         ) : null}
 
@@ -3498,22 +3731,56 @@ export default function App() {
               <Pressable
                 key={item.key}
                 onPress={() => setActiveTab(item.key)}
-                style={[styles.sidebarTab, isActive && styles.sidebarTabActive]}
+                style={[
+                  styles.sidebarTab,
+                  appResponsiveStyles.navTab,
+                  isActive && [styles.sidebarTabActive, appResponsiveStyles.navTabActive],
+                ]}
               >
-                <View style={[styles.sidebarIconBubble, isActive && styles.sidebarIconBubbleActive]}>
-                  <Text style={[styles.sidebarIconLabel, isActive && styles.sidebarIconLabelActive]}>
+                <View
+                  style={[
+                    styles.sidebarIconBubble,
+                    appResponsiveStyles.navBubble,
+                    isActive && styles.sidebarIconBubbleActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.sidebarIconLabel,
+                      { color: themeColors.navyInk },
+                      isActive && styles.sidebarIconLabelActive,
+                    ]}
+                  >
                     {item.shortLabel}
                   </Text>
                 </View>
 
                 {!isNavCollapsed ? (
-                  <Text style={[styles.sidebarTabLabel, isActive && styles.sidebarTabLabelActive]}>
+                  <Text
+                    style={[
+                      styles.sidebarTabLabel,
+                      appResponsiveStyles.navLabel,
+                      isActive && [styles.sidebarTabLabelActive, appResponsiveStyles.navLabelActive],
+                    ]}
+                  >
                     {item.label}
                   </Text>
                 ) : null}
 
-                <View style={[styles.sidebarCountPill, isActive && styles.sidebarCountPillActive]}>
-                  <Text style={[styles.sidebarCountLabel, isActive && styles.sidebarCountLabelActive]}>
+                <View
+                  style={[
+                    styles.sidebarCountPill,
+                    appResponsiveStyles.navCount,
+                    isActive && styles.sidebarCountPillActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.sidebarCountLabel,
+                      { color: themeColors.ink },
+                      isActive && styles.sidebarCountLabelActive,
+                    ]}
+                  >
                     {item.count}
                   </Text>
                 </View>
@@ -3522,18 +3789,23 @@ export default function App() {
           })}
         </ScrollView>
 
-        <View style={[styles.personFilterStrip, appResponsiveStyles.navStrip]}>
-          <OptionChipRow
-            allLabel="All people"
-            onChange={setActivePersonFilter}
-            options={members.map((member) => ({ id: member.id, name: member.name }))}
-            value={activePersonFilter}
-          />
-        </View>
+        {isPeopleFilterVisible ? (
+          <View style={[styles.personFilterStrip, appResponsiveStyles.navStrip]}>
+            <OptionChipRow
+              allLabel="All people"
+              onChange={setActivePersonFilter}
+              options={members.map((member) => ({ id: member.id, name: member.name }))}
+              value={activePersonFilter}
+            />
+          </View>
+        ) : null}
 
         {renderActiveTab()}
       </ScrollView>
       {renderEditorModals()}
-    </SafeAreaView>
+      {renderProjectOverlay()}
+      {renderPersonMenu()}
+      </SafeAreaView>
+    </AppThemeProvider>
   );
 }

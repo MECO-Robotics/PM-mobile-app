@@ -19,6 +19,12 @@ The new `meco-web` repo complements this app with browser-first dashboards for m
 
 ## Local commands
 
+Use Node 22 LTS for local Expo development:
+
+```bash
+nvm use
+```
+
 ```bash
 npm install
 npm run start
