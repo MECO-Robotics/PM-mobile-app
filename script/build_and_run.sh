@@ -54,6 +54,67 @@ use_android_sdk() {
   fi
 }
 
+get_android_devices() {
+  if ! command -v adb >/dev/null 2>&1; then
+    return 0
+  fi
+
+  adb devices | awk '/device$/ { print $1 }'
+}
+
+get_android_avd_name() {
+  if [[ -n "${ANDROID_AVD_NAME:-}" ]]; then
+    printf '%s\n' "$ANDROID_AVD_NAME"
+    return
+  fi
+
+  if command -v emulator >/dev/null 2>&1; then
+    local avd
+    avd="$(emulator -list-avds 2>/dev/null | sed -n '1p')"
+    if [[ -n "$avd" ]]; then
+      printf '%s\n' "$avd"
+      return
+    fi
+  fi
+
+  printf '%s\n' "Medium_Phone_API_36.0"
+}
+
+start_android_emulator_if_needed() {
+  if [[ -n "$(get_android_devices)" ]]; then
+    return
+  fi
+
+  if ! command -v emulator >/dev/null 2>&1; then
+    echo "Android emulator was not found on PATH. Confirm Android Studio is installed and ANDROID_HOME points to the SDK." >&2
+    exit 1
+  fi
+
+  local avd_name
+  avd_name="$(get_android_avd_name)"
+  echo "Starting Android emulator: $avd_name"
+  emulator -avd "$avd_name" >/dev/null 2>&1 &
+
+  local deadline=$((SECONDS + 240))
+  while (( SECONDS < deadline )); do
+    sleep 5
+    if [[ -n "$(get_android_devices)" ]]; then
+      if [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then
+        return
+      fi
+    fi
+  done
+
+  echo "Android emulator did not finish booting before the timeout." >&2
+  exit 1
+}
+
+stop_expo_go_if_running() {
+  if command -v adb >/dev/null 2>&1; then
+    adb shell am force-stop host.exp.exponent >/dev/null 2>&1 || true
+  fi
+}
+
 resolve_expo_cmd() {
   if [[ -n "${EXPO_CLI:-}" ]]; then
     # Optional escape hatch for projects that need a wrapper command.
@@ -98,6 +159,8 @@ case "$MODE" in
     exec "${EXPO_CMD[@]}" start --ios
     ;;
   --android|android)
+    start_android_emulator_if_needed
+    stop_expo_go_if_running
     export REACT_NATIVE_PACKAGER_HOSTNAME="${REACT_NATIVE_PACKAGER_HOSTNAME:-10.0.2.2}"
     if command -v adb >/dev/null 2>&1; then
       adb reverse tcp:8081 tcp:8081 >/dev/null 2>&1 || true
