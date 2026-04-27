@@ -118,16 +118,21 @@ export function buildPartDefinitionDraft(
     name: string;
     partNumber: string;
     revision: string;
-    type: string;
     source: string;
-  }>,
+    acquisitionMethod: PartDefinitionDraft["acquisitionMethod"];
+}>,
 ): PartDefinitionDraft {
+  const source =
+    seed?.source === "Onshape" || seed?.source === "FRC Supplier" || seed?.source === "COTS"
+      ? seed.source
+      : "Onshape";
+
   return {
     name: seed?.name ?? "",
     partNumber: seed?.partNumber ?? "",
     revision: seed?.revision ?? "A",
-    type: seed?.type ?? "custom",
-    source: seed?.source ?? "",
+    source,
+    acquisitionMethod: seed?.acquisitionMethod ?? "manufacture",
   };
 }
 
@@ -278,4 +283,3 @@ export function capitalize(value: string) {
 
   return `${value[0].toUpperCase()}${value.slice(1)}`;
 }
-

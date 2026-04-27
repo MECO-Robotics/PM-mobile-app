@@ -23,6 +23,7 @@ export type StatusGroup = "success" | "info" | "warning" | "danger" | "neutral";
 export type PartLifecycleStatus = "planned" | "needed" | "available" | "installed" | "retired";
 
 export type WorkLogSortMode = "recent" | "oldest" | "longest" | "shortest";
+export type AcquisitionMethod = "manufacture" | "purchase" | "stock";
 
 export type NavItem = {
   key: ViewTab;
@@ -122,8 +123,8 @@ export type PartDefinitionDraft = {
   name: string;
   partNumber: string;
   revision: string;
-  type: string;
   source: string;
+  acquisitionMethod: AcquisitionMethod;
 };
 
 export type MilestoneDraft = {
@@ -142,5 +143,4 @@ export type EventStyle = {
   chipBackground: string;
   chipText: string;
 };
-
 

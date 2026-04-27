@@ -79,6 +79,18 @@ export const MATERIAL_CATEGORY_OPTIONS: Option[] = [
   { id: "other", name: "Other" },
 ];
 
+export const PART_SOURCE_OPTIONS: Option[] = [
+  { id: "Onshape", name: "Onshape" },
+  { id: "FRC Supplier", name: "FRC Supplier" },
+  { id: "COTS", name: "COTS" },
+];
+
+export const ACQUISITION_METHOD_OPTIONS: Option[] = [
+  { id: "manufacture", name: "Manufacture" },
+  { id: "purchase", name: "Purchase" },
+  { id: "stock", name: "Already stocked" },
+];
+
 export const WORKLOG_SORT_OPTIONS: { id: WorkLogSortMode; name: string }[] = [
   { id: "recent", name: "Newest first" },
   { id: "oldest", name: "Oldest first" },
@@ -183,9 +195,9 @@ export const SUBVIEW_INTERACTION_GUIDANCE: Record<string, string[]> = {
     "Restock from this view when upcoming demand is larger than what is on hand.",
   ],
   parts: [
-    "Part definitions are reusable records like part number, revision, and source.",
-    "Part instances are the copies assigned to a subsystem or mechanism.",
-    "Filter by subsystem or lifecycle state when you need to know what is needed, available, or installed.",
+    "Part definitions show source, total instance count, and available spares.",
+    "Choose a source from Onshape, FRC Supplier, or COTS when adding a definition.",
+    "Pick an acquisition method on add so the app can open the follow-up manufacturing or purchase work.",
   ],
   purchases: [
     "Search the purchase list before adding a duplicate request.",

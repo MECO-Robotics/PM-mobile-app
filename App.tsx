@@ -17,6 +17,8 @@ import {
   MANUFACTURING_STATUS_OPTIONS,
   MANUFACTURING_VIEW_OPTIONS,
   MATERIAL_CATEGORY_OPTIONS,
+  ACQUISITION_METHOD_OPTIONS,
+  PART_SOURCE_OPTIONS,
   PART_STATUS_OPTIONS,
   PURCHASE_APPROVAL_OPTIONS,
   PURCHASE_STATUS_OPTIONS,
@@ -53,6 +55,7 @@ import {
 import { getResponsiveMetrics, scaleFont } from "./src/ui/responsive";
 import { styles } from "./src/ui/styles";
 import type {
+  AcquisitionMethod,
   EditorMode,
   InventoryViewTab,
   ManufacturingDraft,
@@ -1873,17 +1876,99 @@ export default function App() {
     setActivePartDefinitionId(null);
   };
 
+  const createPartAcquisitionWork = async (
+    partName: string,
+    acquisitionMethod: AcquisitionMethod,
+  ) => {
+    if (acquisitionMethod === "stock") {
+      return;
+    }
+
+    const subsystemId = subsystems[0]?.id ?? "";
+    const requesterId = signedInMember?.id ?? members[0]?.id ?? "";
+    const ownerId = requesterId;
+    const mentorId =
+      members.find((member) => member.role === "mentor" || member.role === "lead")?.id ??
+      requesterId;
+    const dueDate = isoToday();
+
+    if (!subsystemId || !requesterId || !ownerId || !mentorId) {
+      return;
+    }
+
+    if (acquisitionMethod === "manufacture") {
+      await runMutation("/api/manufacturing", {
+        method: "POST",
+        body: JSON.stringify({
+          title: `Make ${partName}`,
+          subsystemId,
+          requestedById: requesterId,
+          process: "cnc",
+          dueDate,
+          material: partDefinitionDraft.source,
+          quantity: 1,
+          status: "requested",
+          mentorReviewed: false,
+          batchLabel: undefined,
+        }),
+      });
+    } else {
+      await runMutation("/api/purchases", {
+        method: "POST",
+        body: JSON.stringify({
+          title: `Buy ${partName}`,
+          subsystemId,
+          requestedById: requesterId,
+          quantity: 1,
+          vendor: partDefinitionDraft.source,
+          linkLabel: "n/a",
+          estimatedCost: 0,
+          approvedByMentor: false,
+          status: "requested",
+        }),
+      });
+    }
+
+    await runMutation("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        title: `Acquire ${partName}`,
+        summary:
+          acquisitionMethod === "manufacture"
+            ? `Manufacture ${partName} and move it through QA.`
+            : `Purchase ${partName} and confirm it is ready for installation.`,
+        subsystemId,
+        disciplineId: disciplines[0]?.id || "mechanical",
+        mechanismId: null,
+        partInstanceId: null,
+        targetEventId: null,
+        ownerId,
+        mentorId,
+        dueDate,
+        priority: "medium",
+        status: "not-started",
+        dependencyIds: [],
+        blockers: [],
+        linkedManufacturingIds: [],
+        linkedPurchaseIds: [],
+        estimatedHours: 0,
+        actualHours: 0,
+      }),
+    });
+  };
+
   const savePartDefinitionDraft = async () => {
     if (!partDefinitionDraft.name.trim() || !partDefinitionDraft.partNumber.trim()) {
       return;
     }
 
+    const partName = partDefinitionDraft.name.trim();
     const payload = {
-      name: partDefinitionDraft.name.trim(),
+      name: partName,
       partNumber: partDefinitionDraft.partNumber.trim(),
       revision: partDefinitionDraft.revision.trim() || "A",
-      type: partDefinitionDraft.type.trim() || "custom",
-      source: partDefinitionDraft.source.trim() || "unknown",
+      type: partDefinitionDraft.source === "Onshape" ? "custom" : "cots",
+      source: partDefinitionDraft.source.trim() || "Onshape",
       description: "",
     };
 
@@ -1899,6 +1984,10 @@ export default function App() {
     );
 
     if (ok) {
+      if (!isEdit) {
+        await createPartAcquisitionWork(partName, partDefinitionDraft.acquisitionMethod);
+      }
+
       closePartDefinitionEditor();
     }
   };
@@ -2628,6 +2717,30 @@ export default function App() {
   };
 
   const renderInventoryParts = () => {
+    const partDefinitionStatsById = Object.fromEntries(
+      partDefinitions.map((partDefinition) => {
+        const matchingInstances = partInstancesWithStatus.filter(
+          ({ partInstance }) => partInstance.partDefinitionId === partDefinition.id,
+        );
+        const count = matchingInstances.reduce(
+          (sum, { partInstance }) => sum + partInstance.quantity,
+          0,
+        );
+        const spares = matchingInstances
+          .filter(({ status }) => status === "available")
+          .reduce((sum, { partInstance }) => sum + partInstance.quantity, 0);
+
+        return [partDefinition.id, { count, spares }];
+      }),
+    ) as Record<string, { count: number; spares: number }>;
+    const visibleInstanceCount = filteredPartInstances.reduce(
+      (sum, { partInstance }) => sum + partInstance.quantity,
+      0,
+    );
+    const visibleSpareCount = filteredPartInstances
+      .filter(({ status }) => status === "available")
+      .reduce((sum, { partInstance }) => sum + partInstance.quantity, 0);
+
     return (
       <WorkspacePanel
         title="Part manager"
@@ -2663,28 +2776,43 @@ export default function App() {
           />
         </FilterToolbar>
 
-        <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>Part definitions</Text>
-        {filteredPartDefinitions.map((partDefinition) => (
-          <Pressable
-            key={partDefinition.id}
-            onPress={() => openEditPartDefinitionEditor(partDefinition.id)}
-            style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
-          >
-            <View style={styles.queueRowHeader}>
-              <View style={styles.queueRowPrimaryText}>
-                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{partDefinition.name}</Text>
-                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                  {partDefinition.partNumber} - rev {partDefinition.revision}
-                </Text>
-              </View>
-              <Text style={editTagStyle}>EDIT</Text>
-            </View>
+        <SummaryRow
+          chips={[
+            { label: "Definitions", value: String(filteredPartDefinitions.length) },
+            { label: "Instances", value: String(visibleInstanceCount) },
+            { label: "Spares", value: String(visibleSpareCount) },
+          ]}
+        />
 
-            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-              Type {partDefinition.type} | Source {partDefinition.source}
-            </Text>
-          </Pressable>
-        ))}
+        <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>Part definitions</Text>
+        {filteredPartDefinitions.map((partDefinition) => {
+          const stats = partDefinitionStatsById[partDefinition.id] ?? {
+            count: 0,
+            spares: 0,
+          };
+
+          return (
+            <Pressable
+              key={partDefinition.id}
+              onPress={() => openEditPartDefinitionEditor(partDefinition.id)}
+              style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
+            >
+              <View style={styles.queueRowHeader}>
+                <View style={styles.queueRowPrimaryText}>
+                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{partDefinition.name}</Text>
+                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                    {partDefinition.partNumber} - rev {partDefinition.revision}
+                  </Text>
+                </View>
+                <Text style={editTagStyle}>EDIT</Text>
+              </View>
+
+              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
+                Source {partDefinition.source} | Count {stats.count} | Spares {stats.spares}
+              </Text>
+            </Pressable>
+          );
+        })}
 
         <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>Part instances</Text>
         {filteredPartInstances.map(({ partInstance, status }) => {
@@ -3643,22 +3771,36 @@ export default function App() {
             placeholder="A"
             value={partDefinitionDraft.revision}
           />
-          <ModalField
-            label="Type"
-            onChangeText={(value) =>
-              setPartDefinitionDraft((current) => ({ ...current, type: value }))
+          <OptionChipRow
+            allLabel="Source"
+            onChange={(value) =>
+              setPartDefinitionDraft((current) => ({
+                ...current,
+                source: value === "all" ? "Onshape" : value,
+                acquisitionMethod:
+                  value === "FRC Supplier" || value === "COTS"
+                    ? "purchase"
+                    : current.acquisitionMethod,
+              }))
             }
-            placeholder="custom"
-            value={partDefinitionDraft.type}
+            options={PART_SOURCE_OPTIONS}
+            value={partDefinitionDraft.source || "Onshape"}
           />
-          <ModalField
-            label="Source"
-            onChangeText={(value) =>
-              setPartDefinitionDraft((current) => ({ ...current, source: value }))
-            }
-            placeholder="Onshape"
-            value={partDefinitionDraft.source}
-          />
+          {partDefinitionEditorMode === "create" ? (
+            <OptionChipRow
+              allLabel="Acquisition method"
+              onChange={(value) =>
+                setPartDefinitionDraft((current) => ({
+                  ...current,
+                  acquisitionMethod: (value === "all"
+                    ? "manufacture"
+                    : value) as AcquisitionMethod,
+                }))
+              }
+              options={ACQUISITION_METHOD_OPTIONS}
+              value={partDefinitionDraft.acquisitionMethod}
+            />
+          ) : null}
         </EditorModal>
 
         <EditorModal
