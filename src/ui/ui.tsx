@@ -3,11 +3,8 @@ import { useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
-<<<<<<< HEAD
-  Platform,
-=======
   PanResponder,
->>>>>>> 5c0a8d027bd29344bf3f5ce7db7d8b73fcb3d5b6
+  Platform,
   Pressable,
   ScrollView,
   Text,
