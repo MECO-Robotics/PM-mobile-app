@@ -12,6 +12,8 @@ export type ViewTab =
   | "manufacturing"
   | "inventory"
   | "subsystems"
+  | "reports"
+  | "risks"
   | "roster";
 
 export type TaskViewTab = "timeline" | "queue" | "milestones";
@@ -137,10 +139,25 @@ export type MilestoneDraft = {
 
 export type MilestoneSortField = "startDateTime" | "title" | "type";
 
+export type ArchiveFilterMode = "active" | "archived" | "all";
+export type BlockerFilterMode = "all" | "blocked" | "clear";
+export type QaReportDraft = {
+  taskId: string;
+  participantIdsText: string;
+  result: "pass" | "minor-fix" | "iteration-worthy";
+  mentorApproved: boolean;
+  notes: string;
+};
+export type EventReportDraft = {
+  eventId: string;
+  summary: string;
+  findingText: string;
+  followUpTaskTitle: string;
+};
+
 export type EventStyle = {
   label: string;
   borderColor: string;
   chipBackground: string;
   chipText: string;
 };
-

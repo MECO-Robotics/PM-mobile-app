@@ -633,6 +633,64 @@ export const styles = StyleSheet.create({
     color: colors.ink,
     lineHeight: 19,
   },
+  compactMetaGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+  },
+  compactMetaItem: {
+    borderRadius: 8,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 4,
+  },
+  compactMetaText: {
+    color: colors.subtleText,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  advancedOptions: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    padding: spacing.sm,
+    gap: spacing.sm,
+  },
+  advancedOptionsHeader: {
+    minHeight: 32,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  advancedOptionsTitle: {
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  advancedOptionsToggle: {
+    color: colors.navyInk,
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  advancedOptionsBody: {
+    gap: spacing.sm,
+  },
+  reportGrid: {
+    gap: spacing.sm,
+  },
+  riskSeverityHigh: {
+    borderColor: colors.orange,
+    backgroundColor: colors.orangeSurface,
+  },
+  riskSeverityMedium: {
+    borderColor: "rgba(233, 131, 53, 0.45)",
+    backgroundColor: "rgba(233, 131, 53, 0.12)",
+  },
   interactionNote: {
     borderRadius: radii.md,
     borderWidth: 1,

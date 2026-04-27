@@ -574,6 +574,39 @@ export function EmptyState({ text }: { text: string }) {
   );
 }
 
+export function AdvancedOptions({
+  title = "Advanced options",
+  children,
+}: {
+  title?: string;
+  children: ReactNode;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { colors: themeColors } = useAppTheme();
+
+  return (
+    <View
+      style={[
+        styles.advancedOptions,
+        { backgroundColor: themeColors.canvas, borderColor: themeColors.border },
+      ]}
+    >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: isExpanded }}
+        onPress={() => setIsExpanded((current) => !current)}
+        style={styles.advancedOptionsHeader}
+      >
+        <Text style={[styles.advancedOptionsTitle, { color: themeColors.ink }]}>{title}</Text>
+        <Text style={[styles.advancedOptionsToggle, { color: themeColors.navyInk }]}>
+          {isExpanded ? "Hide" : "Show"}
+        </Text>
+      </Pressable>
+      {isExpanded ? <View style={styles.advancedOptionsBody}>{children}</View> : null}
+    </View>
+  );
+}
+
 export function EditorModal({
   visible,
   title,

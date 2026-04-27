@@ -12,6 +12,8 @@ import {
 } from "react-native";
 
 import {
+  ARCHIVE_FILTER_OPTIONS,
+  BLOCKER_FILTER_OPTIONS,
   EVENT_TYPE_OPTIONS,
   EVENT_TYPE_STYLES,
   INVENTORY_VIEW_OPTIONS,
@@ -23,6 +25,7 @@ import {
   PART_STATUS_OPTIONS,
   PURCHASE_APPROVAL_OPTIONS,
   PURCHASE_STATUS_OPTIONS,
+  QA_RESULT_OPTIONS,
   STATUS_LABELS,
   SUBVIEW_INTERACTION_GUIDANCE,
   TASK_PRIORITY_OPTIONS,
@@ -57,7 +60,10 @@ import { getResponsiveMetrics, scaleFont } from "./src/ui/responsive";
 import { styles } from "./src/ui/styles";
 import type {
   AcquisitionMethod,
+  ArchiveFilterMode,
+  BlockerFilterMode,
   EditorMode,
+  EventReportDraft,
   InventoryViewTab,
   ManufacturingDraft,
   ManufacturingViewTab,
@@ -68,6 +74,7 @@ import type {
   NavItem,
   PartDefinitionDraft,
   PurchaseDraft,
+  QaReportDraft,
   SummaryChipData,
   SubsystemDraft,
   TaskDraft,
@@ -77,6 +84,7 @@ import type {
   WorkLogSortMode,
 } from "./src/ui/types";
 import {
+  AdvancedOptions,
   EditorModal,
   DropdownField,
   EmptyState,
@@ -105,6 +113,7 @@ import type {
   PlatformBootstrapPayload,
   PublicAuthConfig,
   PurchaseItem,
+  QaReview,
   SessionResponse,
   SessionUser,
   Subsystem,
@@ -176,6 +185,8 @@ export default function App() {
     () => mecoSnapshot.partDefinitions,
   );
   const [partInstances, setPartInstances] = useState(() => mecoSnapshot.partInstances);
+  const [qaReviews, setQaReviews] = useState<QaReview[]>(() => mecoSnapshot.qaReviews);
+  const [eventReports, setEventReports] = useState<EventReportDraft[]>([]);
   const themeMode = isDarkModeEnabled ? "dark" : "light";
   const themeColors = appThemes[themeMode];
 
@@ -184,6 +195,12 @@ export default function App() {
   const [taskSubsystemFilter, setTaskSubsystemFilter] = useState("all");
   const [taskOwnerFilter, setTaskOwnerFilter] = useState("all");
   const [taskPriorityFilter, setTaskPriorityFilter] = useState("all");
+  const [taskArchiveFilter, setTaskArchiveFilter] =
+    useState<ArchiveFilterMode>("active");
+  const [taskBlockerFilter, setTaskBlockerFilter] =
+    useState<BlockerFilterMode>("all");
+  const [timelineSubsystemFilter, setTimelineSubsystemFilter] = useState("all");
+  const [timelineMilestoneFilter, setTimelineMilestoneFilter] = useState("all");
 
   const [milestoneSearch, setMilestoneSearch] = useState("");
   const [milestoneTypeFilter, setMilestoneTypeFilter] = useState("all");
@@ -205,6 +222,8 @@ export default function App() {
     useState("all");
   const [manufacturingMaterialFilter, setManufacturingMaterialFilter] =
     useState("all");
+  const [manufacturingArchiveFilter, setManufacturingArchiveFilter] =
+    useState<ArchiveFilterMode>("active");
 
   const [materialsSearch, setMaterialsSearch] = useState("");
   const [materialsCategoryFilter, setMaterialsCategoryFilter] = useState("all");
@@ -220,6 +239,8 @@ export default function App() {
   const [purchaseStatusFilter, setPurchaseStatusFilter] = useState("all");
   const [purchaseVendorFilter, setPurchaseVendorFilter] = useState("all");
   const [purchaseApprovalFilter, setPurchaseApprovalFilter] = useState("all");
+  const [purchaseArchiveFilter, setPurchaseArchiveFilter] =
+    useState<ArchiveFilterMode>("active");
 
   const [subsystemSearch, setSubsystemSearch] = useState("");
   const [selectedSubsystemId, setSelectedSubsystemId] = useState<string>(
@@ -278,6 +299,21 @@ export default function App() {
   const [partDefinitionDraft, setPartDefinitionDraft] = useState<PartDefinitionDraft>(
     buildPartDefinitionDraft(),
   );
+  const [qaReportEditorMode, setQaReportEditorMode] = useState<EditorMode | null>(null);
+  const [qaReportDraft, setQaReportDraft] = useState<QaReportDraft>({
+    taskId: "",
+    participantIdsText: "",
+    result: "pass",
+    mentorApproved: false,
+    notes: "",
+  });
+  const [eventReportEditorMode, setEventReportEditorMode] = useState<EditorMode | null>(null);
+  const [eventReportDraft, setEventReportDraft] = useState<EventReportDraft>({
+    eventId: "",
+    summary: "",
+    findingText: "",
+    followUpTaskTitle: "",
+  });
 
   const applyBootstrapPayload = useCallback((payload: PlatformBootstrapPayload) => {
     setMembers(payload.members);
@@ -478,13 +514,35 @@ export default function App() {
         count: subsystems.length,
       },
       {
+        key: "reports",
+        label: "QA & Reports",
+        shortLabel: "QA",
+        count: qaReviews.length + eventReports.length,
+      },
+      {
+        key: "risks",
+        label: "Risks",
+        shortLabel: "RK",
+        count: subsystems.reduce((sum, subsystem) => sum + subsystem.risks.length, 0),
+      },
+      {
         key: "roster",
         label: "Roster",
         shortLabel: "RO",
         count: members.length,
       },
     ];
-  }, [tasks, workLogs, manufacturingItems, partDefinitions, purchaseItems, subsystems, members]);
+  }, [
+    tasks,
+    workLogs,
+    manufacturingItems,
+    partDefinitions,
+    purchaseItems,
+    subsystems,
+    members,
+    qaReviews,
+    eventReports,
+  ]);
 
   const taskSummary = useMemo(() => {
     const blocked = tasks.filter((task) => task.blockers.length > 0).length;
@@ -517,6 +575,22 @@ export default function App() {
         }
 
         if (taskStatusFilter !== "all" && task.status !== taskStatusFilter) {
+          return false;
+        }
+
+        if (taskArchiveFilter === "active" && task.status === "complete") {
+          return false;
+        }
+
+        if (taskArchiveFilter === "archived" && task.status !== "complete") {
+          return false;
+        }
+
+        if (taskBlockerFilter === "blocked" && task.blockers.length === 0) {
+          return false;
+        }
+
+        if (taskBlockerFilter === "clear" && task.blockers.length > 0) {
           return false;
         }
 
@@ -553,6 +627,8 @@ export default function App() {
     subsystemsById,
     taskOwnerFilter,
     taskPriorityFilter,
+    taskArchiveFilter,
+    taskBlockerFilter,
     taskSearch,
     taskStatusFilter,
     taskSubsystemFilter,
@@ -639,10 +715,17 @@ export default function App() {
 
         return task.ownerId === activePersonFilter || task.mentorId === activePersonFilter;
       })
+      .filter((task) =>
+        timelineSubsystemFilter === "all" ? true : task.subsystemId === timelineSubsystemFilter,
+      )
+      .filter((task) =>
+        timelineMilestoneFilter === "all" ? true : task.targetEventId === timelineMilestoneFilter,
+      )
+      .filter((task) => taskArchiveFilter === "all" || task.status !== "complete")
       .sort((left, right) =>
       left.dueDate.localeCompare(right.dueDate),
     );
-  }, [tasks, activePersonFilter]);
+  }, [tasks, activePersonFilter, taskArchiveFilter, timelineMilestoneFilter, timelineSubsystemFilter]);
 
   const filteredWorkLogs = useMemo(() => {
     const search = workLogSearch.trim().toLowerCase();
@@ -762,6 +845,14 @@ export default function App() {
           return false;
         }
 
+        if (manufacturingArchiveFilter === "active" && item.status === "complete") {
+          return false;
+        }
+
+        if (manufacturingArchiveFilter === "archived" && item.status !== "complete") {
+          return false;
+        }
+
         if (manufacturingMaterialFilter !== "all" && item.material !== manufacturingMaterialFilter) {
           return false;
         }
@@ -784,6 +875,7 @@ export default function App() {
     activePersonFilter,
     manufacturingItems,
     manufacturingMaterialFilter,
+    manufacturingArchiveFilter,
     manufacturingRequesterFilter,
     manufacturingSearch,
     manufacturingStatusFilter,
@@ -954,6 +1046,14 @@ export default function App() {
         return false;
       }
 
+      if (purchaseArchiveFilter === "active" && item.status === "delivered") {
+        return false;
+      }
+
+      if (purchaseArchiveFilter === "archived" && item.status !== "delivered") {
+        return false;
+      }
+
       if (purchaseVendorFilter !== "all" && item.vendor !== purchaseVendorFilter) {
         return false;
       }
@@ -984,6 +1084,7 @@ export default function App() {
     activePersonFilter,
     membersById,
     purchaseItems,
+    purchaseArchiveFilter,
     purchaseApprovalFilter,
     purchaseRequesterFilter,
     purchaseSearch,
@@ -1049,6 +1150,59 @@ export default function App() {
 
   const selectedSubsystem =
     filteredSubsystems.find((subsystem) => subsystem.id === selectedSubsystemId) ?? null;
+
+  const riskRows = useMemo(() => {
+    const subsystemRisks = subsystems.flatMap((subsystem) =>
+      subsystem.risks.map((risk, index) => ({
+        id: `${subsystem.id}-${index}`,
+        title: risk,
+        detail: subsystem.description,
+        subsystemId: subsystem.id,
+        source: "Subsystem",
+        severity: "medium" as const,
+      })),
+    );
+    const blockerRisks = tasks
+      .filter((task) => task.blockers.length > 0 && task.status !== "complete")
+      .map((task) => ({
+        id: `task-${task.id}`,
+        title: task.title,
+        detail: task.blockers.join(" | "),
+        subsystemId: task.subsystemId,
+        source: "Task blocker",
+        severity: task.priority === "critical" || task.priority === "high" ? "high" as const : "medium" as const,
+      }));
+    const qaRisks = qaReviews
+      .filter((review) => review.result === "iteration-worthy" || review.result === "minor-fix")
+      .map((review) => ({
+        id: `qa-${review.id}`,
+        title: review.subjectTitle,
+        detail: review.notes,
+        subsystemId: "",
+        source: review.result === "iteration-worthy" ? "Iteration" : "QA finding",
+        severity: review.result === "iteration-worthy" ? "high" as const : "medium" as const,
+      }));
+
+    return [...blockerRisks, ...qaRisks, ...subsystemRisks];
+  }, [qaReviews, subsystems, tasks]);
+
+  const reportSummary = useMemo(() => {
+    const iterationCount = qaReviews.filter((review) => review.result === "iteration-worthy").length;
+    return [
+      { label: "QA reports", value: String(qaReviews.length) },
+      { label: "Event reports", value: String(eventReports.length) },
+      { label: "Iterations", value: String(iterationCount) },
+    ] satisfies SummaryChipData[];
+  }, [eventReports.length, qaReviews]);
+
+  const riskSummary = useMemo(() => {
+    const highCount = riskRows.filter((risk) => risk.severity === "high").length;
+    return [
+      { label: "Open risks", value: String(riskRows.length) },
+      { label: "High", value: String(highCount) },
+      { label: "Subsystem risks", value: String(subsystems.reduce((sum, subsystem) => sum + subsystem.risks.length, 0)) },
+    ] satisfies SummaryChipData[];
+  }, [riskRows, subsystems]);
 
   const rosterStudents = members.filter((member) => member.role === "student");
   const rosterMentors = members.filter(
@@ -1572,6 +1726,38 @@ export default function App() {
     if (ok) {
       closeTaskEditor();
     }
+  };
+
+  const clearTaskBlockers = async (task: Task) => {
+    setTasks((current) =>
+      current.map((candidate) =>
+        candidate.id === task.id ? { ...candidate, blockers: [] } : candidate,
+      ),
+    );
+
+    await runMutation(`/api/tasks/${task.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        title: task.title,
+        summary: task.summary,
+        subsystemId: task.subsystemId,
+        disciplineId: task.disciplineId,
+        mechanismId: task.mechanismId,
+        partInstanceId: task.partInstanceId,
+        targetEventId: task.targetEventId,
+        ownerId: task.ownerId,
+        mentorId: task.mentorId,
+        dueDate: task.dueDate,
+        priority: task.priority,
+        status: task.status,
+        dependencyIds: task.dependencyIds,
+        blockers: [],
+        linkedManufacturingIds: task.linkedManufacturingIds,
+        linkedPurchaseIds: task.linkedPurchaseIds,
+        estimatedHours: task.estimatedHours,
+        actualHours: task.actualHours,
+      }),
+    });
   };
 
   const openCreateWorkLogEditor = () => {
@@ -2152,6 +2338,132 @@ export default function App() {
     }
   };
 
+  const openCreateQaReportEditor = (taskId = tasks[0]?.id ?? "") => {
+    setQaReportDraft({
+      taskId,
+      participantIdsText: signedInMember?.id ?? members[0]?.id ?? "",
+      result: "pass",
+      mentorApproved: Boolean(canMentorApprove),
+      notes: "",
+    });
+    setQaReportEditorMode("create");
+  };
+
+  const closeQaReportEditor = () => {
+    setQaReportEditorMode(null);
+  };
+
+  const saveQaReportDraft = () => {
+    const task = taskById[qaReportDraft.taskId];
+    const participants = splitList(qaReportDraft.participantIdsText).filter(
+      (participantId) => membersById[participantId],
+    );
+
+    if (!task || participants.length === 0 || !qaReportDraft.notes.trim()) {
+      return;
+    }
+
+    setQaReviews((current) => [
+      {
+        id: `qa-local-${Date.now()}`,
+        subjectTitle: task.title,
+        participantIds: participants,
+        result: qaReportDraft.result,
+        mentorApproved: qaReportDraft.mentorApproved,
+        notes: qaReportDraft.notes.trim(),
+      },
+      ...current,
+    ]);
+
+    if (qaReportDraft.result === "iteration-worthy") {
+      setTasks((current) =>
+        current.map((candidate) =>
+          candidate.id === task.id
+            ? {
+                ...candidate,
+                blockers: Array.from(
+                  new Set([...candidate.blockers, "QA identified iteration-worthy follow-up."]),
+                ),
+                status: candidate.status === "complete" ? "waiting-for-qa" : candidate.status,
+              }
+            : candidate,
+        ),
+      );
+    }
+
+    closeQaReportEditor();
+  };
+
+  const openCreateEventReportEditor = (eventId = events[0]?.id ?? "") => {
+    setEventReportDraft({
+      eventId,
+      summary: "",
+      findingText: "",
+      followUpTaskTitle: "",
+    });
+    setEventReportEditorMode("create");
+  };
+
+  const closeEventReportEditor = () => {
+    setEventReportEditorMode(null);
+  };
+
+  const saveEventReportDraft = () => {
+    const event = eventsById[eventReportDraft.eventId];
+
+    if (!event || !eventReportDraft.summary.trim()) {
+      return;
+    }
+
+    setEventReports((current) => [
+      {
+        eventId: event.id,
+        summary: eventReportDraft.summary.trim(),
+        findingText: eventReportDraft.findingText.trim(),
+        followUpTaskTitle: eventReportDraft.followUpTaskTitle.trim(),
+      },
+      ...current,
+    ]);
+
+    const followUpTitle = eventReportDraft.followUpTaskTitle.trim();
+    if (followUpTitle) {
+      const subsystemId = event.relatedSubsystemIds[0] ?? subsystems[0]?.id ?? "";
+      const ownerId = signedInMember?.id ?? members[0]?.id ?? "";
+      const mentorId =
+        members.find((member) => member.role === "mentor" || member.role === "lead")?.id ??
+        ownerId;
+
+      if (subsystemId && ownerId && mentorId) {
+        setTasks((current) => [
+          {
+            id: `task-local-${Date.now()}`,
+            title: followUpTitle,
+            summary: eventReportDraft.findingText.trim() || `Follow up from ${event.title}.`,
+            subsystemId,
+            disciplineId: disciplines[0]?.id || "mechanical",
+            mechanismId: null,
+            partInstanceId: null,
+            targetEventId: event.id,
+            ownerId,
+            mentorId,
+            dueDate: isoToday(),
+            priority: "medium",
+            status: "not-started",
+            dependencyIds: [],
+            blockers: [],
+            linkedManufacturingIds: [],
+            linkedPurchaseIds: [],
+            estimatedHours: 0,
+            actualHours: 0,
+          },
+          ...current,
+        ]);
+      }
+    }
+
+    closeEventReportEditor();
+  };
+
   const resetWorkspaceData = () => {
     setActivePersonFilter("all");
     closeTaskEditor();
@@ -2162,6 +2474,8 @@ export default function App() {
     closeMemberEditor();
     closeSubsystemEditor();
     closePartDefinitionEditor();
+    closeQaReportEditor();
+    closeEventReportEditor();
     void syncFromBackend();
   };
 
@@ -2176,6 +2490,29 @@ export default function App() {
           </Pressable>
         }
       >
+        <FilterToolbar>
+          <OptionChipRow
+            allLabel="All subsystems"
+            onChange={setTimelineSubsystemFilter}
+            options={subsystems.map((subsystem) => ({
+              id: subsystem.id,
+              name: subsystem.name,
+            }))}
+            value={timelineSubsystemFilter}
+          />
+          <OptionChipRow
+            allLabel="All milestones"
+            onChange={setTimelineMilestoneFilter}
+            options={eventOptions}
+            value={timelineMilestoneFilter}
+          />
+          <OptionChipRow
+            allLabel="Any archive"
+            onChange={(value) => setTaskArchiveFilter(value as ArchiveFilterMode)}
+            options={ARCHIVE_FILTER_OPTIONS}
+            value={taskArchiveFilter}
+          />
+        </FilterToolbar>
         <SummaryRow chips={taskSummary} />
 
         {timelineTasks.map((task) => {
@@ -2184,6 +2521,7 @@ export default function App() {
           const ownerName = task.ownerId
             ? (membersById[task.ownerId]?.name ?? "Unassigned")
             : "Unassigned";
+          const targetEvent = task.targetEventId ? eventsById[task.targetEventId]?.title : null;
 
           return (
             <Pressable
@@ -2196,6 +2534,7 @@ export default function App() {
                   <Text style={[styles.timelineTitle, appResponsiveStyles.rowTitle]}>{task.title}</Text>
                   <Text style={[styles.timelineMeta, appResponsiveStyles.metaLine]}>
                     {subsystemName} - {ownerName} - due {formatDate(task.dueDate)}
+                    {targetEvent ? ` - ${targetEvent}` : ""}
                   </Text>
                 </View>
                 <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
@@ -2207,6 +2546,8 @@ export default function App() {
             </Pressable>
           );
         })}
+
+        {timelineTasks.length === 0 ? <EmptyState text="No timeline tasks match the current filters." /> : null}
 
         <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.timeline} />
       </WorkspacePanel>
@@ -2264,6 +2605,20 @@ export default function App() {
             options={TASK_PRIORITY_OPTIONS}
             value={taskPriorityFilter}
           />
+
+          <OptionChipRow
+            allLabel="All blockers"
+            onChange={(value) => setTaskBlockerFilter(value as BlockerFilterMode)}
+            options={BLOCKER_FILTER_OPTIONS}
+            value={taskBlockerFilter}
+          />
+
+          <OptionChipRow
+            allLabel="Any archive"
+            onChange={(value) => setTaskArchiveFilter(value as ArchiveFilterMode)}
+            options={ARCHIVE_FILTER_OPTIONS}
+            value={taskArchiveFilter}
+          />
         </FilterToolbar>
 
         <SummaryRow chips={taskSummary} />
@@ -2317,14 +2672,25 @@ export default function App() {
                 <Text style={editTagStyle}>EDIT</Text>
               </View>
 
-              <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{task.summary}</Text>
+              <Text numberOfLines={2} style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{task.summary}</Text>
 
-              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-                Owner {ownerName} | Due {formatDate(task.dueDate)} | Event {targetEvent}
-              </Text>
-              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-                Mechanism {mechanismName} | Part {linkedPart}
-              </Text>
+              <View style={styles.compactMetaGrid}>
+                <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                  <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Owner {ownerName}</Text>
+                </View>
+                <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                  <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Due {formatDate(task.dueDate)}</Text>
+                </View>
+                <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                  <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Milestone {targetEvent}</Text>
+                </View>
+                <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                  <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Mechanism {mechanismName}</Text>
+                </View>
+                <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                  <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Part {linkedPart}</Text>
+                </View>
+              </View>
 
               <View style={styles.queuePillRow}>
                 <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
@@ -2341,6 +2707,24 @@ export default function App() {
                 <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
                   <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>Blockers</Text>
                   <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>{task.blockers.join(" | ")}</Text>
+                  <View style={styles.quickActionRow}>
+                    <Pressable
+                      onPress={() => clearTaskBlockers(task)}
+                      style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                    >
+                      <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                        Clear blockers
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => openCreateQaReportEditor(task.id)}
+                      style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                    >
+                      <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                        QA report
+                      </Text>
+                    </Pressable>
+                  </View>
                 </View>
               ) : null}
             </Pressable>
@@ -2480,6 +2864,16 @@ export default function App() {
               <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
                 Subsystems {subsystemNames || "All subsystems"} | {milestone.isExternal ? "External" : "Internal"}
               </Text>
+              <View style={styles.quickActionRow}>
+                <Pressable
+                  onPress={() => openCreateEventReportEditor(milestone.id)}
+                  style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                >
+                  <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                    Event report
+                  </Text>
+                </Pressable>
+              </View>
             </Pressable>
           );
         })}
@@ -2647,6 +3041,13 @@ export default function App() {
               onChange={setManufacturingStatusFilter}
               options={MANUFACTURING_STATUS_OPTIONS}
               value={manufacturingStatusFilter}
+            />
+
+            <OptionChipRow
+              allLabel="Any archive"
+              onChange={(value) => setManufacturingArchiveFilter(value as ArchiveFilterMode)}
+              options={ARCHIVE_FILTER_OPTIONS}
+              value={manufacturingArchiveFilter}
             />
           </FilterToolbar>
 
@@ -3040,6 +3441,13 @@ export default function App() {
             options={PURCHASE_APPROVAL_OPTIONS}
             value={purchaseApprovalFilter}
           />
+
+          <OptionChipRow
+            allLabel="Any archive"
+            onChange={(value) => setPurchaseArchiveFilter(value as ArchiveFilterMode)}
+            options={ARCHIVE_FILTER_OPTIONS}
+            value={purchaseArchiveFilter}
+          />
         </FilterToolbar>
 
         {filteredPurchases.map((item) => {
@@ -3284,6 +3692,128 @@ export default function App() {
     );
   };
 
+  const renderReports = () => {
+    return (
+      <WorkspacePanel
+        title="QA and event reports"
+        subtitle="Capture task QA outcomes, event findings, and iteration-worthy follow-up in one place."
+        actions={
+          <View style={styles.quickActionRow}>
+            <Pressable onPress={() => openCreateQaReportEditor()} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+              <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>QA</Text>
+            </Pressable>
+            <Pressable onPress={() => openCreateEventReportEditor()} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+              <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Event</Text>
+            </Pressable>
+          </View>
+        }
+      >
+        <SummaryRow chips={reportSummary} />
+
+        <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>QA reports</Text>
+        <View style={styles.reportGrid}>
+          {qaReviews.map((review) => {
+            const people = review.participantIds
+              .map((participantId) => membersById[participantId]?.name)
+              .filter((name): name is string => Boolean(name))
+              .join(", ");
+
+            return (
+              <View key={review.id} style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
+                <View style={styles.queueRowHeader}>
+                  <View style={styles.queueRowPrimaryText}>
+                    <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{review.subjectTitle}</Text>
+                    <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                      {people || "No participants"} - mentor {review.mentorApproved ? "approved" : "pending"}
+                    </Text>
+                  </View>
+                  <StatusPill label={review.result.replace("-", " ")} value={review.result} />
+                </View>
+                <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{review.notes}</Text>
+                {review.result === "iteration-worthy" ? (
+                  <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+                    <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>Iteration</Text>
+                    <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
+                      This finding should create or anchor a design iteration.
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+        </View>
+
+        <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>Event reports</Text>
+        {eventReports.map((report, index) => {
+          const event = eventsById[report.eventId];
+
+          return (
+            <View key={`${report.eventId}-${index}`} style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
+              <View style={styles.queueRowHeader}>
+                <View style={styles.queueRowPrimaryText}>
+                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{event?.title ?? "Event report"}</Text>
+                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                    Follow-up {report.followUpTaskTitle || "none"}
+                  </Text>
+                </View>
+                <StatusPill label="Report" value="info" />
+              </View>
+              <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{report.summary}</Text>
+              {report.findingText ? (
+                <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>Finding {report.findingText}</Text>
+              ) : null}
+            </View>
+          );
+        })}
+
+        {eventReports.length === 0 ? <EmptyState text="No event reports have been added yet." /> : null}
+        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.reports} />
+      </WorkspacePanel>
+    );
+  };
+
+  const renderRisks = () => {
+    return (
+      <WorkspacePanel
+        title="Risk management"
+        subtitle="Open blockers, subsystem risks, and iteration-worthy QA findings grouped into one risk register."
+      >
+        <SummaryRow chips={riskSummary} />
+
+        {riskRows.map((risk) => {
+          const subsystemName = risk.subsystemId
+            ? (subsystemsById[risk.subsystemId]?.name ?? "Unknown subsystem")
+            : "Cross-system";
+
+          return (
+            <View
+              key={risk.id}
+              style={[
+                styles.queueRowCard,
+                appResponsiveStyles.rowCard,
+                risk.severity === "high" ? styles.riskSeverityHigh : styles.riskSeverityMedium,
+              ]}
+            >
+              <View style={styles.queueRowHeader}>
+                <View style={styles.queueRowPrimaryText}>
+                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{risk.title}</Text>
+                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                    {risk.source} - {subsystemName}
+                  </Text>
+                </View>
+                <StatusPill label={risk.severity} value={risk.severity === "high" ? "critical" : "high"} />
+              </View>
+              <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{risk.detail}</Text>
+            </View>
+          );
+        })}
+
+        {riskRows.length === 0 ? <EmptyState text="No active risks are currently visible." /> : null}
+        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.risks} />
+      </WorkspacePanel>
+    );
+  };
+
   const renderActiveTab = () => {
     if (activeTab === "tasks") {
       return renderTasks();
@@ -3303,6 +3833,14 @@ export default function App() {
 
     if (activeTab === "subsystems") {
       return renderSubsystems();
+    }
+
+    if (activeTab === "reports") {
+      return renderReports();
+    }
+
+    if (activeTab === "risks") {
+      return renderRisks();
     }
 
     return renderRoster();
@@ -3490,24 +4028,26 @@ export default function App() {
             options={TASK_PRIORITY_OPTIONS}
             value={taskDraft.priority}
           />
-          <View style={styles.modalField}>
-            <Text style={styles.modalFieldLabel}>Traceability</Text>
-            <Text style={styles.modalFieldInput}>
-              {`${subsystemsById[taskDraft.subsystemId]?.name ?? "No subsystem"} / `}
-              {`${disciplinesById[taskDraft.disciplineId]?.name ?? "No discipline"} / `}
-              {`${taskDraft.mechanismId ? mechanismsById[taskDraft.mechanismId]?.name : "No mechanism"} / `}
-              {`${taskDraft.partInstanceId ? partInstancesById[taskDraft.partInstanceId]?.name : "No part instance"} / `}
-              {`${taskDraft.targetEventId ? eventsById[taskDraft.targetEventId]?.title : "No event"}`}
-            </Text>
-          </View>
-          <ModalField
-            label="Blockers (comma separated)"
-            onChangeText={(value) =>
-              setTaskDraft((current) => ({ ...current, blockersText: value }))
-            }
-            placeholder="Waiting on batch, cable routing"
-            value={taskDraft.blockersText}
-          />
+          <AdvancedOptions>
+            <View style={styles.modalField}>
+              <Text style={[styles.modalFieldLabel, { color: themeColors.subtleText }]}>Traceability</Text>
+              <Text style={[styles.modalFieldInput, { backgroundColor: themeColors.canvas, borderColor: themeColors.border, color: themeColors.ink }]}>
+                {`${subsystemsById[taskDraft.subsystemId]?.name ?? "No subsystem"} / `}
+                {`${disciplinesById[taskDraft.disciplineId]?.name ?? "No discipline"} / `}
+                {`${taskDraft.mechanismId ? mechanismsById[taskDraft.mechanismId]?.name : "No mechanism"} / `}
+                {`${taskDraft.partInstanceId ? partInstancesById[taskDraft.partInstanceId]?.name : "No part instance"} / `}
+                {`${taskDraft.targetEventId ? eventsById[taskDraft.targetEventId]?.title : "No event"}`}
+              </Text>
+            </View>
+            <ModalField
+              label="Blockers (comma separated)"
+              onChangeText={(value) =>
+                setTaskDraft((current) => ({ ...current, blockersText: value }))
+              }
+              placeholder="Waiting on batch, cable routing"
+              value={taskDraft.blockersText}
+            />
+          </AdvancedOptions>
         </EditorModal>
 
         <EditorModal
@@ -3549,45 +4089,47 @@ export default function App() {
             placeholder="18:00"
             value={milestoneStartTime}
           />
-          <ModalField
-            label="End date (optional, YYYY-MM-DD)"
-            onChangeText={(value) => setMilestoneEndDate(value)}
-            placeholder="2026-04-30"
-            value={milestoneEndDate}
-          />
-          <ModalField
-            label="End time (optional, HH:mm)"
-            onChangeText={(value) => setMilestoneEndTime(value)}
-            placeholder="20:00"
-            value={milestoneEndTime}
-          />
-          <ModalField
-            label="Description"
-            multiline
-            onChangeText={(value) =>
-              setMilestoneDraft((current) => ({ ...current, description: value }))
-            }
-            placeholder="Milestone details"
-            value={milestoneDraft.description}
-          />
-          <ModalField
-            label="Related subsystem IDs (comma separated)"
-            onChangeText={(value) =>
-              setMilestoneDraft((current) => ({
-                ...current,
-                relatedSubsystemIdsText: value,
-              }))
-            }
-            placeholder="drive, controls"
-            value={milestoneDraft.relatedSubsystemIdsText}
-          />
-          <ToggleField
-            label="External milestone"
-            onToggle={(value) =>
-              setMilestoneDraft((current) => ({ ...current, isExternal: value }))
-            }
-            value={milestoneDraft.isExternal}
-          />
+          <AdvancedOptions>
+            <ModalField
+              label="End date (optional, YYYY-MM-DD)"
+              onChangeText={(value) => setMilestoneEndDate(value)}
+              placeholder="2026-04-30"
+              value={milestoneEndDate}
+            />
+            <ModalField
+              label="End time (optional, HH:mm)"
+              onChangeText={(value) => setMilestoneEndTime(value)}
+              placeholder="20:00"
+              value={milestoneEndTime}
+            />
+            <ModalField
+              label="Description"
+              multiline
+              onChangeText={(value) =>
+                setMilestoneDraft((current) => ({ ...current, description: value }))
+              }
+              placeholder="Milestone details"
+              value={milestoneDraft.description}
+            />
+            <ModalField
+              label="Related subsystem IDs (comma separated)"
+              onChangeText={(value) =>
+                setMilestoneDraft((current) => ({
+                  ...current,
+                  relatedSubsystemIdsText: value,
+                }))
+              }
+              placeholder="drive, controls"
+              value={milestoneDraft.relatedSubsystemIdsText}
+            />
+            <ToggleField
+              label="External milestone"
+              onToggle={(value) =>
+                setMilestoneDraft((current) => ({ ...current, isExternal: value }))
+              }
+              value={milestoneDraft.isExternal}
+            />
+          </AdvancedOptions>
 
           {milestoneError ? <Text style={{ color: colors.orangeInk }}>{milestoneError}</Text> : null}
         </EditorModal>
@@ -3756,32 +4298,34 @@ export default function App() {
             placeholder="2026-04-24"
             value={manufacturingDraft.dueDate}
           />
-          <ModalField
-            label="Batch label"
-            onChangeText={(value) =>
-              setManufacturingDraft((current) => ({ ...current, batchLabel: value }))
-            }
-            placeholder="B-17"
-            value={manufacturingDraft.batchLabel}
-          />
-          <ModalField
-            label="QA review count"
-            keyboardType="numeric"
-            onChangeText={(value) =>
-              setManufacturingDraft((current) => ({ ...current, qaReviewCount: value }))
-            }
-            placeholder="0"
-            value={manufacturingDraft.qaReviewCount}
-          />
-          {manufacturingEditorMode === "edit" ? (
-            <ToggleField
-              label="Mentor reviewed"
-              onToggle={(value) =>
-                setManufacturingDraft((current) => ({ ...current, mentorReviewed: value }))
+          <AdvancedOptions>
+            <ModalField
+              label="Batch label"
+              onChangeText={(value) =>
+                setManufacturingDraft((current) => ({ ...current, batchLabel: value }))
               }
-              value={manufacturingDraft.mentorReviewed}
+              placeholder="B-17"
+              value={manufacturingDraft.batchLabel}
             />
-          ) : null}
+            <ModalField
+              label="QA review count"
+              keyboardType="numeric"
+              onChangeText={(value) =>
+                setManufacturingDraft((current) => ({ ...current, qaReviewCount: value }))
+              }
+              placeholder="0"
+              value={manufacturingDraft.qaReviewCount}
+            />
+            {manufacturingEditorMode === "edit" ? (
+              <ToggleField
+                label="Mentor reviewed"
+                onToggle={(value) =>
+                  setManufacturingDraft((current) => ({ ...current, mentorReviewed: value }))
+                }
+                value={manufacturingDraft.mentorReviewed}
+              />
+            ) : null}
+          </AdvancedOptions>
         </EditorModal>
 
         <EditorModal
@@ -3842,12 +4386,6 @@ export default function App() {
             value={purchaseDraft.vendor}
           />
           <ModalField
-            label="Acquisition website"
-            onChangeText={(value) => setPurchaseDraft((current) => ({ ...current, linkLabel: value }))}
-            placeholder="vendor.com/item"
-            value={purchaseDraft.linkLabel}
-          />
-          <ModalField
             label="Quantity"
             keyboardType="numeric"
             onChangeText={(value) => setPurchaseDraft((current) => ({ ...current, quantity: value }))}
@@ -3863,20 +4401,28 @@ export default function App() {
             placeholder="82"
             value={purchaseDraft.estimatedCost}
           />
-          <ModalField
-            label="Final cost (optional)"
-            keyboardType="decimal-pad"
-            onChangeText={(value) => setPurchaseDraft((current) => ({ ...current, finalCost: value }))}
-            placeholder="61"
-            value={purchaseDraft.finalCost}
-          />
-          <ToggleField
-            label="Mentor approved"
-            onToggle={(value) =>
-              setPurchaseDraft((current) => ({ ...current, approvedByMentor: value }))
-            }
-            value={purchaseDraft.approvedByMentor}
-          />
+          <AdvancedOptions>
+            <ModalField
+              label="Acquisition website"
+              onChangeText={(value) => setPurchaseDraft((current) => ({ ...current, linkLabel: value }))}
+              placeholder="vendor.com/item"
+              value={purchaseDraft.linkLabel}
+            />
+            <ModalField
+              label="Final cost (optional)"
+              keyboardType="decimal-pad"
+              onChangeText={(value) => setPurchaseDraft((current) => ({ ...current, finalCost: value }))}
+              placeholder="61"
+              value={purchaseDraft.finalCost}
+            />
+            <ToggleField
+              label="Mentor approved"
+              onToggle={(value) =>
+                setPurchaseDraft((current) => ({ ...current, approvedByMentor: value }))
+              }
+              value={purchaseDraft.approvedByMentor}
+            />
+          </AdvancedOptions>
         </EditorModal>
 
         <EditorModal
@@ -4021,22 +4567,127 @@ export default function App() {
             placeholder="Select responsible engineer"
             value={subsystemDraft.responsibleEngineerId}
           />
-          <ModalField
-            label="Mentor IDs (comma separated)"
-            onChangeText={(value) =>
-              setSubsystemDraft((current) => ({ ...current, mentorIdsText: value }))
+          <AdvancedOptions>
+            <ModalField
+              label="Mentor IDs (comma separated)"
+              onChangeText={(value) =>
+                setSubsystemDraft((current) => ({ ...current, mentorIdsText: value }))
+              }
+              placeholder="jordan,riley"
+              value={subsystemDraft.mentorIdsText}
+            />
+            <ModalField
+              label="Risks (comma separated)"
+              onChangeText={(value) =>
+                setSubsystemDraft((current) => ({ ...current, risksText: value }))
+              }
+              placeholder="Risk one, risk two"
+              value={subsystemDraft.risksText}
+            />
+          </AdvancedOptions>
+        </EditorModal>
+
+        <EditorModal
+          onCancel={closeQaReportEditor}
+          onSave={saveQaReportDraft}
+          saveLabel="Save QA report"
+          title="QA report"
+          visible={Boolean(qaReportEditorMode)}
+        >
+          <DropdownField
+            clearLabel="No task"
+            label="Task"
+            onChange={(value) =>
+              setQaReportDraft((current) => ({ ...current, taskId: value }))
             }
-            placeholder="jordan,riley"
-            value={subsystemDraft.mentorIdsText}
+            options={taskOptions}
+            placeholder="Select task"
+            value={qaReportDraft.taskId}
+          />
+          <DropdownField
+            label="Result"
+            onChange={(value) =>
+              setQaReportDraft((current) => ({
+                ...current,
+                result: value as QaReportDraft["result"],
+              }))
+            }
+            options={QA_RESULT_OPTIONS}
+            value={qaReportDraft.result}
           />
           <ModalField
-            label="Risks (comma separated)"
+            label="Participants (member IDs, comma separated)"
             onChangeText={(value) =>
-              setSubsystemDraft((current) => ({ ...current, risksText: value }))
+              setQaReportDraft((current) => ({ ...current, participantIdsText: value }))
             }
-            placeholder="Risk one, risk two"
-            value={subsystemDraft.risksText}
+            placeholder="ava,jordan"
+            value={qaReportDraft.participantIdsText}
           />
+          <ModalField
+            label="Notes"
+            multiline
+            onChangeText={(value) =>
+              setQaReportDraft((current) => ({ ...current, notes: value }))
+            }
+            placeholder="Inspection result, evidence, and follow-up"
+            value={qaReportDraft.notes}
+          />
+          <AdvancedOptions>
+            <ToggleField
+              label="Mentor approved"
+              onToggle={(value) =>
+                setQaReportDraft((current) => ({ ...current, mentorApproved: value }))
+              }
+              value={qaReportDraft.mentorApproved}
+            />
+          </AdvancedOptions>
+        </EditorModal>
+
+        <EditorModal
+          onCancel={closeEventReportEditor}
+          onSave={saveEventReportDraft}
+          saveLabel="Save event report"
+          title="Event report"
+          visible={Boolean(eventReportEditorMode)}
+        >
+          <DropdownField
+            clearLabel="No event"
+            label="Milestone / event"
+            onChange={(value) =>
+              setEventReportDraft((current) => ({ ...current, eventId: value }))
+            }
+            options={eventOptions}
+            placeholder="Select event"
+            value={eventReportDraft.eventId}
+          />
+          <ModalField
+            label="Summary"
+            multiline
+            onChangeText={(value) =>
+              setEventReportDraft((current) => ({ ...current, summary: value }))
+            }
+            placeholder="What happened at the event"
+            value={eventReportDraft.summary}
+          />
+          <AdvancedOptions>
+            <ModalField
+              label="Finding"
+              multiline
+              onChangeText={(value) =>
+                setEventReportDraft((current) => ({ ...current, findingText: value }))
+              }
+              placeholder="Issue, observation, or test result"
+              value={eventReportDraft.findingText}
+            />
+            <ModalField
+              label="Follow-up task title"
+              onChangeText={(value) =>
+                setEventReportDraft((current) => ({ ...current, followUpTaskTitle: value }))
+              }
+              placeholder="Create a task anchored to this milestone"
+              value={eventReportDraft.followUpTaskTitle}
+            />
+          </AdvancedOptions>
         </EditorModal>
       </>
     );

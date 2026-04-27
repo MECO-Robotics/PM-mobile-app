@@ -1,5 +1,7 @@
-import type { EventType, TaskStatus } from "../types/domain";
+import type { EventType, QaResult, TaskStatus } from "../types/domain";
 import type {
+  ArchiveFilterMode,
+  BlockerFilterMode,
   EventStyle,
   InventoryViewTab,
   ManufacturingViewTab,
@@ -106,6 +108,23 @@ export const EVENT_TYPE_OPTIONS: Option[] = [
   { id: "demo", name: "Demo" },
 ];
 
+export const ARCHIVE_FILTER_OPTIONS: { id: ArchiveFilterMode; name: string }[] = [
+  { id: "active", name: "Active" },
+  { id: "archived", name: "Archive" },
+  { id: "all", name: "All" },
+];
+
+export const BLOCKER_FILTER_OPTIONS: { id: BlockerFilterMode; name: string }[] = [
+  { id: "blocked", name: "Blocked" },
+  { id: "clear", name: "No blockers" },
+];
+
+export const QA_RESULT_OPTIONS: { id: QaResult; name: string }[] = [
+  { id: "pass", name: "Pass" },
+  { id: "minor-fix", name: "Minor fix" },
+  { id: "iteration-worthy", name: "Iteration-worthy" },
+];
+
 export const EVENT_TYPE_STYLES: Record<EventType, EventStyle> = {
   "drive-practice": {
     label: "Drive practice",
@@ -208,6 +227,16 @@ export const SUBVIEW_INTERACTION_GUIDANCE: Record<string, string[]> = {
     "Tap a subsystem to show or hide its mechanisms.",
     "Long-press a subsystem when you need to edit ownership, mentors, or risks.",
     "Use this view to compare open work against subsystem responsibility.",
+  ],
+  reports: [
+    "Use QA reports to record pass, minor-fix, or iteration-worthy outcomes.",
+    "Use event reports after practices, demos, and reviews to capture what changed.",
+    "Iteration-worthy QA reports are surfaced in the risk register.",
+  ],
+  risks: [
+    "Review task blockers, subsystem risks, and QA findings together.",
+    "High-priority blockers and iteration-worthy findings are marked high.",
+    "Resolve blockers from the task queue when the underlying issue is cleared.",
   ],
   roster: [
     "People are grouped by role so ownership and mentor coverage are easy to scan.",
