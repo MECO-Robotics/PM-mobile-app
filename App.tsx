@@ -2,6 +2,7 @@ import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Modal,
+  PanResponder,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -83,7 +84,6 @@ import {
   ModalField,
   OptionChipRow,
   SearchField,
-  SectionTabs,
   StatusPill,
   SummaryRow,
   ToggleField,
@@ -113,6 +113,11 @@ import type {
   WorkLog,
 } from "./src/types/domain";
 import { appThemes, colors } from "./src/theme";
+
+const SWIPE_ACTIVATION_DISTANCE = 18;
+const SWIPE_COMMIT_DISTANCE = 52;
+const SUBTAB_SWIPE_ACTIVATION_DISTANCE = 24;
+const SUBTAB_SWIPE_COMMIT_DISTANCE = 72;
 
 function parseClientError(error: unknown) {
   if (error instanceof ApiRequestError) {
@@ -146,7 +151,7 @@ export default function App() {
   const [manufacturingView, setManufacturingView] =
     useState<ManufacturingViewTab>("cnc");
   const [inventoryView, setInventoryView] = useState<InventoryViewTab>("purchases");
-  const [isNavCollapsed, setIsNavCollapsed] = useState(() => isCompactLayout);
+  const [isNavMenuVisible, setIsNavMenuVisible] = useState(false);
   const [isProjectOverlayVisible, setIsProjectOverlayVisible] = useState(false);
   const [isPersonMenuVisible, setIsPersonMenuVisible] = useState(false);
   const [isPeopleFilterVisible, setIsPeopleFilterVisible] = useState(
@@ -1051,6 +1056,34 @@ export default function App() {
   const rosterAdmins = members.filter((member) => member.role === "admin");
 
   const activeTabLabel = navigationItems.find((item) => item.key === activeTab)?.label ?? "Tasks";
+  const activeSubtabOptions = useMemo(() => {
+    if (activeTab === "tasks") {
+      return TASK_VIEW_OPTIONS;
+    }
+
+    if (activeTab === "manufacturing") {
+      return MANUFACTURING_VIEW_OPTIONS;
+    }
+
+    if (activeTab === "inventory") {
+      return INVENTORY_VIEW_OPTIONS;
+    }
+
+    return [];
+  }, [activeTab]);
+  const activeSubtabValue =
+    activeTab === "tasks"
+      ? taskView
+      : activeTab === "manufacturing"
+        ? manufacturingView
+        : activeTab === "inventory"
+          ? inventoryView
+          : null;
+  const activeSubtabIndex =
+    activeSubtabValue === null
+      ? -1
+      : activeSubtabOptions.findIndex((option) => option.value === activeSubtabValue);
+  const hasSubtabPages = activeSubtabOptions.length > 1;
   const syncStatusLabel =
     backendStatus === "connected"
       ? isSyncing
@@ -1156,6 +1189,12 @@ export default function App() {
         backgroundColor: themeColors.surface,
         borderColor: themeColors.border,
       },
+      navDrawer: {
+        backgroundColor: themeColors.surface,
+        borderColor: themeColors.border,
+        padding: responsiveMetrics.isVeryCompact ? 12 : responsiveMetrics.panelPadding,
+        width: Math.min(width - responsiveMetrics.gutter * 2, 336),
+      },
       settingsRow: {
         backgroundColor: themeColors.canvas,
         borderColor: themeColors.border,
@@ -1204,19 +1243,119 @@ export default function App() {
         fontSize: scaleFont(12, responsiveMetrics),
       },
     }),
-    [isCompactLayout, responsiveMetrics, themeColors],
+    [isCompactLayout, responsiveMetrics, themeColors, width],
   );
   const editTagStyle = [styles.editTag, appResponsiveStyles.editTag];
+  const closeNavigationMenu = useCallback(() => setIsNavMenuVisible(false), []);
+  const openNavigationMenu = useCallback(() => setIsNavMenuVisible(true), []);
+  const selectNavigationTab = useCallback((tab: ViewTab) => {
+    setActiveTab(tab);
+    setIsNavMenuVisible(false);
+  }, []);
+  const selectSubtabByIndex = useCallback(
+    (nextIndex: number) => {
+      const nextOption = activeSubtabOptions[nextIndex];
+      if (!nextOption) {
+        return;
+      }
+
+      if (activeTab === "tasks") {
+        setTaskView(nextOption.value as TaskViewTab);
+        return;
+      }
+
+      if (activeTab === "manufacturing") {
+        setManufacturingView(nextOption.value as ManufacturingViewTab);
+        return;
+      }
+
+      if (activeTab === "inventory") {
+        setInventoryView(nextOption.value as InventoryViewTab);
+      }
+    },
+    [activeSubtabOptions, activeTab],
+  );
+  const subtabSwipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) => {
+          if (!hasSubtabPages) {
+            return false;
+          }
+
+          const horizontalDistance = Math.abs(gesture.dx);
+          return (
+            horizontalDistance > SUBTAB_SWIPE_ACTIVATION_DISTANCE &&
+            horizontalDistance > Math.abs(gesture.dy) + 20
+          );
+        },
+        onPanResponderRelease: (_event, gesture) => {
+          if (!hasSubtabPages || Math.abs(gesture.dx) < SUBTAB_SWIPE_COMMIT_DISTANCE) {
+            return;
+          }
+
+          if (activeSubtabIndex < 0) {
+            return;
+          }
+
+          const direction = gesture.dx < 0 ? 1 : -1;
+          const nextIndex = Math.max(
+            0,
+            Math.min(activeSubtabOptions.length - 1, activeSubtabIndex + direction),
+          );
+
+          if (nextIndex !== activeSubtabIndex) {
+            selectSubtabByIndex(nextIndex);
+          }
+        },
+      }),
+    [
+      activeSubtabIndex,
+      activeSubtabOptions.length,
+      hasSubtabPages,
+      selectSubtabByIndex,
+    ],
+  );
+  const navigationOpenSwipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) => {
+          const horizontalDistance = Math.abs(gesture.dx);
+          return (
+            horizontalDistance > SWIPE_ACTIVATION_DISTANCE &&
+            horizontalDistance > Math.abs(gesture.dy) + 8
+          );
+        },
+        onPanResponderRelease: (_event, gesture) => {
+          if (Math.abs(gesture.dx) >= SWIPE_COMMIT_DISTANCE) {
+            openNavigationMenu();
+          }
+        },
+      }),
+    [openNavigationMenu],
+  );
+  const navigationCloseSwipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) => {
+          const horizontalDistance = Math.abs(gesture.dx);
+          return (
+            horizontalDistance > SWIPE_ACTIVATION_DISTANCE &&
+            horizontalDistance > Math.abs(gesture.dy) + 8
+          );
+        },
+        onPanResponderRelease: (_event, gesture) => {
+          if (Math.abs(gesture.dx) >= SWIPE_COMMIT_DISTANCE) {
+            closeNavigationMenu();
+          }
+        },
+      }),
+    [closeNavigationMenu],
+  );
 
   useEffect(() => {
     void syncFromBackend();
   }, [syncFromBackend]);
-
-  useEffect(() => {
-    if (isCompactLayout) {
-      setIsNavCollapsed(true);
-    }
-  }, [isCompactLayout]);
 
   useEffect(() => {
     if (isVeryCompactLayout) {
@@ -2350,14 +2489,6 @@ export default function App() {
   const renderTasks = () => {
     return (
       <>
-        <SectionTabs
-          activeValue={taskView}
-          onChange={(value) => setTaskView(value as TaskViewTab)}
-          options={TASK_VIEW_OPTIONS.map((option) => ({
-            value: option.value,
-            label: option.label,
-          }))}
-        />
         {taskView === "timeline"
           ? renderTaskTimeline()
           : taskView === "queue"
@@ -2461,15 +2592,6 @@ export default function App() {
 
     return (
       <>
-        <SectionTabs
-          activeValue={manufacturingView}
-          onChange={(value) => setManufacturingView(value as ManufacturingViewTab)}
-          options={MANUFACTURING_VIEW_OPTIONS.map((option) => ({
-            value: option.value,
-            label: option.label,
-          }))}
-        />
-
         <WorkspacePanel
           title={title}
           subtitle="Unified manufacturing rows for part, material, quantity, due date, status, and mentor review."
@@ -2965,15 +3087,6 @@ export default function App() {
   const renderInventory = () => {
     return (
       <>
-        <SectionTabs
-          activeValue={inventoryView}
-          onChange={(value) => setInventoryView(value as InventoryViewTab)}
-          options={INVENTORY_VIEW_OPTIONS.map((option) => ({
-            value: option.value,
-            label: option.label,
-          }))}
-        />
-
         {inventoryView === "materials"
           ? renderInventoryMaterials()
           : inventoryView === "parts"
@@ -3892,6 +4005,109 @@ export default function App() {
     );
   };
 
+  const renderNavigationMenu = () => (
+    <Modal
+      animationType="fade"
+      onRequestClose={closeNavigationMenu}
+      transparent
+      visible={isNavMenuVisible}
+    >
+      <Pressable onPress={closeNavigationMenu} style={styles.navDrawerScrim}>
+        <Pressable
+          accessibilityRole="menu"
+          onPress={() => undefined}
+          style={[styles.navDrawer, appResponsiveStyles.navDrawer]}
+          {...navigationCloseSwipeResponder.panHandlers}
+        >
+          <View style={styles.navDrawerHeader}>
+            <View>
+              <Text style={[styles.navDrawerTitle, { color: themeColors.ink }]}>
+                Workspace
+              </Text>
+              <Text style={[styles.navDrawerSubtitle, { color: themeColors.subtleText }]}>
+                {activeTabLabel}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityLabel="Close navigation"
+              accessibilityRole="button"
+              onPress={closeNavigationMenu}
+              style={[styles.navDrawerCloseButton, appResponsiveStyles.iconButton]}
+            >
+              <Text style={[styles.navDrawerCloseLabel, { color: themeColors.navyInk }]}>
+                X
+              </Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.navDrawerList}>
+            {navigationItems.map((item) => {
+              const isActive = activeTab === item.key;
+
+              return (
+                <Pressable
+                  accessibilityRole="menuitem"
+                  accessibilityState={{ selected: isActive }}
+                  key={item.key}
+                  onPress={() => selectNavigationTab(item.key)}
+                  style={[
+                    styles.navDrawerItem,
+                    appResponsiveStyles.navTab,
+                    isActive && [styles.navDrawerItemActive, appResponsiveStyles.navTabActive],
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.sidebarIconBubble,
+                      appResponsiveStyles.navBubble,
+                      isActive && styles.sidebarIconBubbleActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.sidebarIconLabel,
+                        { color: themeColors.navyInk },
+                        isActive && styles.sidebarIconLabelActive,
+                      ]}
+                    >
+                      {item.shortLabel}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.navDrawerItemLabel,
+                      { color: themeColors.ink },
+                      isActive && { color: themeColors.navyInk },
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                  <View
+                    style={[
+                      styles.sidebarCountPill,
+                      appResponsiveStyles.navCount,
+                      isActive && styles.sidebarCountPillActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.sidebarCountLabel,
+                        { color: themeColors.ink },
+                        isActive && styles.sidebarCountLabelActive,
+                      ]}
+                    >
+                      {item.count}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+
   const renderProjectOverlay = () => (
     <Modal
       animationType="fade"
@@ -4001,10 +4217,16 @@ export default function App() {
         <View style={[styles.topbar, appResponsiveStyles.topbar]}>
           <View style={styles.topbarLeft}>
             <Pressable
-              onPress={() => setIsNavCollapsed((current) => !current)}
+              accessibilityLabel="Open navigation"
+              accessibilityRole="button"
+              onPress={openNavigationMenu}
               style={[styles.iconButton, appResponsiveStyles.iconButton]}
             >
-              <Text style={[styles.iconButtonLabel, appResponsiveStyles.iconButtonLabel]}>NAV</Text>
+              <View style={styles.menuIcon}>
+                <View style={[styles.menuIconBar, { backgroundColor: themeColors.navyInk }]} />
+                <View style={[styles.menuIconBar, { backgroundColor: themeColors.navyInk }]} />
+                <View style={[styles.menuIconBar, { backgroundColor: themeColors.navyInk }]} />
+              </View>
             </Pressable>
 
             <Pressable
@@ -4022,6 +4244,26 @@ export default function App() {
                 >
                   {activeTabLabel}
                 </Text>
+              ) : null}
+              {hasSubtabPages ? (
+                <View style={styles.topbarSubtabDots}>
+                  {activeSubtabOptions.map((option, index) => {
+                    const isActive = index === activeSubtabIndex;
+
+                    return (
+                      <View
+                        key={option.value}
+                        style={[
+                          styles.topbarSubtabDot,
+                          {
+                            backgroundColor: isActive ? themeColors.blue : themeColors.border,
+                            opacity: isActive ? 1 : 0.75,
+                          },
+                        ]}
+                      />
+                    );
+                  })}
+                </View>
               ) : null}
             </Pressable>
           </View>
@@ -4058,79 +4300,6 @@ export default function App() {
           </View>
         ) : null}
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.sidebarNavRow,
-            appResponsiveStyles.navStrip,
-          ]}
-        >
-          {navigationItems.map((item) => {
-            const isActive = activeTab === item.key;
-
-            return (
-              <Pressable
-                key={item.key}
-                onPress={() => setActiveTab(item.key)}
-                style={[
-                  styles.sidebarTab,
-                  appResponsiveStyles.navTab,
-                  isActive && [styles.sidebarTabActive, appResponsiveStyles.navTabActive],
-                ]}
-              >
-                <View
-                  style={[
-                    styles.sidebarIconBubble,
-                    appResponsiveStyles.navBubble,
-                    isActive && styles.sidebarIconBubbleActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.sidebarIconLabel,
-                      { color: themeColors.navyInk },
-                      isActive && styles.sidebarIconLabelActive,
-                    ]}
-                  >
-                    {item.shortLabel}
-                  </Text>
-                </View>
-
-                {!isNavCollapsed ? (
-                  <Text
-                    style={[
-                      styles.sidebarTabLabel,
-                      appResponsiveStyles.navLabel,
-                      isActive && [styles.sidebarTabLabelActive, appResponsiveStyles.navLabelActive],
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-                ) : null}
-
-                <View
-                  style={[
-                    styles.sidebarCountPill,
-                    appResponsiveStyles.navCount,
-                    isActive && styles.sidebarCountPillActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.sidebarCountLabel,
-                      { color: themeColors.ink },
-                      isActive && styles.sidebarCountLabelActive,
-                    ]}
-                  >
-                    {item.count}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
         {isPeopleFilterVisible ? (
           <View style={[styles.personFilterStrip, appResponsiveStyles.navStrip]}>
             <OptionChipRow
@@ -4142,9 +4311,11 @@ export default function App() {
           </View>
         ) : null}
 
-        {renderActiveTab()}
+        <View {...subtabSwipeResponder.panHandlers}>{renderActiveTab()}</View>
       </ScrollView>
+      <View style={styles.navSwipeEdge} {...navigationOpenSwipeResponder.panHandlers} />
       {renderEditorModals()}
+      {renderNavigationMenu()}
       {renderProjectOverlay()}
       {renderPersonMenu()}
       </SafeAreaView>

@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Modal,
+  PanResponder,
   Pressable,
   ScrollView,
   Text,
@@ -15,6 +16,10 @@ import { getResponsiveMetrics, scaleFont } from "./responsive";
 import { statusToneLabelStyles, statusToneStyles, styles } from "./styles";
 import { useAppTheme } from "./themeContext";
 import type { Option, SummaryChipData } from "./types";
+
+const SUBTAB_SWIPE_ACTIVATION_DISTANCE = 18;
+const SUBTAB_SWIPE_COMMIT_DISTANCE = 48;
+
 export function WorkspacePanel({
   title,
   subtitle,
@@ -91,44 +96,77 @@ export function SectionTabs<T extends string>({
   const { width } = useWindowDimensions();
   const metrics = getResponsiveMetrics(width);
   const { colors: themeColors } = useAppTheme();
+  const activeIndex = options.findIndex((option) => option.value === activeValue);
+  const swipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) => {
+          const horizontalDistance = Math.abs(gesture.dx);
+          return (
+            options.length > 1 &&
+            horizontalDistance > SUBTAB_SWIPE_ACTIVATION_DISTANCE &&
+            horizontalDistance > Math.abs(gesture.dy) + 8
+          );
+        },
+        onPanResponderRelease: (_event, gesture) => {
+          if (Math.abs(gesture.dx) < SUBTAB_SWIPE_COMMIT_DISTANCE) {
+            return;
+          }
+
+          const currentIndex = activeIndex >= 0 ? activeIndex : 0;
+          const nextIndex =
+            gesture.dx < 0
+              ? Math.min(options.length - 1, currentIndex + 1)
+              : Math.max(0, currentIndex - 1);
+          const nextValue = options[nextIndex]?.value;
+
+          if (nextValue && nextValue !== activeValue) {
+            onChange(nextValue);
+          }
+        },
+      }),
+    [activeIndex, activeValue, onChange, options],
+  );
 
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={[styles.sectionTabsRow, { paddingHorizontal: metrics.gutter }]}
-    >
-      {options.map((option) => {
-        const isActive = option.value === activeValue;
+    <View {...swipeResponder.panHandlers}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={[styles.sectionTabsRow, { paddingHorizontal: metrics.gutter }]}
+      >
+        {options.map((option) => {
+          const isActive = option.value === activeValue;
 
-        return (
-          <Pressable
-            key={option.value}
-            onPress={() => onChange(option.value)}
-            style={[
-              styles.sectionTab,
-              {
-                backgroundColor: themeColors.surface,
-                borderColor: themeColors.border,
-                paddingHorizontal: metrics.chipPaddingHorizontal + 4,
-                paddingVertical: metrics.chipPaddingVertical,
-              },
-              isActive && [styles.sectionTabActive, { backgroundColor: themeColors.navySurface }],
-            ]}
-          >
-            <Text
+          return (
+            <Pressable
+              key={option.value}
+              onPress={() => onChange(option.value)}
               style={[
-                styles.sectionTabLabel,
-                { color: themeColors.subtleText, fontSize: scaleFont(13, metrics) },
-                isActive && [styles.sectionTabLabelActive, { color: themeColors.navyInk }],
+                styles.sectionTab,
+                {
+                  backgroundColor: themeColors.surface,
+                  borderColor: themeColors.border,
+                  paddingHorizontal: metrics.chipPaddingHorizontal + 4,
+                  paddingVertical: metrics.chipPaddingVertical,
+                },
+                isActive && [styles.sectionTabActive, { backgroundColor: themeColors.navySurface }],
               ]}
             >
-              {option.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
+              <Text
+                style={[
+                  styles.sectionTabLabel,
+                  { color: themeColors.subtleText, fontSize: scaleFont(13, metrics) },
+                  isActive && [styles.sectionTabLabelActive, { color: themeColors.navyInk }],
+                ]}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
