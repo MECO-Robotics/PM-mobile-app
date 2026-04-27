@@ -1,11 +1,18 @@
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
+  KeyboardAvoidingView,
   Modal,
+<<<<<<< HEAD
+  Platform,
+=======
+  PanResponder,
+>>>>>>> 5c0a8d027bd29344bf3f5ce7db7d8b73fcb3d5b6
   Pressable,
   ScrollView,
   Text,
   TextInput,
+  type KeyboardTypeOptions,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -15,6 +22,10 @@ import { getResponsiveMetrics, scaleFont } from "./responsive";
 import { statusToneLabelStyles, statusToneStyles, styles } from "./styles";
 import { useAppTheme } from "./themeContext";
 import type { Option, SummaryChipData } from "./types";
+
+const SUBTAB_SWIPE_ACTIVATION_DISTANCE = 18;
+const SUBTAB_SWIPE_COMMIT_DISTANCE = 48;
+
 export function WorkspacePanel({
   title,
   subtitle,
@@ -91,44 +102,77 @@ export function SectionTabs<T extends string>({
   const { width } = useWindowDimensions();
   const metrics = getResponsiveMetrics(width);
   const { colors: themeColors } = useAppTheme();
+  const activeIndex = options.findIndex((option) => option.value === activeValue);
+  const swipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) => {
+          const horizontalDistance = Math.abs(gesture.dx);
+          return (
+            options.length > 1 &&
+            horizontalDistance > SUBTAB_SWIPE_ACTIVATION_DISTANCE &&
+            horizontalDistance > Math.abs(gesture.dy) + 8
+          );
+        },
+        onPanResponderRelease: (_event, gesture) => {
+          if (Math.abs(gesture.dx) < SUBTAB_SWIPE_COMMIT_DISTANCE) {
+            return;
+          }
+
+          const currentIndex = activeIndex >= 0 ? activeIndex : 0;
+          const nextIndex =
+            gesture.dx < 0
+              ? Math.min(options.length - 1, currentIndex + 1)
+              : Math.max(0, currentIndex - 1);
+          const nextValue = options[nextIndex]?.value;
+
+          if (nextValue && nextValue !== activeValue) {
+            onChange(nextValue);
+          }
+        },
+      }),
+    [activeIndex, activeValue, onChange, options],
+  );
 
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={[styles.sectionTabsRow, { paddingHorizontal: metrics.gutter }]}
-    >
-      {options.map((option) => {
-        const isActive = option.value === activeValue;
+    <View {...swipeResponder.panHandlers}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={[styles.sectionTabsRow, { paddingHorizontal: metrics.gutter }]}
+      >
+        {options.map((option) => {
+          const isActive = option.value === activeValue;
 
-        return (
-          <Pressable
-            key={option.value}
-            onPress={() => onChange(option.value)}
-            style={[
-              styles.sectionTab,
-              {
-                backgroundColor: themeColors.surface,
-                borderColor: themeColors.border,
-                paddingHorizontal: metrics.chipPaddingHorizontal + 4,
-                paddingVertical: metrics.chipPaddingVertical,
-              },
-              isActive && [styles.sectionTabActive, { backgroundColor: themeColors.navySurface }],
-            ]}
-          >
-            <Text
+          return (
+            <Pressable
+              key={option.value}
+              onPress={() => onChange(option.value)}
               style={[
-                styles.sectionTabLabel,
-                { color: themeColors.subtleText, fontSize: scaleFont(13, metrics) },
-                isActive && [styles.sectionTabLabelActive, { color: themeColors.navyInk }],
+                styles.sectionTab,
+                {
+                  backgroundColor: themeColors.surface,
+                  borderColor: themeColors.border,
+                  paddingHorizontal: metrics.chipPaddingHorizontal + 4,
+                  paddingVertical: metrics.chipPaddingVertical,
+                },
+                isActive && [styles.sectionTabActive, { backgroundColor: themeColors.navySurface }],
               ]}
             >
-              {option.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
+              <Text
+                style={[
+                  styles.sectionTabLabel,
+                  { color: themeColors.subtleText, fontSize: scaleFont(13, metrics) },
+                  isActive && [styles.sectionTabLabelActive, { color: themeColors.navyInk }],
+                ]}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -257,6 +301,94 @@ export function OptionChipRow({
         );
       })}
     </ScrollView>
+  );
+}
+
+export function DropdownField({
+  label,
+  options,
+  value,
+  onChange,
+  placeholder = "Select an option",
+  clearLabel,
+}: {
+  label: string;
+  options: Option[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  clearLabel?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const { colors: themeColors } = useAppTheme();
+  const selectedOption = options.find((option) => option.id === value);
+  const menuOptions = clearLabel ? [{ id: "", name: clearLabel }, ...options] : options;
+  const selectedLabel = selectedOption?.name ?? (!value && clearLabel ? clearLabel : placeholder);
+
+  const chooseOption = (optionId: string) => {
+    onChange(optionId);
+    setIsOpen(false);
+  };
+
+  return (
+    <View style={styles.modalField}>
+      <Text style={[styles.modalFieldLabel, { color: themeColors.subtleText }]}>{label}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: isOpen }}
+        onPress={() => setIsOpen(true)}
+        style={[
+          styles.dropdownButton,
+          { backgroundColor: themeColors.canvas, borderColor: themeColors.border },
+        ]}
+      >
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.dropdownButtonLabel,
+            { color: selectedOption || (!value && clearLabel) ? themeColors.ink : themeColors.subtleText },
+          ]}
+        >
+          {selectedLabel}
+        </Text>
+        <Text style={[styles.dropdownChevron, { color: themeColors.subtleText }]}>v</Text>
+      </Pressable>
+
+      {isOpen ? (
+        <View
+          style={[
+            styles.dropdownMenu,
+            { backgroundColor: themeColors.surface, borderColor: themeColors.border },
+          ]}
+        >
+          <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+            {menuOptions.map((option) => {
+              const isSelected = option.id === value || (!option.id && !value);
+
+              return (
+                <Pressable
+                  key={option.id || "empty"}
+                  onPress={() => chooseOption(option.id)}
+                  style={[
+                    styles.dropdownOption,
+                    isSelected && { backgroundColor: themeColors.navySurface },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.dropdownOptionLabel,
+                      { color: isSelected ? themeColors.navyInk : themeColors.ink },
+                    ]}
+                  >
+                    {option.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -473,7 +605,10 @@ export function EditorModal({
       transparent
       visible={visible}
     >
-      <View style={[styles.modalScrim, isCompactLayout && styles.modalScrimCompact]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={[styles.modalScrim, isCompactLayout && styles.modalScrimCompact]}
+      >
         <View
           style={[
             styles.modalCard,
@@ -519,7 +654,7 @@ export function EditorModal({
             </Pressable>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -530,12 +665,14 @@ export function ModalField({
   placeholder,
   onChangeText,
   multiline = false,
+  keyboardType = "default",
 }: {
   label: string;
   value: string;
   placeholder: string;
   onChangeText: (value: string) => void;
   multiline?: boolean;
+  keyboardType?: KeyboardTypeOptions;
 }) {
   const { colors: themeColors } = useAppTheme();
 
@@ -543,6 +680,7 @@ export function ModalField({
     <View style={styles.modalField}>
       <Text style={[styles.modalFieldLabel, { color: themeColors.subtleText }]}>{label}</Text>
       <TextInput
+        keyboardType={keyboardType}
         multiline={multiline}
         onChangeText={onChangeText}
         placeholder={placeholder}

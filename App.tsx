@@ -2,6 +2,7 @@ import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Modal,
+  PanResponder,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -77,13 +78,13 @@ import type {
 } from "./src/ui/types";
 import {
   EditorModal,
+  DropdownField,
   EmptyState,
   FilterToolbar,
   InteractionNote,
   ModalField,
   OptionChipRow,
   SearchField,
-  SectionTabs,
   StatusPill,
   SummaryRow,
   ToggleField,
@@ -113,6 +114,11 @@ import type {
   WorkLog,
 } from "./src/types/domain";
 import { appThemes, colors } from "./src/theme";
+
+const SWIPE_ACTIVATION_DISTANCE = 18;
+const SWIPE_COMMIT_DISTANCE = 52;
+const SUBTAB_SWIPE_ACTIVATION_DISTANCE = 24;
+const SUBTAB_SWIPE_COMMIT_DISTANCE = 72;
 
 function parseClientError(error: unknown) {
   if (error instanceof ApiRequestError) {
@@ -146,7 +152,7 @@ export default function App() {
   const [manufacturingView, setManufacturingView] =
     useState<ManufacturingViewTab>("cnc");
   const [inventoryView, setInventoryView] = useState<InventoryViewTab>("purchases");
-  const [isNavCollapsed, setIsNavCollapsed] = useState(() => isCompactLayout);
+  const [isNavMenuVisible, setIsNavMenuVisible] = useState(false);
   const [isProjectOverlayVisible, setIsProjectOverlayVisible] = useState(false);
   const [isPersonMenuVisible, setIsPersonMenuVisible] = useState(false);
   const [isPeopleFilterVisible, setIsPeopleFilterVisible] = useState(
@@ -1051,6 +1057,34 @@ export default function App() {
   const rosterAdmins = members.filter((member) => member.role === "admin");
 
   const activeTabLabel = navigationItems.find((item) => item.key === activeTab)?.label ?? "Tasks";
+  const activeSubtabOptions = useMemo(() => {
+    if (activeTab === "tasks") {
+      return TASK_VIEW_OPTIONS;
+    }
+
+    if (activeTab === "manufacturing") {
+      return MANUFACTURING_VIEW_OPTIONS;
+    }
+
+    if (activeTab === "inventory") {
+      return INVENTORY_VIEW_OPTIONS;
+    }
+
+    return [];
+  }, [activeTab]);
+  const activeSubtabValue =
+    activeTab === "tasks"
+      ? taskView
+      : activeTab === "manufacturing"
+        ? manufacturingView
+        : activeTab === "inventory"
+          ? inventoryView
+          : null;
+  const activeSubtabIndex =
+    activeSubtabValue === null
+      ? -1
+      : activeSubtabOptions.findIndex((option) => option.value === activeSubtabValue);
+  const hasSubtabPages = activeSubtabOptions.length > 1;
   const syncStatusLabel =
     backendStatus === "connected"
       ? isSyncing
@@ -1156,6 +1190,12 @@ export default function App() {
         backgroundColor: themeColors.surface,
         borderColor: themeColors.border,
       },
+      navDrawer: {
+        backgroundColor: themeColors.surface,
+        borderColor: themeColors.border,
+        padding: responsiveMetrics.isVeryCompact ? 12 : responsiveMetrics.panelPadding,
+        width: Math.min(width - responsiveMetrics.gutter * 2, 336),
+      },
       settingsRow: {
         backgroundColor: themeColors.canvas,
         borderColor: themeColors.border,
@@ -1204,19 +1244,119 @@ export default function App() {
         fontSize: scaleFont(12, responsiveMetrics),
       },
     }),
-    [isCompactLayout, responsiveMetrics, themeColors],
+    [isCompactLayout, responsiveMetrics, themeColors, width],
   );
   const editTagStyle = [styles.editTag, appResponsiveStyles.editTag];
+  const closeNavigationMenu = useCallback(() => setIsNavMenuVisible(false), []);
+  const openNavigationMenu = useCallback(() => setIsNavMenuVisible(true), []);
+  const selectNavigationTab = useCallback((tab: ViewTab) => {
+    setActiveTab(tab);
+    setIsNavMenuVisible(false);
+  }, []);
+  const selectSubtabByIndex = useCallback(
+    (nextIndex: number) => {
+      const nextOption = activeSubtabOptions[nextIndex];
+      if (!nextOption) {
+        return;
+      }
+
+      if (activeTab === "tasks") {
+        setTaskView(nextOption.value as TaskViewTab);
+        return;
+      }
+
+      if (activeTab === "manufacturing") {
+        setManufacturingView(nextOption.value as ManufacturingViewTab);
+        return;
+      }
+
+      if (activeTab === "inventory") {
+        setInventoryView(nextOption.value as InventoryViewTab);
+      }
+    },
+    [activeSubtabOptions, activeTab],
+  );
+  const subtabSwipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) => {
+          if (!hasSubtabPages) {
+            return false;
+          }
+
+          const horizontalDistance = Math.abs(gesture.dx);
+          return (
+            horizontalDistance > SUBTAB_SWIPE_ACTIVATION_DISTANCE &&
+            horizontalDistance > Math.abs(gesture.dy) + 20
+          );
+        },
+        onPanResponderRelease: (_event, gesture) => {
+          if (!hasSubtabPages || Math.abs(gesture.dx) < SUBTAB_SWIPE_COMMIT_DISTANCE) {
+            return;
+          }
+
+          if (activeSubtabIndex < 0) {
+            return;
+          }
+
+          const direction = gesture.dx < 0 ? 1 : -1;
+          const nextIndex = Math.max(
+            0,
+            Math.min(activeSubtabOptions.length - 1, activeSubtabIndex + direction),
+          );
+
+          if (nextIndex !== activeSubtabIndex) {
+            selectSubtabByIndex(nextIndex);
+          }
+        },
+      }),
+    [
+      activeSubtabIndex,
+      activeSubtabOptions.length,
+      hasSubtabPages,
+      selectSubtabByIndex,
+    ],
+  );
+  const navigationOpenSwipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) => {
+          const horizontalDistance = Math.abs(gesture.dx);
+          return (
+            horizontalDistance > SWIPE_ACTIVATION_DISTANCE &&
+            horizontalDistance > Math.abs(gesture.dy) + 8
+          );
+        },
+        onPanResponderRelease: (_event, gesture) => {
+          if (Math.abs(gesture.dx) >= SWIPE_COMMIT_DISTANCE) {
+            openNavigationMenu();
+          }
+        },
+      }),
+    [openNavigationMenu],
+  );
+  const navigationCloseSwipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) => {
+          const horizontalDistance = Math.abs(gesture.dx);
+          return (
+            horizontalDistance > SWIPE_ACTIVATION_DISTANCE &&
+            horizontalDistance > Math.abs(gesture.dy) + 8
+          );
+        },
+        onPanResponderRelease: (_event, gesture) => {
+          if (Math.abs(gesture.dx) >= SWIPE_COMMIT_DISTANCE) {
+            closeNavigationMenu();
+          }
+        },
+      }),
+    [closeNavigationMenu],
+  );
 
   useEffect(() => {
     void syncFromBackend();
   }, [syncFromBackend]);
-
-  useEffect(() => {
-    if (isCompactLayout) {
-      setIsNavCollapsed(true);
-    }
-  }, [isCompactLayout]);
 
   useEffect(() => {
     if (isVeryCompactLayout) {
@@ -1536,13 +1676,16 @@ export default function App() {
 
   const saveManufacturingDraft = async () => {
     const parsedQty = Number(manufacturingDraft.quantity);
+    const parsedQaReviewCount = Number(manufacturingDraft.qaReviewCount);
 
     if (
       !manufacturingDraft.title.trim() ||
       !manufacturingDraft.subsystemId ||
       !manufacturingDraft.requestedById ||
       Number.isNaN(parsedQty) ||
-      parsedQty <= 0
+      parsedQty <= 0 ||
+      Number.isNaN(parsedQaReviewCount) ||
+      parsedQaReviewCount < 0
     ) {
       return;
     }
@@ -1558,6 +1701,7 @@ export default function App() {
       status: manufacturingDraft.status,
       mentorReviewed: manufacturingDraft.mentorReviewed,
       batchLabel: manufacturingDraft.batchLabel.trim() || undefined,
+      qaReviewCount: parsedQaReviewCount,
     };
 
     const isEdit = manufacturingEditorMode === "edit" && activeManufacturingId;
@@ -1613,6 +1757,7 @@ export default function App() {
         status: nextItem.status,
         mentorReviewed: nextItem.mentorReviewed,
         batchLabel: nextItem.batchLabel,
+        qaReviewCount: nextItem.qaReviewCount,
       }),
     });
   };
@@ -1910,6 +2055,7 @@ export default function App() {
           status: "requested",
           mentorReviewed: false,
           batchLabel: undefined,
+          qaReviewCount: 0,
         }),
       });
     } else {
@@ -2350,14 +2496,6 @@ export default function App() {
   const renderTasks = () => {
     return (
       <>
-        <SectionTabs
-          activeValue={taskView}
-          onChange={(value) => setTaskView(value as TaskViewTab)}
-          options={TASK_VIEW_OPTIONS.map((option) => ({
-            value: option.value,
-            label: option.label,
-          }))}
-        />
         {taskView === "timeline"
           ? renderTaskTimeline()
           : taskView === "queue"
@@ -2461,15 +2599,6 @@ export default function App() {
 
     return (
       <>
-        <SectionTabs
-          activeValue={manufacturingView}
-          onChange={(value) => setManufacturingView(value as ManufacturingViewTab)}
-          options={MANUFACTURING_VIEW_OPTIONS.map((option) => ({
-            value: option.value,
-            label: option.label,
-          }))}
-        />
-
         <WorkspacePanel
           title={title}
           subtitle="Unified manufacturing rows for part, material, quantity, due date, status, and mentor review."
@@ -2965,15 +3094,6 @@ export default function App() {
   const renderInventory = () => {
     return (
       <>
-        <SectionTabs
-          activeValue={inventoryView}
-          onChange={(value) => setInventoryView(value as InventoryViewTab)}
-          options={INVENTORY_VIEW_OPTIONS.map((option) => ({
-            value: option.value,
-            label: option.label,
-          }))}
-        />
-
         {inventoryView === "materials"
           ? renderInventoryMaterials()
           : inventoryView === "parts"
@@ -3243,11 +3363,12 @@ export default function App() {
             placeholder="2026-04-24"
             value={taskDraft.dueDate}
           />
-          <OptionChipRow
-            allLabel="Subsystem"
+          <DropdownField
+            clearLabel="No subsystem"
+            label="Subsystem"
             onChange={(value) =>
               setTaskDraft((current) => {
-                const subsystemId = value === "all" ? "" : value;
+                const subsystemId = value;
                 const nextMechanisms = mechanisms.filter(
                   (mechanism) => mechanism.subsystemId === subsystemId,
                 );
@@ -3266,21 +3387,25 @@ export default function App() {
               })
             }
             options={subsystemOptions}
-            value={taskDraft.subsystemId || "all"}
+            placeholder="Select subsystem"
+            value={taskDraft.subsystemId}
           />
-          <OptionChipRow
-            allLabel="Discipline"
+          <DropdownField
+            clearLabel="No discipline"
+            label="Discipline"
             onChange={(value) =>
-              setTaskDraft((current) => ({ ...current, disciplineId: value === "all" ? "" : value }))
+              setTaskDraft((current) => ({ ...current, disciplineId: value }))
             }
             options={disciplineOptions}
-            value={taskDraft.disciplineId || "all"}
+            placeholder="Select discipline"
+            value={taskDraft.disciplineId}
           />
-          <OptionChipRow
-            allLabel="Mechanism"
+          <DropdownField
+            clearLabel="No mechanism"
+            label="Mechanism"
             onChange={(value) =>
               setTaskDraft((current) => {
-                const mechanismId = value === "all" ? null : value;
+                const mechanismId = value || null;
                 const partInstanceId = mechanismId
                   ? partInstances.find((partInstance) => partInstance.mechanismId === mechanismId)
                       ?.id ?? null
@@ -3294,63 +3419,72 @@ export default function App() {
               })
             }
             options={mechanismOptions}
-            value={taskDraft.mechanismId || "all"}
+            placeholder="Select mechanism"
+            value={taskDraft.mechanismId || ""}
           />
-          <OptionChipRow
-            allLabel="Part instance"
+          <DropdownField
+            clearLabel="No part instance"
+            label="Part instance"
             onChange={(value) =>
               setTaskDraft((current) => ({
                 ...current,
-                partInstanceId: value === "all" ? null : value,
+                partInstanceId: value || null,
               }))
             }
             options={mechanismAndTaskPartOptions}
-            value={taskDraft.partInstanceId || "all"}
+            placeholder="Select part instance"
+            value={taskDraft.partInstanceId || ""}
           />
-          <OptionChipRow
-            allLabel="Target event"
+          <DropdownField
+            clearLabel="No target event"
+            label="Target event"
             onChange={(value) =>
               setTaskDraft((current) => ({
                 ...current,
-                targetEventId: value === "all" ? null : value,
+                targetEventId: value || null,
               }))
             }
             options={eventOptions}
-            value={taskDraft.targetEventId || "all"}
+            placeholder="Select target event"
+            value={taskDraft.targetEventId || ""}
           />
-          <OptionChipRow
-            allLabel="Owner"
+          <DropdownField
+            clearLabel="No owner"
+            label="Owner"
             onChange={(value) =>
-              setTaskDraft((current) => ({ ...current, ownerId: value === "all" ? "" : value }))
+              setTaskDraft((current) => ({ ...current, ownerId: value }))
             }
             options={memberOptions}
-            value={taskDraft.ownerId || "all"}
+            placeholder="Select owner"
+            value={taskDraft.ownerId}
           />
-          <OptionChipRow
-            allLabel="Mentor"
+          <DropdownField
+            clearLabel="No mentor"
+            label="Mentor"
             onChange={(value) =>
-              setTaskDraft((current) => ({ ...current, mentorId: value === "all" ? "" : value }))
+              setTaskDraft((current) => ({ ...current, mentorId: value }))
             }
             options={memberOptions}
-            value={taskDraft.mentorId || "all"}
+            placeholder="Select mentor"
+            value={taskDraft.mentorId}
           />
-          <OptionChipRow
-            allLabel="Status"
+          <DropdownField
+            label="Status"
             onChange={(value) =>
               setTaskDraft((current) => ({
                 ...current,
-                status: (value === "all" ? "not-started" : value) as TaskStatus,
+                status: value as TaskStatus,
               }))
             }
             options={TASK_STATUS_OPTIONS}
             value={taskDraft.status}
           />
-          <OptionChipRow
-            allLabel="Priority"
+          <DropdownField
+            label="Priority"
             onChange={(value) =>
               setTaskDraft((current) => ({
                 ...current,
-                priority: (value === "all" ? "medium" : value) as TaskPriority,
+                priority: value as TaskPriority,
               }))
             }
             options={TASK_PRIORITY_OPTIONS}
@@ -3392,12 +3526,12 @@ export default function App() {
             placeholder="Milestone title"
             value={milestoneDraft.title}
           />
-          <OptionChipRow
-            allLabel="Type"
+          <DropdownField
+            label="Type"
             onChange={(value) =>
               setMilestoneDraft((current) => ({
                 ...current,
-                type: value === "all" ? "internal-review" : (value as EventType),
+                type: value as EventType,
               }))
             }
             options={EVENT_TYPE_OPTIONS}
@@ -3466,13 +3600,15 @@ export default function App() {
           title={workLogEditorMode === "edit" ? "Edit work log" : "Create work log"}
           visible={Boolean(workLogEditorMode)}
         >
-          <OptionChipRow
-            allLabel="Task"
+          <DropdownField
+            clearLabel="No task"
+            label="Task"
             onChange={(value) =>
-              setWorkLogDraft((current) => ({ ...current, taskId: value === "all" ? "" : value }))
+              setWorkLogDraft((current) => ({ ...current, taskId: value }))
             }
             options={taskOptions}
-            value={workLogDraft.taskId || "all"}
+            placeholder="Select task"
+            value={workLogDraft.taskId}
           />
           <ModalField
             label="Date (YYYY-MM-DD)"
@@ -3482,6 +3618,7 @@ export default function App() {
           />
           <ModalField
             label="Hours"
+            keyboardType="decimal-pad"
             onChangeText={(value) => setWorkLogDraft((current) => ({ ...current, hours: value }))}
             placeholder="2.5"
             value={workLogDraft.hours}
@@ -3519,16 +3656,18 @@ export default function App() {
             placeholder="Part title"
             value={manufacturingDraft.title}
           />
-          <OptionChipRow
-            allLabel="Subsystem"
+          <DropdownField
+            clearLabel="No subsystem"
+            label="Subsystem"
             onChange={(value) =>
               setManufacturingDraft((current) => ({
                 ...current,
-                subsystemId: value === "all" ? "" : value,
+                subsystemId: value,
               }))
             }
             options={subsystemOptions}
-            value={manufacturingDraft.subsystemId || "all"}
+            placeholder="Select subsystem"
+            value={manufacturingDraft.subsystemId}
           />
           {manufacturingEditorMode === "create" ? (
             <View style={styles.modalField}>
@@ -3552,23 +3691,25 @@ export default function App() {
             </View>
           ) : (
             <>
-              <OptionChipRow
-                allLabel="Requester"
+              <DropdownField
+                clearLabel="No requester"
+                label="Requester"
                 onChange={(value) =>
                   setManufacturingDraft((current) => ({
                     ...current,
-                    requestedById: value === "all" ? "" : value,
+                    requestedById: value,
                   }))
                 }
                 options={memberOptions}
-                value={manufacturingDraft.requestedById || "all"}
+                placeholder="Select requester"
+                value={manufacturingDraft.requestedById}
               />
-              <OptionChipRow
-                allLabel="Process"
+              <DropdownField
+                label="Process"
                 onChange={(value) =>
                   setManufacturingDraft((current) => ({
                     ...current,
-                    process: (value === "all" ? current.process : value) as ManufacturingItem["process"],
+                    process: value as ManufacturingItem["process"],
                   }))
                 }
                 options={MANUFACTURING_VIEW_OPTIONS.map((option) => ({
@@ -3577,12 +3718,12 @@ export default function App() {
                 }))}
                 value={manufacturingDraft.process}
               />
-              <OptionChipRow
-                allLabel="Status"
+              <DropdownField
+                label="Status"
                 onChange={(value) =>
                   setManufacturingDraft((current) => ({
                     ...current,
-                    status: (value === "all" ? "requested" : value) as ManufacturingItem["status"],
+                    status: value as ManufacturingItem["status"],
                   }))
                 }
                 options={MANUFACTURING_STATUS_OPTIONS}
@@ -3600,6 +3741,7 @@ export default function App() {
           />
           <ModalField
             label="Quantity"
+            keyboardType="numeric"
             onChangeText={(value) =>
               setManufacturingDraft((current) => ({ ...current, quantity: value }))
             }
@@ -3624,6 +3766,7 @@ export default function App() {
           />
           <ModalField
             label="QA review count"
+            keyboardType="numeric"
             onChangeText={(value) =>
               setManufacturingDraft((current) => ({ ...current, qaReviewCount: value }))
             }
@@ -3655,34 +3798,38 @@ export default function App() {
             placeholder="Item title"
             value={purchaseDraft.title}
           />
-          <OptionChipRow
-            allLabel="Subsystem"
+          <DropdownField
+            clearLabel="No subsystem"
+            label="Subsystem"
             onChange={(value) =>
               setPurchaseDraft((current) => ({
                 ...current,
-                subsystemId: value === "all" ? "" : value,
+                subsystemId: value,
               }))
             }
             options={subsystemOptions}
-            value={purchaseDraft.subsystemId || "all"}
+            placeholder="Select subsystem"
+            value={purchaseDraft.subsystemId}
           />
-          <OptionChipRow
-            allLabel="Requester"
+          <DropdownField
+            clearLabel="No requester"
+            label="Requester"
             onChange={(value) =>
               setPurchaseDraft((current) => ({
                 ...current,
-                requestedById: value === "all" ? "" : value,
+                requestedById: value,
               }))
             }
             options={memberOptions}
-            value={purchaseDraft.requestedById || "all"}
+            placeholder="Select requester"
+            value={purchaseDraft.requestedById}
           />
-          <OptionChipRow
-            allLabel="Status"
+          <DropdownField
+            label="Status"
             onChange={(value) =>
               setPurchaseDraft((current) => ({
                 ...current,
-                status: (value === "all" ? "requested" : value) as PurchaseItem["status"],
+                status: value as PurchaseItem["status"],
               }))
             }
             options={PURCHASE_STATUS_OPTIONS}
@@ -3702,12 +3849,14 @@ export default function App() {
           />
           <ModalField
             label="Quantity"
+            keyboardType="numeric"
             onChangeText={(value) => setPurchaseDraft((current) => ({ ...current, quantity: value }))}
             placeholder="1"
             value={purchaseDraft.quantity}
           />
           <ModalField
             label="Estimated cost"
+            keyboardType="decimal-pad"
             onChangeText={(value) =>
               setPurchaseDraft((current) => ({ ...current, estimatedCost: value }))
             }
@@ -3716,6 +3865,7 @@ export default function App() {
           />
           <ModalField
             label="Final cost (optional)"
+            keyboardType="decimal-pad"
             onChangeText={(value) => setPurchaseDraft((current) => ({ ...current, finalCost: value }))}
             placeholder="61"
             value={purchaseDraft.finalCost}
@@ -3771,12 +3921,12 @@ export default function App() {
             placeholder="A"
             value={partDefinitionDraft.revision}
           />
-          <OptionChipRow
-            allLabel="Source"
+          <DropdownField
+            label="Source"
             onChange={(value) =>
               setPartDefinitionDraft((current) => ({
                 ...current,
-                source: value === "all" ? "Onshape" : value,
+                source: value,
                 acquisitionMethod:
                   value === "FRC Supplier" || value === "COTS"
                     ? "purchase"
@@ -3787,14 +3937,12 @@ export default function App() {
             value={partDefinitionDraft.source || "Onshape"}
           />
           {partDefinitionEditorMode === "create" ? (
-            <OptionChipRow
-              allLabel="Acquisition method"
+            <DropdownField
+              label="Acquisition method"
               onChange={(value) =>
                 setPartDefinitionDraft((current) => ({
                   ...current,
-                  acquisitionMethod: (value === "all"
-                    ? "manufacture"
-                    : value) as AcquisitionMethod,
+                  acquisitionMethod: value as AcquisitionMethod,
                 }))
               }
               options={ACQUISITION_METHOD_OPTIONS}
@@ -3817,12 +3965,12 @@ export default function App() {
             placeholder="Person name"
             value={memberDraft.name}
           />
-          <OptionChipRow
-            allLabel="Role"
+          <DropdownField
+            label="Role"
             onChange={(value) =>
               setMemberDraft((current) => ({
                 ...current,
-                role: (value === "all" ? "student" : value) as MemberRole,
+                role: value as MemberRole,
               }))
             }
             options={[
@@ -3860,16 +4008,18 @@ export default function App() {
             placeholder="Subsystem description"
             value={subsystemDraft.description}
           />
-          <OptionChipRow
-            allLabel="Responsible engineer"
+          <DropdownField
+            clearLabel="No responsible engineer"
+            label="Responsible engineer"
             onChange={(value) =>
               setSubsystemDraft((current) => ({
                 ...current,
-                responsibleEngineerId: value === "all" ? "" : value,
+                responsibleEngineerId: value,
               }))
             }
             options={memberOptions}
-            value={subsystemDraft.responsibleEngineerId || "all"}
+            placeholder="Select responsible engineer"
+            value={subsystemDraft.responsibleEngineerId}
           />
           <ModalField
             label="Mentor IDs (comma separated)"
@@ -3891,6 +4041,109 @@ export default function App() {
       </>
     );
   };
+
+  const renderNavigationMenu = () => (
+    <Modal
+      animationType="fade"
+      onRequestClose={closeNavigationMenu}
+      transparent
+      visible={isNavMenuVisible}
+    >
+      <Pressable onPress={closeNavigationMenu} style={styles.navDrawerScrim}>
+        <Pressable
+          accessibilityRole="menu"
+          onPress={() => undefined}
+          style={[styles.navDrawer, appResponsiveStyles.navDrawer]}
+          {...navigationCloseSwipeResponder.panHandlers}
+        >
+          <View style={styles.navDrawerHeader}>
+            <View>
+              <Text style={[styles.navDrawerTitle, { color: themeColors.ink }]}>
+                Workspace
+              </Text>
+              <Text style={[styles.navDrawerSubtitle, { color: themeColors.subtleText }]}>
+                {activeTabLabel}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityLabel="Close navigation"
+              accessibilityRole="button"
+              onPress={closeNavigationMenu}
+              style={[styles.navDrawerCloseButton, appResponsiveStyles.iconButton]}
+            >
+              <Text style={[styles.navDrawerCloseLabel, { color: themeColors.navyInk }]}>
+                X
+              </Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.navDrawerList}>
+            {navigationItems.map((item) => {
+              const isActive = activeTab === item.key;
+
+              return (
+                <Pressable
+                  accessibilityRole="menuitem"
+                  accessibilityState={{ selected: isActive }}
+                  key={item.key}
+                  onPress={() => selectNavigationTab(item.key)}
+                  style={[
+                    styles.navDrawerItem,
+                    appResponsiveStyles.navTab,
+                    isActive && [styles.navDrawerItemActive, appResponsiveStyles.navTabActive],
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.sidebarIconBubble,
+                      appResponsiveStyles.navBubble,
+                      isActive && styles.sidebarIconBubbleActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.sidebarIconLabel,
+                        { color: themeColors.navyInk },
+                        isActive && styles.sidebarIconLabelActive,
+                      ]}
+                    >
+                      {item.shortLabel}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.navDrawerItemLabel,
+                      { color: themeColors.ink },
+                      isActive && { color: themeColors.navyInk },
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                  <View
+                    style={[
+                      styles.sidebarCountPill,
+                      appResponsiveStyles.navCount,
+                      isActive && styles.sidebarCountPillActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.sidebarCountLabel,
+                        { color: themeColors.ink },
+                        isActive && styles.sidebarCountLabelActive,
+                      ]}
+                    >
+                      {item.count}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
 
   const renderProjectOverlay = () => (
     <Modal
@@ -4001,10 +4254,16 @@ export default function App() {
         <View style={[styles.topbar, appResponsiveStyles.topbar]}>
           <View style={styles.topbarLeft}>
             <Pressable
-              onPress={() => setIsNavCollapsed((current) => !current)}
+              accessibilityLabel="Open navigation"
+              accessibilityRole="button"
+              onPress={openNavigationMenu}
               style={[styles.iconButton, appResponsiveStyles.iconButton]}
             >
-              <Text style={[styles.iconButtonLabel, appResponsiveStyles.iconButtonLabel]}>NAV</Text>
+              <View style={styles.menuIcon}>
+                <View style={[styles.menuIconBar, { backgroundColor: themeColors.navyInk }]} />
+                <View style={[styles.menuIconBar, { backgroundColor: themeColors.navyInk }]} />
+                <View style={[styles.menuIconBar, { backgroundColor: themeColors.navyInk }]} />
+              </View>
             </Pressable>
 
             <Pressable
@@ -4022,6 +4281,26 @@ export default function App() {
                 >
                   {activeTabLabel}
                 </Text>
+              ) : null}
+              {hasSubtabPages ? (
+                <View style={styles.topbarSubtabDots}>
+                  {activeSubtabOptions.map((option, index) => {
+                    const isActive = index === activeSubtabIndex;
+
+                    return (
+                      <View
+                        key={option.value}
+                        style={[
+                          styles.topbarSubtabDot,
+                          {
+                            backgroundColor: isActive ? themeColors.blue : themeColors.border,
+                            opacity: isActive ? 1 : 0.75,
+                          },
+                        ]}
+                      />
+                    );
+                  })}
+                </View>
               ) : null}
             </Pressable>
           </View>
@@ -4058,79 +4337,6 @@ export default function App() {
           </View>
         ) : null}
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.sidebarNavRow,
-            appResponsiveStyles.navStrip,
-          ]}
-        >
-          {navigationItems.map((item) => {
-            const isActive = activeTab === item.key;
-
-            return (
-              <Pressable
-                key={item.key}
-                onPress={() => setActiveTab(item.key)}
-                style={[
-                  styles.sidebarTab,
-                  appResponsiveStyles.navTab,
-                  isActive && [styles.sidebarTabActive, appResponsiveStyles.navTabActive],
-                ]}
-              >
-                <View
-                  style={[
-                    styles.sidebarIconBubble,
-                    appResponsiveStyles.navBubble,
-                    isActive && styles.sidebarIconBubbleActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.sidebarIconLabel,
-                      { color: themeColors.navyInk },
-                      isActive && styles.sidebarIconLabelActive,
-                    ]}
-                  >
-                    {item.shortLabel}
-                  </Text>
-                </View>
-
-                {!isNavCollapsed ? (
-                  <Text
-                    style={[
-                      styles.sidebarTabLabel,
-                      appResponsiveStyles.navLabel,
-                      isActive && [styles.sidebarTabLabelActive, appResponsiveStyles.navLabelActive],
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-                ) : null}
-
-                <View
-                  style={[
-                    styles.sidebarCountPill,
-                    appResponsiveStyles.navCount,
-                    isActive && styles.sidebarCountPillActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.sidebarCountLabel,
-                      { color: themeColors.ink },
-                      isActive && styles.sidebarCountLabelActive,
-                    ]}
-                  >
-                    {item.count}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
         {isPeopleFilterVisible ? (
           <View style={[styles.personFilterStrip, appResponsiveStyles.navStrip]}>
             <OptionChipRow
@@ -4142,9 +4348,11 @@ export default function App() {
           </View>
         ) : null}
 
-        {renderActiveTab()}
+        <View {...subtabSwipeResponder.panHandlers}>{renderActiveTab()}</View>
       </ScrollView>
+      <View style={styles.navSwipeEdge} {...navigationOpenSwipeResponder.panHandlers} />
       {renderEditorModals()}
+      {renderNavigationMenu()}
       {renderProjectOverlay()}
       {renderPersonMenu()}
       </SafeAreaView>

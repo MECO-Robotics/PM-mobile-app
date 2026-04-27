@@ -41,6 +41,65 @@ function Use-AndroidSdk {
   }
 }
 
+function Get-AndroidDevices {
+  if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
+    return @()
+  }
+
+  $devices = & adb devices
+  return @($devices | Where-Object { $_ -match "\sdevice$" })
+}
+
+function Get-AndroidAvdName {
+  if ($env:ANDROID_AVD_NAME) {
+    return $env:ANDROID_AVD_NAME
+  }
+
+  if (Get-Command emulator -ErrorAction SilentlyContinue) {
+    $avds = @(& emulator -list-avds 2>$null | Where-Object { $_ })
+    if ($avds.Count -gt 0) {
+      return $avds[0]
+    }
+  }
+
+  return "Medium_Phone_API_36.0"
+}
+
+function Start-AndroidEmulatorIfNeeded {
+  if ((Get-AndroidDevices).Count -gt 0) {
+    return
+  }
+
+  if (-not (Get-Command emulator -ErrorAction SilentlyContinue)) {
+    throw "Android emulator was not found on PATH. Confirm Android Studio is installed and ANDROID_HOME points to the SDK."
+  }
+
+  $avdName = Get-AndroidAvdName
+  Write-Host "Starting Android emulator: $avdName"
+  Start-Process -FilePath "emulator" -ArgumentList @("-avd", $avdName) -WindowStyle Normal | Out-Null
+
+  $deadline = (Get-Date).AddMinutes(4)
+  do {
+    Start-Sleep -Seconds 5
+    if ((Get-AndroidDevices).Count -gt 0) {
+      $bootCompleted = (& adb shell getprop sys.boot_completed 2>$null | Select-Object -First 1).Trim()
+      if ($bootCompleted -eq "1") {
+        return
+      }
+    }
+  } while ((Get-Date) -lt $deadline)
+
+  throw "Android emulator did not finish booting before the timeout."
+}
+
+function Stop-ExpoGoIfRunning {
+  if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
+    return
+  }
+
+  & adb shell am force-stop host.exp.exponent 2>$null | Out-Null
+}
+
 function Show-Usage {
   @"
 usage: powershell -ExecutionPolicy Bypass -File ./script/build_and_run.ps1 [mode]
@@ -136,6 +195,8 @@ switch ($Mode) {
     Invoke-Expo @("start")
   }
   { $_ -in @("--android", "android") } {
+    Start-AndroidEmulatorIfNeeded
+    Stop-ExpoGoIfRunning
     $env:REACT_NATIVE_PACKAGER_HOSTNAME = "10.0.2.2"
     if (Get-Command adb -ErrorAction SilentlyContinue) {
       & adb reverse tcp:8081 tcp:8081 | Out-Null
