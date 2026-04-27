@@ -1625,6 +1625,33 @@ export default function App() {
     setPurchaseEditorMode("create");
   };
 
+  const openMaterialRestockEditor = (row: MaterialRollup) => {
+    const relatedManufacturingItem = manufacturingItems.find(
+      (item) => item.material === row.name && item.status !== "complete",
+    );
+    const relatedPurchase = purchaseItems.find((item) => {
+      const text = `${item.title} ${item.vendor} ${item.linkLabel}`.toLowerCase();
+      return row.name
+        .toLowerCase()
+        .split(" ")
+        .some((token) => token.length > 3 && text.includes(token));
+    });
+
+    setActivePurchaseId(null);
+    setPurchaseDraft(
+      buildPurchaseDraft({
+        title: `Restock ${row.name}`,
+        subsystemId: relatedManufacturingItem?.subsystemId ?? subsystems[0]?.id ?? "",
+        requestedById: signedInMember?.id ?? members[0]?.id ?? "",
+        quantity: row.reorderPoint,
+        vendor: row.vendor === "Mixed" ? "" : row.vendor,
+        linkLabel: relatedPurchase?.linkLabel ?? "",
+        status: "requested",
+      }),
+    );
+    setPurchaseEditorMode("create");
+  };
+
   const openEditPurchaseEditor = (item: PurchaseItem) => {
     setActivePurchaseId(item.id);
     setPurchaseDraft(buildPurchaseDraft(item));
@@ -2566,7 +2593,16 @@ export default function App() {
                   {capitalize(row.category)} - vendor {row.vendor}
                 </Text>
               </View>
-              <Text style={editTagStyle}>EDIT</Text>
+              <Pressable
+                onPress={() => openMaterialRestockEditor(row)}
+                style={[
+                  styles.quickActionButton,
+                  appResponsiveStyles.quickActionButton,
+                  styles.quickActionButtonPrimary,
+                ]}
+              >
+                <Text style={styles.quickActionButtonPrimaryLabel}>Restock</Text>
+              </Pressable>
             </View>
 
             <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
@@ -3531,7 +3567,7 @@ export default function App() {
             value={purchaseDraft.vendor}
           />
           <ModalField
-            label="Link label"
+            label="Acquisition website"
             onChangeText={(value) => setPurchaseDraft((current) => ({ ...current, linkLabel: value }))}
             placeholder="vendor.com/item"
             value={purchaseDraft.linkLabel}

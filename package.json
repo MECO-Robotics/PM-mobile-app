@@ -7,6 +7,8 @@
   },
   "scripts": {
     "postinstall": "node scripts/patch-freeport-async.js",
+    "sim:reset": "node scripts/reset-ios-sim.js",
+    "preios": "node scripts/reset-ios-sim.js",
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios --localhost --port 8081",

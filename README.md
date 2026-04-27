@@ -27,6 +27,7 @@ nvm use
 
 ```bash
 npm install
+npm run sim:reset
 npm run start
 npm run ios
 npm run android
