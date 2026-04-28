@@ -159,9 +159,10 @@ export function isoToday() {
 }
 
 export function getStatusGroup(value: string): StatusGroup {
-  for (const [group, candidates] of Object.entries(STATUS_GROUPS) as Array<
-    [Exclude<StatusGroup, "neutral">, Set<string>]
-  >) {
+  for (const [group, candidates] of Object.entries(STATUS_GROUPS) as [
+    Exclude<StatusGroup, "neutral">,
+    Set<string>,
+  ][]) {
     if (candidates.has(value)) {
       return group;
     }

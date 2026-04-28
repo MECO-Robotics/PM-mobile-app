@@ -13,6 +13,7 @@
     "start": "expo start",
     "android": "powershell -ExecutionPolicy Bypass -File ./script/build_and_run.ps1 --android",
     "ios": "expo start --ios --localhost --port 8081",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -23,6 +24,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "eslint": "^9.39.4",
+    "eslint-config-expo": "^55.0.0",
     "typescript": "~5.9.2"
   },
   "private": true
