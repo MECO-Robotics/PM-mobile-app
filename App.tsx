@@ -116,6 +116,7 @@ import type {
   QaReview,
   SessionResponse,
   SessionUser,
+  SlackHomeResponse,
   Subsystem,
   Task,
   TaskPriority,
@@ -128,6 +129,18 @@ const SWIPE_ACTIVATION_DISTANCE = 18;
 const SWIPE_COMMIT_DISTANCE = 52;
 const SUBTAB_SWIPE_ACTIVATION_DISTANCE = 24;
 const SUBTAB_SWIPE_COMMIT_DISTANCE = 72;
+
+const EMPTY_SLACK_HOME: SlackHomeResponse = {
+  slackEnabled: false,
+  slackConnected: false,
+  slackError: null,
+  userEmail: null,
+  alertUsergroupHandles: [],
+  channels: [],
+  unreadAlerts: [],
+  meetingRecap: null,
+  summaries: [],
+};
 
 function parseClientError(error: unknown) {
   if (error instanceof ApiRequestError) {
@@ -156,7 +169,7 @@ export default function App() {
   >("connecting");
   const [syncError, setSyncError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<ViewTab>("tasks");
+  const [activeTab, setActiveTab] = useState<ViewTab>("home");
   const [taskView, setTaskView] = useState<TaskViewTab>("queue");
   const [manufacturingView, setManufacturingView] =
     useState<ManufacturingViewTab>("cnc");
@@ -181,6 +194,8 @@ export default function App() {
     () => mecoSnapshot.manufacturingItems,
   );
   const [purchaseItems, setPurchaseItems] = useState(() => mecoSnapshot.purchaseItems);
+  const [slackHome, setSlackHome] = useState<SlackHomeResponse>(EMPTY_SLACK_HOME);
+  const [dismissedSlackAlertIds, setDismissedSlackAlertIds] = useState<string[]>([]);
   const [partDefinitions, setPartDefinitions] = useState(
     () => mecoSnapshot.partDefinitions,
   );
@@ -331,13 +346,22 @@ export default function App() {
 
   const refreshWorkspaceFromServer = useCallback(
     async (token: string | null) => {
-      const payload = await requestJson<PlatformBootstrapPayload>(
-        apiBaseUrl,
-        "/api/bootstrap",
-        undefined,
-        token,
-      );
+      const [payload, homePayload] = await Promise.all([
+        requestJson<PlatformBootstrapPayload>(
+          apiBaseUrl,
+          "/api/bootstrap",
+          undefined,
+          token,
+        ),
+        requestJson<SlackHomeResponse>(
+          apiBaseUrl,
+          "/api/home",
+          undefined,
+          token,
+        ),
+      ]);
       applyBootstrapPayload(payload);
+      setSlackHome(homePayload);
     },
     [apiBaseUrl, applyBootstrapPayload],
   );
@@ -481,8 +505,21 @@ export default function App() {
     const openManufacturing = manufacturingItems.filter(
       (item) => item.status !== "complete",
     ).length;
+    const visibleSlackAlerts = slackHome.unreadAlerts.filter(
+      (alert) => !dismissedSlackAlertIds.includes(alert.id),
+    ).length;
+    const homeCount =
+      visibleSlackAlerts +
+      (slackHome.meetingRecap ? 1 : 0) +
+      slackHome.summaries.length;
 
     return [
+      {
+        key: "home",
+        label: "Home",
+        shortLabel: "HM",
+        count: homeCount,
+      },
       {
         key: "tasks",
         label: "Tasks",
@@ -542,6 +579,8 @@ export default function App() {
     members,
     qaReviews,
     eventReports,
+    dismissedSlackAlertIds,
+    slackHome,
   ]);
 
   const taskSummary = useMemo(() => {
@@ -1209,8 +1248,64 @@ export default function App() {
     (member) => member.role === "mentor" || member.role === "lead",
   );
   const rosterAdmins = members.filter((member) => member.role === "admin");
+  const visibleSlackAlerts = useMemo(
+    () =>
+      slackHome.unreadAlerts.filter(
+        (alert) => !dismissedSlackAlertIds.includes(alert.id),
+      ),
+    [dismissedSlackAlertIds, slackHome.unreadAlerts],
+  );
+  const slackHomeSummary = useMemo(
+    () =>
+      [
+        { label: "Unread", value: String(visibleSlackAlerts.length) },
+        { label: "Recap", value: slackHome.meetingRecap ? "1" : "0" },
+        { label: "Summaries", value: String(slackHome.summaries.length) },
+        { label: "Channels", value: String(slackHome.channels.length) },
+      ] satisfies SummaryChipData[],
+    [slackHome.channels.length, slackHome.meetingRecap, slackHome.summaries.length, visibleSlackAlerts.length],
+  );
+  const homePriorityTasks = useMemo(() => {
+    const priorityRank: Record<TaskPriority, number> = {
+      critical: 0,
+      high: 1,
+      medium: 2,
+      low: 3,
+    };
 
-  const activeTabLabel = navigationItems.find((item) => item.key === activeTab)?.label ?? "Tasks";
+    return [...tasks]
+      .filter((task) => task.status !== "complete")
+      .sort((left, right) => {
+        const blockerDelta =
+          Number(right.blockers.length > 0) - Number(left.blockers.length > 0);
+        if (blockerDelta !== 0) {
+          return blockerDelta;
+        }
+
+        const priorityDelta = priorityRank[left.priority] - priorityRank[right.priority];
+        if (priorityDelta !== 0) {
+          return priorityDelta;
+        }
+
+        return left.dueDate.localeCompare(right.dueDate);
+      })
+      .slice(0, 5);
+  }, [tasks]);
+  const homeTaskSummary = useMemo(() => {
+    const openTasks = tasks.filter((task) => task.status !== "complete");
+    const blockedTasks = openTasks.filter((task) => task.blockers.length > 0);
+    const dueToday = openTasks.filter((task) => task.dueDate <= isoToday());
+    const waitingQa = openTasks.filter((task) => task.status === "waiting-for-qa");
+
+    return [
+      { label: "Open", value: String(openTasks.length) },
+      { label: "Blocked", value: String(blockedTasks.length) },
+      { label: "Due now", value: String(dueToday.length) },
+      { label: "Waiting QA", value: String(waitingQa.length) },
+    ] satisfies SummaryChipData[];
+  }, [tasks]);
+
+  const activeTabLabel = navigationItems.find((item) => item.key === activeTab)?.label ?? "Home";
   const activeSubtabOptions = useMemo(() => {
     if (activeTab === "tasks") {
       return TASK_VIEW_OPTIONS;
@@ -2477,6 +2572,181 @@ export default function App() {
     closeQaReportEditor();
     closeEventReportEditor();
     void syncFromBackend();
+  };
+
+  const renderHome = () => {
+    const connectionLabel = slackHome.slackEnabled
+      ? slackHome.slackConnected
+        ? "Slack live"
+        : "Slack needs attention"
+      : "Slack not configured";
+
+    return (
+      <WorkspacePanel
+        title="Home"
+        subtitle="Slack alerts, meeting recap, recap todos, and channel summaries."
+        actions={
+          <Pressable onPress={syncFromBackend} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>
+              Refresh
+            </Text>
+          </Pressable>
+        }
+      >
+        <SummaryRow chips={slackHomeSummary} />
+
+        <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+          <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+            Task quick look
+          </Text>
+          <SummaryRow chips={homeTaskSummary} />
+        </View>
+
+        {homePriorityTasks.map((task) => {
+          const subsystemName = subsystemsById[task.subsystemId]?.name ?? "Unknown";
+          const ownerName = task.ownerId
+            ? (membersById[task.ownerId]?.name ?? "Unassigned")
+            : "Unassigned";
+
+          return (
+            <Pressable
+              key={task.id}
+              onPress={() => openEditTaskEditor(task)}
+              style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
+            >
+              <View style={styles.queueRowHeader}>
+                <View style={styles.queueRowPrimaryText}>
+                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                    {task.title}
+                  </Text>
+                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                    {subsystemName} - {ownerName} - due {formatDate(task.dueDate)}
+                  </Text>
+                </View>
+                <StatusPill label={task.priority} value={task.priority} />
+              </View>
+              <Text numberOfLines={2} style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
+                {task.summary}
+              </Text>
+              <View style={styles.queuePillRow}>
+                <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
+                {task.blockers.length > 0 ? (
+                  <StatusPill label="Blocked" value="critical" />
+                ) : null}
+              </View>
+            </Pressable>
+          );
+        })}
+
+        {homePriorityTasks.length === 0 ? (
+          <EmptyState text="No open tasks need attention right now." />
+        ) : null}
+
+        <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+          <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+            {connectionLabel}
+          </Text>
+          <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
+            {slackHome.slackError ??
+              `${slackHome.channels.map((channel) => `#${channel.name}`).join(", ")} are connected to this home view.`}
+          </Text>
+        </View>
+
+        {visibleSlackAlerts.map((alert) => (
+          <View key={alert.id} style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
+            <View style={styles.queueRowHeader}>
+              <View style={styles.queueRowPrimaryText}>
+                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                  #{alert.channelName}
+                </Text>
+                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                  {alert.mentionedHandles.map((handle) => `@${handle}`).join(", ")} - {formatDateTime(alert.postedAt)}
+                </Text>
+              </View>
+              <StatusPill label="Unread" value="critical" />
+            </View>
+            <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
+              {alert.text}
+            </Text>
+            <View style={styles.quickActionRow}>
+              <Pressable
+                onPress={() =>
+                  setDismissedSlackAlertIds((current) =>
+                    current.includes(alert.id) ? current : [...current, alert.id],
+                  )
+                }
+                style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+              >
+                <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                  Mark read
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ))}
+
+        {slackHome.meetingRecap ? (
+          <View style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
+            <View style={styles.queueRowHeader}>
+              <View style={styles.queueRowPrimaryText}>
+                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                  Latest meeting recap
+                </Text>
+                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                  #{slackHome.meetingRecap.channelName} - {formatDateTime(slackHome.meetingRecap.postedAt)}
+                </Text>
+              </View>
+              <StatusPill label="Recap" value="info" />
+            </View>
+            <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
+              {slackHome.meetingRecap.text}
+            </Text>
+
+            {slackHome.meetingRecap.todos.length > 0 ? (
+              <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+                <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+                  Recap todos
+                </Text>
+                {slackHome.meetingRecap.todos.map((todo) => (
+                  <Text
+                    key={todo.id}
+                    style={[styles.calloutBody, appResponsiveStyles.calloutBody]}
+                  >
+                    {todo.assigneeLabel ? `${todo.assigneeLabel}: ` : ""}
+                    {todo.text}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ) : (
+          <EmptyState text="No meeting recap has been found yet." />
+        )}
+
+        {slackHome.summaries.map((summary) => (
+          <View key={summary.id} style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
+            <View style={styles.queueRowHeader}>
+              <View style={styles.queueRowPrimaryText}>
+                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                  {summary.title}
+                </Text>
+                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                  {summary.messageCount} messages and replies - {formatDateTime(summary.updatedAt)}
+                </Text>
+              </View>
+              <StatusPill label="Summary" value="waiting" />
+            </View>
+            <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
+              {summary.summary}
+            </Text>
+          </View>
+        ))}
+
+        {visibleSlackAlerts.length === 0 && slackHome.summaries.length === 0 ? (
+          <EmptyState text="No Slack alerts or summaries are visible yet." />
+        ) : null}
+      </WorkspacePanel>
+    );
   };
 
   const renderTaskTimeline = () => {
@@ -3815,6 +4085,10 @@ export default function App() {
   };
 
   const renderActiveTab = () => {
+    if (activeTab === "home") {
+      return renderHome();
+    }
+
     if (activeTab === "tasks") {
       return renderTasks();
     }

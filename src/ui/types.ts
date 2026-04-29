@@ -7,6 +7,7 @@ import type {
   TaskStatus,
 } from "../types/domain";
 export type ViewTab =
+  | "home"
   | "tasks"
   | "worklogs"
   | "manufacturing"
