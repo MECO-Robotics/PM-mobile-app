@@ -286,6 +286,14 @@ export interface SlackHomeMeetingRecap {
   todos: SlackHomeTodo[];
 }
 
+export interface SlackHomeSummaryMessage {
+  id: string;
+  authorName: string;
+  text: string;
+  postedAt: string;
+  replyCount: number;
+}
+
 export interface SlackHomeSummary {
   id: string;
   channelKey: SlackChannelKey;
@@ -294,6 +302,7 @@ export interface SlackHomeSummary {
   summary: string;
   messageCount: number;
   updatedAt: string;
+  sourceMessages?: SlackHomeSummaryMessage[];
 }
 
 export interface SlackHomeResponse {
