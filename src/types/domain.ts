@@ -127,6 +127,7 @@ export interface Task {
   status: TaskStatus;
   dependencyIds: string[];
   blockers: string[];
+  isBlocked: boolean;
   linkedManufacturingIds: string[];
   linkedPurchaseIds: string[];
   estimatedHours: number;

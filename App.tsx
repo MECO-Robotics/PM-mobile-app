@@ -1842,7 +1842,9 @@ export default function App() {
   const clearTaskBlockers = async (task: Task) => {
     setTasks((current) =>
       current.map((candidate) =>
-        candidate.id === task.id ? { ...candidate, blockers: [] } : candidate,
+        candidate.id === task.id
+          ? { ...candidate, blockers: [], isBlocked: false }
+          : candidate,
       ),
     );
 
@@ -2490,13 +2492,18 @@ export default function App() {
       setTasks((current) =>
         current.map((candidate) =>
           candidate.id === task.id
-            ? {
-                ...candidate,
-                blockers: Array.from(
+            ? (() => {
+                const nextBlockers = Array.from(
                   new Set([...candidate.blockers, "QA identified iteration-worthy follow-up."]),
-                ),
-                status: candidate.status === "complete" ? "waiting-for-qa" : candidate.status,
-              }
+                );
+
+                return {
+                  ...candidate,
+                  blockers: nextBlockers,
+                  isBlocked: nextBlockers.length > 0,
+                  status: candidate.status === "complete" ? "waiting-for-qa" : candidate.status,
+                };
+              })()
             : candidate,
         ),
       );
@@ -2544,32 +2551,33 @@ export default function App() {
         members.find((member) => member.role === "mentor" || member.role === "lead")?.id ??
         ownerId;
 
-      if (subsystemId && ownerId && mentorId) {
-        setTasks((current) => [
-          {
-            id: `task-local-${Date.now()}`,
-            title: followUpTitle,
-            summary: eventReportDraft.findingText.trim() || `Follow up from ${event.title}.`,
-            subsystemId,
-            disciplineId: disciplines[0]?.id || "mechanical",
-            mechanismId: null,
-            partInstanceId: null,
-            targetEventId: event.id,
-            ownerId,
-            mentorId,
-            dueDate: isoToday(),
-            priority: "medium",
-            status: "not-started",
-            dependencyIds: [],
-            blockers: [],
-            linkedManufacturingIds: [],
-            linkedPurchaseIds: [],
-            estimatedHours: 0,
-            actualHours: 0,
-          },
-          ...current,
-        ]);
-      }
+        if (subsystemId && ownerId && mentorId) {
+          setTasks((current) => [
+            {
+              id: `task-local-${Date.now()}`,
+              title: followUpTitle,
+              summary: eventReportDraft.findingText.trim() || `Follow up from ${event.title}.`,
+              subsystemId,
+              disciplineId: disciplines[0]?.id || "mechanical",
+              mechanismId: null,
+              partInstanceId: null,
+              targetEventId: event.id,
+              ownerId,
+              mentorId,
+              dueDate: isoToday(),
+              priority: "medium",
+              status: "not-started",
+              dependencyIds: [],
+              blockers: [],
+              isBlocked: false,
+              linkedManufacturingIds: [],
+              linkedPurchaseIds: [],
+              estimatedHours: 0,
+              actualHours: 0,
+            },
+            ...current,
+          ]);
+        }
     }
 
     closeEventReportEditor();
