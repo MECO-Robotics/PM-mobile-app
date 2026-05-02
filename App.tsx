@@ -1,12 +1,14 @@
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Image,
   Modal,
   PanResponder,
   Pressable,
   SafeAreaView,
   ScrollView,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -178,6 +180,11 @@ export default function App() {
 
   const [apiToken, setApiToken] = useState<string | null>(null);
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
+  const [authConfig, setAuthConfig] = useState<PublicAuthConfig | null>(null);
+  const [hasAuthenticated, setHasAuthenticated] = useState(false);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [backendStatus, setBackendStatus] = useState<
     "connecting" | "connected" | "offline"
@@ -381,6 +388,128 @@ export default function App() {
     },
     [apiBaseUrl, applyBootstrapPayload],
   );
+
+  const loadPublicAuthConfig = useCallback(async () => {
+    setBackendStatus("connecting");
+    setSyncError(null);
+
+    try {
+      const config = await requestJson<PublicAuthConfig>(
+        apiBaseUrl,
+        "/api/auth/config",
+      );
+      setAuthConfig(config);
+      setBackendStatus("connected");
+    } catch (error) {
+      setBackendStatus("offline");
+      setAuthConfig({
+        enabled: false,
+        googleClientId: null,
+        hostedDomain: "mecorobotics.org",
+        emailEnabled: true,
+        devBypassAvailable: false,
+      });
+      setSyncError(parseClientError(error));
+    }
+  }, [apiBaseUrl]);
+
+  const buildFallbackSessionUser = useCallback(
+    (authProvider: SessionUser["authProvider"], email: string): SessionUser => ({
+      accountId: email.split("@")[0] || "meco-user",
+      authProvider,
+      email,
+      hostedDomain: authConfig?.hostedDomain ?? "mecorobotics.org",
+      name: email.split("@")[0]?.replace(/[._-]+/g, " ") || "MECO Member",
+      picture: null,
+    }),
+    [authConfig?.hostedDomain],
+  );
+
+  const finishSignIn = useCallback(
+    async (token: string | null, user: SessionUser) => {
+      setApiToken(token);
+      setSessionUser(user);
+      setHasAuthenticated(true);
+      setIsSyncing(true);
+      setSyncError(null);
+
+      try {
+        await refreshWorkspaceFromServer(token);
+        setBackendStatus("connected");
+      } catch (error) {
+        setBackendStatus("offline");
+        setSyncError(parseClientError(error));
+      } finally {
+        setIsSyncing(false);
+      }
+    },
+    [refreshWorkspaceFromServer],
+  );
+
+  const signInWithGoogle = useCallback(async () => {
+    setIsAuthenticating(true);
+    setAuthError(null);
+
+    try {
+      let token = process.env.EXPO_PUBLIC_API_TOKEN?.trim() ?? "";
+      token = token.length > 0 ? token : "";
+
+      if (!token && authConfig?.devBypassAvailable) {
+        const session = await requestJson<SessionResponse>(
+          apiBaseUrl,
+          "/api/auth/dev-bypass",
+          { method: "POST" },
+        );
+        await finishSignIn(session.token, session.user);
+        return;
+      }
+
+      await finishSignIn(
+        token || null,
+        buildFallbackSessionUser("google", `you@${authConfig?.hostedDomain ?? "mecorobotics.org"}`),
+      );
+    } catch (error) {
+      setAuthError(parseClientError(error));
+    } finally {
+      setIsAuthenticating(false);
+    }
+  }, [apiBaseUrl, authConfig, buildFallbackSessionUser, finishSignIn]);
+
+  const sendEmailCode = useCallback(async () => {
+    const email = authEmail.trim().toLowerCase();
+    const hostedDomain = authConfig?.hostedDomain ?? "mecorobotics.org";
+
+    setAuthError(null);
+
+    if (!email || !email.endsWith(`@${hostedDomain}`)) {
+      setAuthError(`Use your @${hostedDomain} email.`);
+      return;
+    }
+
+    setIsAuthenticating(true);
+
+    try {
+      if (authConfig?.devBypassAvailable) {
+        const session = await requestJson<SessionResponse>(
+          apiBaseUrl,
+          "/api/auth/dev-bypass",
+          { method: "POST" },
+        );
+        await finishSignIn(session.token, {
+          ...session.user,
+          authProvider: "email",
+          email,
+        });
+        return;
+      }
+
+      await finishSignIn(null, buildFallbackSessionUser("email", email));
+    } catch (error) {
+      setAuthError(parseClientError(error));
+    } finally {
+      setIsAuthenticating(false);
+    }
+  }, [apiBaseUrl, authConfig, authEmail, buildFallbackSessionUser, finishSignIn]);
 
   const syncFromBackend = useCallback(async () => {
     setIsSyncing(true);
@@ -1620,8 +1749,8 @@ export default function App() {
   );
 
   useEffect(() => {
-    void syncFromBackend();
-  }, [syncFromBackend]);
+    void loadPublicAuthConfig();
+  }, [loadPublicAuthConfig]);
 
   useEffect(() => {
     if (isVeryCompactLayout) {
@@ -5271,6 +5400,76 @@ export default function App() {
     </Modal>
   );
 
+  const renderLoginScreen = () => {
+    const hostedDomain = authConfig?.hostedDomain ?? "mecorobotics.org";
+    const loginCardWidth = Math.min(width - 48, 322);
+
+    return (
+      <View style={styles.loginScreen}>
+        <StatusBar backgroundColor="#0b1a35" style="light" translucent={false} />
+        <SafeAreaView style={styles.loginSafeArea}>
+          <View style={[styles.loginCard, { width: loginCardWidth }]}>
+          <View style={styles.loginBadgeShadow}>
+            <Image
+              accessibilityLabel="Team MECO 8324 logo"
+              resizeMode="contain"
+              source={require("./assets/meco-shield.png")}
+              style={styles.loginLogoImage}
+            />
+          </View>
+
+          <Text style={styles.loginTitle}>Sign in with email</Text>
+
+          <View style={styles.loginEmailRow}>
+            <TextInput
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              onChangeText={setAuthEmail}
+              placeholder={`you@${hostedDomain}`}
+              placeholderTextColor="#f1f5ff"
+              style={styles.loginEmailInput}
+              value={authEmail}
+            />
+            <Pressable
+              accessibilityRole="button"
+              disabled={isAuthenticating}
+              onPress={sendEmailCode}
+              style={styles.loginSendButton}
+            >
+              <Text style={styles.loginSendButtonText}>
+                {isAuthenticating ? "Sending" : "Send Code"}
+              </Text>
+            </Pressable>
+          </View>
+
+          {authError ? <Text style={styles.loginErrorText}>{authError}</Text> : null}
+
+          <Pressable
+            accessibilityRole="button"
+            disabled={isAuthenticating}
+            onPress={signInWithGoogle}
+            style={({ pressed }) => [
+              styles.loginGoogleButton,
+              pressed && styles.loginGoogleButtonPressed,
+            ]}
+          >
+            <View style={styles.loginAvatar}>
+              <Text style={styles.loginAvatarText}>A</Text>
+            </View>
+            <Text style={styles.loginGoogleText}>
+              {isAuthenticating ? "Signing in" : "Sign in with Google"}
+            </Text>
+            <View style={styles.loginGoogleMark}>
+              <Text style={styles.loginGoogleMarkText}>G</Text>
+            </View>
+          </Pressable>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  };
+
   const renderProjectOverlay = () => (
     <Modal
       animationType="fade"
@@ -5380,6 +5579,10 @@ export default function App() {
       </Pressable>
     </Modal>
   );
+
+  if (!hasAuthenticated) {
+    return renderLoginScreen();
+  }
 
   return (
     <AppThemeProvider value={{ colors: themeColors, mode: themeMode }}>
