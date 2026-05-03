@@ -132,6 +132,39 @@ const SWIPE_COMMIT_DISTANCE = 52;
 const SUBTAB_SWIPE_ACTIVATION_DISTANCE = 24;
 const SUBTAB_SWIPE_COMMIT_DISTANCE = 72;
 
+type AttendanceStatus = "yes" | "maybe" | "no";
+
+const LOW_INVENTORY_ITEMS = [
+  {
+    id: "cf-n-filament",
+    name: "CF-N filament",
+    detail: "1 partial spool left",
+    urgency: "Restock before printing intake plates",
+  },
+  {
+    id: "bandsaw-blades",
+    name: "Bandsaw blades",
+    detail: "2 usable blades",
+    urgency: "Cut stock is likely to outpace supply",
+  },
+  {
+    id: "button-heads-10-32",
+    name: "10/32 button heads 1 inch",
+    detail: "Low bin count",
+    urgency: "Needed for frame and bracket work",
+  },
+];
+
+const ATTENDANCE_STATUS_BY_MEMBER_ID: Record<string, AttendanceStatus> = {
+  ava: "yes",
+  ethan: "maybe",
+  jordan: "yes",
+  lucas: "no",
+  maya: "yes",
+  priya: "maybe",
+  riley: "yes",
+};
+
 function parseClientError(error: unknown) {
   if (error instanceof ApiRequestError) {
     return error.message;
@@ -173,6 +206,7 @@ export default function App() {
   const [isNavMenuVisible, setIsNavMenuVisible] = useState(false);
   const [isProjectOverlayVisible, setIsProjectOverlayVisible] = useState(false);
   const [isPersonMenuVisible, setIsPersonMenuVisible] = useState(false);
+  const [isAttendanceModalVisible, setIsAttendanceModalVisible] = useState(false);
   const [isPeopleFilterVisible, setIsPeopleFilterVisible] = useState(
     () => !isVeryCompactLayout,
   );
@@ -1388,6 +1422,17 @@ export default function App() {
       { label: "Waiting QA", value: String(waitingQa.length) },
     ] satisfies SummaryChipData[];
   }, [tasks]);
+  const meetingAttendance = useMemo(
+    () =>
+      [...members]
+        .sort((left, right) => left.name.localeCompare(right.name))
+        .map((member) => ({
+          member,
+          status: ATTENDANCE_STATUS_BY_MEMBER_ID[member.id] ?? "maybe",
+        })),
+    [members],
+  );
+  const attendancePreview = meetingAttendance.slice(0, 10);
 
   const activeTabLabel = navigationItems.find((item) => item.key === activeTab)?.label ?? "Home";
   const activeSubtabOptions = useMemo(() => {
@@ -2666,6 +2711,22 @@ export default function App() {
     void syncFromBackend();
   };
 
+  const renderAttendanceStatusMark = (status: AttendanceStatus) => {
+    const color =
+      status === "yes"
+        ? "#22c55e"
+        : status === "maybe"
+          ? "#f28c28"
+          : "#ff3b3b";
+    const label = status === "yes" ? "✓" : status === "maybe" ? "?" : "×";
+
+    return (
+      <View style={[styles.attendanceMark, { borderColor: color }]}>
+        <Text style={[styles.attendanceMarkLabel, { color }]}>{label}</Text>
+      </View>
+    );
+  };
+
   const renderHome = () => {
     return (
       <WorkspacePanel
@@ -2679,9 +2740,39 @@ export default function App() {
           </Pressable>
         }
       >
+        <View style={styles.homeSection}>
+          <View style={styles.homeSectionHeader}>
+            <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>
+              Running low
+            </Text>
+            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
+              Inventory to check before the meeting
+            </Text>
+          </View>
+          {LOW_INVENTORY_ITEMS.map((item) => (
+            <View
+              key={item.id}
+              style={[styles.inventoryAlertRow, appResponsiveStyles.rowCard]}
+            >
+              <View style={styles.queueRowPrimaryText}>
+                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                  {item.name}
+                </Text>
+                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                  {item.detail}
+                </Text>
+              </View>
+              <StatusPill label="Low" value="high" />
+              <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
+                {item.urgency}
+              </Text>
+            </View>
+          ))}
+        </View>
+
         <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
           <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
-            Task quick look
+            Tasks for this meeting
           </Text>
           <SummaryRow chips={homeTaskSummary} />
         </View>
@@ -2725,6 +2816,37 @@ export default function App() {
         {homePriorityTasks.length === 0 ? (
           <EmptyState text="No open tasks need attention right now." />
         ) : null}
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setIsAttendanceModalVisible(true)}
+          style={styles.homeSection}
+        >
+          <View style={styles.homeSectionHeader}>
+            <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>
+              Meeting attendance
+            </Text>
+            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
+              Top {attendancePreview.length} alphabetically - tap for everyone
+            </Text>
+          </View>
+          {attendancePreview.map(({ member, status }) => (
+            <View
+              key={member.id}
+              style={[styles.attendanceRow, appResponsiveStyles.rowCard]}
+            >
+              <View style={styles.queueRowPrimaryText}>
+                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                  {member.name}
+                </Text>
+                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                  {capitalize(member.role)}
+                </Text>
+              </View>
+              {renderAttendanceStatusMark(status)}
+            </View>
+          ))}
+        </Pressable>
       </WorkspacePanel>
     );
   };
@@ -5179,6 +5301,66 @@ export default function App() {
     </Modal>
   );
 
+  const renderAttendanceModal = () => (
+    <Modal
+      animationType="fade"
+      onRequestClose={() => setIsAttendanceModalVisible(false)}
+      transparent
+      visible={isAttendanceModalVisible}
+    >
+      <View style={[styles.modalScrim, isCompactLayout && styles.modalScrimCompact]}>
+        <View
+          style={[
+            styles.modalCard,
+            { backgroundColor: themeColors.surface, borderColor: themeColors.border },
+            isCompactLayout && styles.modalCardCompact,
+          ]}
+        >
+          <Text style={[styles.modalTitle, { color: themeColors.ink }]}>
+            Meeting attendance
+          </Text>
+          <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+            Everyone for this meeting, sorted alphabetically.
+          </Text>
+
+          <ScrollView
+            contentContainerStyle={styles.modalContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {meetingAttendance.map(({ member, status }) => (
+              <View
+                key={member.id}
+                style={[styles.attendanceRow, appResponsiveStyles.rowCard]}
+              >
+                <View style={styles.queueRowPrimaryText}>
+                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                    {member.name}
+                  </Text>
+                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                    {capitalize(member.role)}
+                  </Text>
+                </View>
+                {renderAttendanceStatusMark(status)}
+              </View>
+            ))}
+          </ScrollView>
+
+          <View style={[styles.modalActions, isCompactLayout && styles.modalActionsCompact]}>
+            <Pressable
+              onPress={() => setIsAttendanceModalVisible(false)}
+              style={[
+                styles.modalSaveButton,
+                isCompactLayout && styles.modalActionButtonCompact,
+              ]}
+            >
+              <Text style={styles.modalSaveButtonLabel}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
   const renderPersonMenu = () => (
     <Modal
       animationType="fade"
@@ -5363,6 +5545,7 @@ export default function App() {
         <View {...subtabSwipeResponder.panHandlers}>{renderActiveTab()}</View>
       </ScrollView>
       <View style={styles.navSwipeEdge} {...navigationOpenSwipeResponder.panHandlers} />
+      {renderAttendanceModal()}
       {renderEditorModals()}
       {renderNavigationMenu()}
       {renderProjectOverlay()}
