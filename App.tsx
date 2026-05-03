@@ -9,6 +9,7 @@ import {
   ScrollView,
   Text,
   TextInput,
+  useColorScheme,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -118,46 +119,18 @@ import type {
   QaReview,
   SessionResponse,
   SessionUser,
-  SlackHomeResponse,
   Subsystem,
   Task,
   TaskPriority,
   TaskStatus,
   WorkLog,
 } from "./src/types/domain";
-import { appThemes, colors } from "./src/theme";
+import { appThemes, colors, type AppThemeName } from "./src/theme";
 
 const SWIPE_ACTIVATION_DISTANCE = 18;
 const SWIPE_COMMIT_DISTANCE = 52;
 const SUBTAB_SWIPE_ACTIVATION_DISTANCE = 24;
 const SUBTAB_SWIPE_COMMIT_DISTANCE = 72;
-
-const EMPTY_SLACK_HOME: SlackHomeResponse = {
-  slackEnabled: false,
-  slackConnected: false,
-  slackError: null,
-  userEmail: null,
-  alertUsergroupHandles: [],
-  channels: [],
-  unreadAlerts: [],
-  meetingRecap: null,
-  summaries: [],
-};
-
-type SlackDetailMessage = {
-  id: string;
-  authorName: string;
-  text: string;
-  postedAt: string;
-  replyCount?: number;
-};
-
-type SlackDetail = {
-  title: string;
-  subtitle: string;
-  body: string;
-  messages: SlackDetailMessage[];
-};
 
 function parseClientError(error: unknown) {
   if (error instanceof ApiRequestError) {
@@ -173,6 +146,7 @@ function parseClientError(error: unknown) {
 
 export default function App() {
   const { width } = useWindowDimensions();
+  const systemColorScheme = useColorScheme();
   const responsiveMetrics = useMemo(() => getResponsiveMetrics(width), [width]);
   const isCompactLayout = responsiveMetrics.isCompact;
   const isVeryCompactLayout = responsiveMetrics.isVeryCompact;
@@ -202,7 +176,7 @@ export default function App() {
   const [isPeopleFilterVisible, setIsPeopleFilterVisible] = useState(
     () => !isVeryCompactLayout,
   );
-  const [isDarkModeEnabled, setIsDarkModeEnabled] = useState(false);
+  const [themeOverride, setThemeOverride] = useState<AppThemeName | null>(null);
   const [activePersonFilter, setActivePersonFilter] = useState("all");
 
   const [members, setMembers] = useState(() => mecoSnapshot.members);
@@ -216,16 +190,15 @@ export default function App() {
     () => mecoSnapshot.manufacturingItems,
   );
   const [purchaseItems, setPurchaseItems] = useState(() => mecoSnapshot.purchaseItems);
-  const [slackHome, setSlackHome] = useState<SlackHomeResponse>(EMPTY_SLACK_HOME);
-  const [dismissedSlackAlertIds, setDismissedSlackAlertIds] = useState<string[]>([]);
-  const [activeSlackDetail, setActiveSlackDetail] = useState<SlackDetail | null>(null);
   const [partDefinitions, setPartDefinitions] = useState(
     () => mecoSnapshot.partDefinitions,
   );
   const [partInstances, setPartInstances] = useState(() => mecoSnapshot.partInstances);
   const [qaReviews, setQaReviews] = useState<QaReview[]>(() => mecoSnapshot.qaReviews);
   const [eventReports, setEventReports] = useState<EventReportDraft[]>([]);
-  const themeMode = isDarkModeEnabled ? "dark" : "light";
+  const systemThemeMode: AppThemeName = systemColorScheme === "dark" ? "dark" : "light";
+  const themeMode = themeOverride ?? systemThemeMode;
+  const isDarkModeEnabled = themeMode === "dark";
   const themeColors = appThemes[themeMode];
 
   const [taskSearch, setTaskSearch] = useState("");
@@ -369,22 +342,13 @@ export default function App() {
 
   const refreshWorkspaceFromServer = useCallback(
     async (token: string | null) => {
-      const [payload, homePayload] = await Promise.all([
-        requestJson<PlatformBootstrapPayload>(
-          apiBaseUrl,
-          "/api/bootstrap",
-          undefined,
-          token,
-        ),
-        requestJson<SlackHomeResponse>(
-          apiBaseUrl,
-          "/api/home",
-          undefined,
-          token,
-        ),
-      ]);
+      const payload = await requestJson<PlatformBootstrapPayload>(
+        apiBaseUrl,
+        "/api/bootstrap",
+        undefined,
+        token,
+      );
       applyBootstrapPayload(payload);
-      setSlackHome(homePayload);
     },
     [apiBaseUrl, applyBootstrapPayload],
   );
@@ -650,13 +614,7 @@ export default function App() {
     const openManufacturing = manufacturingItems.filter(
       (item) => item.status !== "complete",
     ).length;
-    const visibleSlackAlerts = slackHome.unreadAlerts.filter(
-      (alert) => !dismissedSlackAlertIds.includes(alert.id),
-    ).length;
-    const homeCount =
-      visibleSlackAlerts +
-      (slackHome.meetingRecap ? 1 : 0) +
-      slackHome.summaries.length;
+    const homeCount = tasks.filter((task) => task.status !== "complete").length;
 
     return [
       {
@@ -724,8 +682,6 @@ export default function App() {
     members,
     qaReviews,
     eventReports,
-    dismissedSlackAlertIds,
-    slackHome,
   ]);
 
   const taskSummary = useMemo(() => {
@@ -1393,23 +1349,6 @@ export default function App() {
     (member) => member.role === "mentor" || member.role === "lead",
   );
   const rosterAdmins = members.filter((member) => member.role === "admin");
-  const visibleSlackAlerts = useMemo(
-    () =>
-      slackHome.unreadAlerts.filter(
-        (alert) => !dismissedSlackAlertIds.includes(alert.id),
-      ),
-    [dismissedSlackAlertIds, slackHome.unreadAlerts],
-  );
-  const slackHomeSummary = useMemo(
-    () =>
-      [
-        { label: "Unread", value: String(visibleSlackAlerts.length) },
-        { label: "Recap", value: slackHome.meetingRecap ? "1" : "0" },
-        { label: "Summaries", value: String(slackHome.summaries.length) },
-        { label: "Channels", value: String(slackHome.channels.length) },
-      ] satisfies SummaryChipData[],
-    [slackHome.channels.length, slackHome.meetingRecap, slackHome.summaries.length, visibleSlackAlerts.length],
-  );
   const homePriorityTasks = useMemo(() => {
     const priorityRank: Record<TaskPriority, number> = {
       critical: 0,
@@ -2727,25 +2666,11 @@ export default function App() {
     void syncFromBackend();
   };
 
-  const openSlackDetail = (detail: SlackDetail) => {
-    setActiveSlackDetail(detail);
-  };
-
-  const closeSlackDetail = () => {
-    setActiveSlackDetail(null);
-  };
-
   const renderHome = () => {
-    const connectionLabel = slackHome.slackEnabled
-      ? slackHome.slackConnected
-        ? "Slack live"
-        : "Slack needs attention"
-      : "Slack not configured";
-
     return (
       <WorkspacePanel
         title="Home"
-        subtitle="Slack alerts, meeting recap, recap todos, and channel summaries."
+        subtitle="Priority tasks and workspace status for the next execution window."
         actions={
           <Pressable onPress={syncFromBackend} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
             <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>
@@ -2754,8 +2679,6 @@ export default function App() {
           </Pressable>
         }
       >
-        <SummaryRow chips={slackHomeSummary} />
-
         <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
           <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
             Task quick look
@@ -2801,205 +2724,6 @@ export default function App() {
 
         {homePriorityTasks.length === 0 ? (
           <EmptyState text="No open tasks need attention right now." />
-        ) : null}
-
-        <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
-          <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
-            {connectionLabel}
-          </Text>
-          <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
-            {slackHome.slackError ??
-              `${slackHome.channels.map((channel) => `#${channel.name}`).join(", ")} are connected to this home view.`}
-          </Text>
-        </View>
-
-        {visibleSlackAlerts.map((alert) => {
-          const openAlert = () =>
-            openSlackDetail({
-              title: `#${alert.channelName}`,
-              subtitle: `${alert.mentionedHandles.map((handle) => `@${handle}`).join(", ")} - ${formatDateTime(alert.postedAt)}`,
-              body: alert.text,
-              messages: [
-                {
-                  id: alert.id,
-                  authorName: alert.authorName,
-                  text: alert.text,
-                  postedAt: alert.postedAt,
-                },
-              ],
-            });
-
-          return (
-          <View
-            key={alert.id}
-            style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
-          >
-            <View style={styles.queueRowHeader}>
-              <View style={styles.queueRowPrimaryText}>
-                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
-                  #{alert.channelName}
-                </Text>
-                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                  {alert.mentionedHandles.map((handle) => `@${handle}`).join(", ")} - {formatDateTime(alert.postedAt)}
-                </Text>
-              </View>
-              <StatusPill label="Unread" value="critical" />
-            </View>
-            <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
-              {alert.text}
-            </Text>
-            <View style={styles.quickActionRow}>
-              <Pressable
-                accessibilityRole="button"
-                hitSlop={8}
-                onPress={openAlert}
-                style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-              >
-                <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                  Open
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                hitSlop={8}
-                onPress={() =>
-                  setDismissedSlackAlertIds((current) =>
-                    current.includes(alert.id) ? current : [...current, alert.id],
-                  )
-                }
-                style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-              >
-                <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                  Mark read
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-          );
-        })}
-
-        {slackHome.meetingRecap ? (
-          <View style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
-            <View style={styles.queueRowHeader}>
-              <View style={styles.queueRowPrimaryText}>
-                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
-                  Latest meeting recap
-                </Text>
-                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                  #{slackHome.meetingRecap.channelName} - {formatDateTime(slackHome.meetingRecap.postedAt)}
-                </Text>
-              </View>
-              <StatusPill label="Recap" value="info" />
-            </View>
-            <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
-              {slackHome.meetingRecap.text}
-            </Text>
-
-            {slackHome.meetingRecap.todos.length > 0 ? (
-              <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
-                <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
-                  Recap todos
-                </Text>
-                {slackHome.meetingRecap.todos.map((todo) => (
-                  <Text
-                    key={todo.id}
-                    style={[styles.calloutBody, appResponsiveStyles.calloutBody]}
-                  >
-                    {todo.assigneeLabel ? `${todo.assigneeLabel}: ` : ""}
-                    {todo.text}
-                  </Text>
-                ))}
-              </View>
-            ) : null}
-            <View style={styles.quickActionRow}>
-              <Pressable
-                accessibilityRole="button"
-                hitSlop={8}
-                onPress={() =>
-                  openSlackDetail({
-                    title: "Latest meeting recap",
-                    subtitle: `#${slackHome.meetingRecap?.channelName ?? ""} - ${formatDateTime(slackHome.meetingRecap?.postedAt ?? "")}`,
-                    body: slackHome.meetingRecap?.text ?? "",
-                    messages: slackHome.meetingRecap
-                      ? [
-                          {
-                            id: slackHome.meetingRecap.id,
-                            authorName: slackHome.meetingRecap.authorName,
-                            text: slackHome.meetingRecap.text,
-                            postedAt: slackHome.meetingRecap.postedAt,
-                          },
-                          ...slackHome.meetingRecap.todos.map((todo) => ({
-                            id: todo.id,
-                            authorName: todo.assigneeLabel ?? "Todo",
-                            text: todo.text,
-                            postedAt: slackHome.meetingRecap?.postedAt ?? "",
-                          })),
-                        ]
-                      : [],
-                  })
-                }
-                style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-              >
-                <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                  Open recap
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : (
-          <EmptyState text="No meeting recap has been found yet." />
-        )}
-
-        {slackHome.summaries.map((summary) => {
-          const openSummary = () =>
-            openSlackDetail({
-              title: summary.title,
-              subtitle: `${summary.messageCount} messages and replies - ${formatDateTime(summary.updatedAt)}`,
-              body: summary.summary,
-              messages:
-                summary.sourceMessages?.map((message) => ({
-                  id: message.id,
-                  authorName: message.authorName,
-                  text: message.text,
-                  postedAt: message.postedAt,
-                  replyCount: message.replyCount,
-                })) ?? [],
-            });
-
-          return (
-          <View key={summary.id} style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
-            <View style={styles.queueRowHeader}>
-              <View style={styles.queueRowPrimaryText}>
-                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
-                  {summary.title}
-                </Text>
-                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                  {summary.messageCount} messages and replies - {formatDateTime(summary.updatedAt)}
-                </Text>
-              </View>
-              <StatusPill label="Summary" value="waiting" />
-            </View>
-            <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
-              {summary.summary}
-            </Text>
-            <View style={styles.quickActionRow}>
-              <Pressable
-                accessibilityRole="button"
-                hitSlop={8}
-                onPress={openSummary}
-                style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-              >
-                <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                  Open messages
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-          );
-        })}
-
-        {visibleSlackAlerts.length === 0 && slackHome.summaries.length === 0 ? (
-          <EmptyState text="No Slack alerts or summaries are visible yet." />
         ) : null}
       </WorkspacePanel>
     );
@@ -4376,81 +4100,7 @@ export default function App() {
     return renderRoster();
   };
 
-  const renderSlackDetailModal = () => {
-    return (
-      <Modal
-        animationType="fade"
-        onRequestClose={closeSlackDetail}
-        transparent
-        visible={Boolean(activeSlackDetail)}
-      >
-        <View style={[styles.modalScrim, isCompactLayout && styles.modalScrimCompact]}>
-          <View
-            style={[
-              styles.modalCard,
-              { backgroundColor: themeColors.surface, borderColor: themeColors.border },
-              isCompactLayout && styles.modalCardCompact,
-            ]}
-          >
-            <Text style={[styles.modalTitle, { color: themeColors.ink }]}>
-              {activeSlackDetail?.title ?? "Slack message"}
-            </Text>
-            {activeSlackDetail?.subtitle ? (
-              <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                {activeSlackDetail.subtitle}
-              </Text>
-            ) : null}
-
-            <ScrollView
-              contentContainerStyle={styles.modalContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {activeSlackDetail?.body ? (
-                <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
-                  <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
-                    {activeSlackDetail.body}
-                  </Text>
-                </View>
-              ) : null}
-
-              {activeSlackDetail?.messages.map((message) => (
-                <View key={message.id} style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
-                  <View style={styles.queueRowHeader}>
-                    <View style={styles.queueRowPrimaryText}>
-                      <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
-                        {message.authorName}
-                      </Text>
-                      <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                        {formatDateTime(message.postedAt)}
-                        {message.replyCount ? ` - ${message.replyCount} replies` : ""}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
-                    {message.text}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
-
-            <View style={[styles.modalActions, isCompactLayout && styles.modalActionsCompact]}>
-              <Pressable
-                onPress={closeSlackDetail}
-                style={[
-                  styles.modalSaveButton,
-                  isCompactLayout && styles.modalActionButtonCompact,
-                ]}
-              >
-                <Text style={styles.modalSaveButtonLabel}>Close</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    );
-  };
-
-    const renderEditorModals = () => {
+  const renderEditorModals = () => {
     const taskOptions = tasks.map((task) => ({ id: task.id, name: task.title }));
     const memberOptions = members.map((member) => ({ id: member.id, name: member.name }));
     const subsystemOptions = subsystems.map((subsystem) => ({
@@ -5549,7 +5199,7 @@ export default function App() {
           </View>
 
           <Pressable
-            onPress={() => setIsDarkModeEnabled((current) => !current)}
+            onPress={() => setThemeOverride(themeMode === "dark" ? "light" : "dark")}
             style={[
               styles.settingsRow,
               appResponsiveStyles.settingsRow,
@@ -5557,13 +5207,32 @@ export default function App() {
             ]}
           >
             <View>
-              <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>Dark mode</Text>
+              <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>Theme</Text>
               <Text style={[styles.settingsRowSubtitle, { color: themeColors.subtleText }]}>
-                {isDarkModeEnabled ? "Preference on" : "Preference off"}
+                {themeOverride ? "Manual preference" : "Matching iPhone"}
               </Text>
             </View>
-            <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>{isDarkModeEnabled ? "On" : "Off"}</Text>
+            <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>
+              {themeMode === "dark" ? "Dark" : "Light"}
+            </Text>
           </Pressable>
+
+          {themeOverride ? (
+            <Pressable
+              onPress={() => setThemeOverride(null)}
+              style={[styles.settingsRow, appResponsiveStyles.settingsRow]}
+            >
+              <View>
+                <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>
+                  Use iPhone theme
+                </Text>
+                <Text style={[styles.settingsRowSubtitle, { color: themeColors.subtleText }]}>
+                  Return to automatic appearance
+                </Text>
+              </View>
+              <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>Auto</Text>
+            </Pressable>
+          ) : null}
 
           <Pressable
             onPress={resetWorkspaceData}
@@ -5694,7 +5363,6 @@ export default function App() {
         <View {...subtabSwipeResponder.panHandlers}>{renderActiveTab()}</View>
       </ScrollView>
       <View style={styles.navSwipeEdge} {...navigationOpenSwipeResponder.panHandlers} />
-      {renderSlackDetailModal()}
       {renderEditorModals()}
       {renderNavigationMenu()}
       {renderProjectOverlay()}

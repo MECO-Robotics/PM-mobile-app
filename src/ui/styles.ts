@@ -1244,8 +1244,8 @@ export const styles = StyleSheet.create({
     elevation: 8,
   },
   loginLogoImage: {
-    width: 268,
-    height: 302,
+    width: 292,
+    height: 330,
   },
   loginBadge: {
     width: 250,
