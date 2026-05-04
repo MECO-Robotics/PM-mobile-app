@@ -178,7 +178,7 @@ function parseClientError(error: unknown) {
 }
 
 export default function App() {
-  const { width } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const systemColorScheme = useColorScheme();
   const responsiveMetrics = useMemo(() => getResponsiveMetrics(width), [width]);
   const isCompactLayout = responsiveMetrics.isCompact;
@@ -5174,68 +5174,94 @@ export default function App() {
 
   const renderLoginScreen = () => {
     const hostedDomain = authConfig?.hostedDomain ?? "mecorobotics.org";
-    const loginCardWidth = Math.min(width - 48, 322);
+    const loginCardHeight = Math.min(height - 8, 722);
+    const loginCardWidth = Math.min(width - 48, 334);
 
     return (
-      <View style={styles.loginScreen}>
-        <StatusBar backgroundColor="#10284d" style="light" translucent={false} />
-        <SafeAreaView style={styles.loginSafeArea}>
-          <View style={[styles.loginCard, { width: loginCardWidth }]}>
-          <View style={styles.loginBadgeShadow}>
-            <Image
-              accessibilityLabel="Team MECO 8324 logo"
-              resizeMode="contain"
-              source={require("./assets/meco-shield.png")}
-              style={styles.loginLogoImage}
-            />
-          </View>
+      <View
+        style={[
+          styles.loginScreen,
+          isDarkModeEnabled ? styles.loginScreenDark : styles.loginScreenLight,
+        ]}
+      >
+        <StatusBar
+          backgroundColor={isDarkModeEnabled ? "#10284d" : colors.grey}
+          style={isDarkModeEnabled ? "light" : "dark"}
+          translucent={false}
+        />
+        <SafeAreaView
+          style={[
+            styles.loginSafeArea,
+            isDarkModeEnabled ? styles.loginScreenDark : styles.loginScreenLight,
+          ]}
+        >
+          <View
+            style={[
+              styles.loginCard,
+              isDarkModeEnabled ? styles.loginCardDark : styles.loginCardLight,
+              { minHeight: loginCardHeight, width: loginCardWidth },
+            ]}
+          >
+            <View style={styles.loginBadgeShadow}>
+              <Image
+                accessibilityLabel="Team MECO 8324 logo"
+                resizeMode="contain"
+                source={require("./assets/meco-shield.png")}
+                style={styles.loginLogoImage}
+              />
+            </View>
 
-          <Text style={styles.loginTitle}>Sign in with email</Text>
+            <Text style={styles.loginTitle}>Sign in with email</Text>
 
-          <View style={styles.loginEmailRow}>
-            <TextInput
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              onChangeText={setAuthEmail}
-              placeholder={`you@${hostedDomain}`}
-              placeholderTextColor="#f1f5ff"
-              style={styles.loginEmailInput}
-              value={authEmail}
-            />
+            <View
+              style={[
+                styles.loginEmailRow,
+                isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
+              ]}
+            >
+              <TextInput
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                onChangeText={setAuthEmail}
+                placeholder={`you@${hostedDomain}`}
+                placeholderTextColor="#f1f5ff"
+                style={styles.loginEmailInput}
+                value={authEmail}
+              />
+              <Pressable
+                accessibilityRole="button"
+                disabled={isAuthenticating}
+                onPress={sendEmailCode}
+                style={styles.loginSendButton}
+              >
+                <Text style={styles.loginSendButtonText}>
+                  {isAuthenticating ? "Sending" : "Send Code"}
+                </Text>
+              </Pressable>
+            </View>
+
+            {authError ? <Text style={styles.loginErrorText}>{authError}</Text> : null}
+
             <Pressable
               accessibilityRole="button"
               disabled={isAuthenticating}
-              onPress={sendEmailCode}
-              style={styles.loginSendButton}
+              onPress={signInWithGoogle}
+              style={({ pressed }) => [
+                styles.loginGoogleButton,
+                pressed && styles.loginGoogleButtonPressed,
+              ]}
             >
-              <Text style={styles.loginSendButtonText}>
-                {isAuthenticating ? "Sending" : "Send Code"}
+              <View style={styles.loginAvatar}>
+                <Text style={styles.loginAvatarText}>A</Text>
+              </View>
+              <Text style={styles.loginGoogleText}>
+                {isAuthenticating ? "Signing in" : "Sign in with Google"}
               </Text>
+              <View style={styles.loginGoogleMark}>
+                <Text style={styles.loginGoogleMarkText}>G</Text>
+              </View>
             </Pressable>
-          </View>
-
-          {authError ? <Text style={styles.loginErrorText}>{authError}</Text> : null}
-
-          <Pressable
-            accessibilityRole="button"
-            disabled={isAuthenticating}
-            onPress={signInWithGoogle}
-            style={({ pressed }) => [
-              styles.loginGoogleButton,
-              pressed && styles.loginGoogleButtonPressed,
-            ]}
-          >
-            <View style={styles.loginAvatar}>
-              <Text style={styles.loginAvatarText}>A</Text>
-            </View>
-            <Text style={styles.loginGoogleText}>
-              {isAuthenticating ? "Signing in" : "Sign in with Google"}
-            </Text>
-            <View style={styles.loginGoogleMark}>
-              <Text style={styles.loginGoogleMarkText}>G</Text>
-            </View>
-          </Pressable>
           </View>
         </SafeAreaView>
       </View>
