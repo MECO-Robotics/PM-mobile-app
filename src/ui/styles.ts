@@ -3,19 +3,19 @@ import { StyleSheet } from "react-native";
 import { colors, radii, shadows, spacing } from "../theme";
 export const statusToneStyles = StyleSheet.create({
   success: {
-    backgroundColor: "rgba(61, 153, 108, 0.16)",
+    backgroundColor: "#dcfce7",
   },
   info: {
-    backgroundColor: "rgba(76, 121, 207, 0.12)",
+    backgroundColor: "#e0f2fe",
   },
   warning: {
-    backgroundColor: "rgba(233, 131, 53, 0.14)",
+    backgroundColor: "#fef3c7",
   },
   danger: {
-    backgroundColor: "rgba(234, 28, 45, 0.12)",
+    backgroundColor: "#fee2e2",
   },
   neutral: {
-    backgroundColor: "rgba(112, 128, 154, 0.16)",
+    backgroundColor: "#f1f5f9",
   },
 });
 
@@ -24,16 +24,16 @@ export const statusToneLabelStyles = StyleSheet.create({
     color: "#246847",
   },
   info: {
-    color: "#275098",
+    color: "#075985",
   },
   warning: {
-    color: "#a84712",
+    color: "#92400e",
   },
   danger: {
-    color: "#b31222",
+    color: "#991b1b",
   },
   neutral: {
-    color: "#54627b",
+    color: "#475569",
   },
 });
 
@@ -1257,18 +1257,18 @@ export const styles = StyleSheet.create({
   },
   loginScreen: {
     flex: 1,
-    backgroundColor: "#0b1a35",
+    backgroundColor: "#10284d",
   },
   loginSafeArea: {
     flex: 1,
-    backgroundColor: "#0b1a35",
+    backgroundColor: "#10284d",
     alignItems: "center",
     justifyContent: "center",
   },
   loginCard: {
     minHeight: 690,
     borderRadius: 28,
-    backgroundColor: "#0b1a35",
+    backgroundColor: "#10284d",
     alignItems: "center",
     paddingHorizontal: 28,
     paddingTop: 34,
@@ -1432,7 +1432,7 @@ export const styles = StyleSheet.create({
     width: "100%",
     minHeight: 42,
     borderRadius: 999,
-    backgroundColor: "#2b3036",
+    backgroundColor: "#1e293b",
     flexDirection: "row",
     alignItems: "center",
     marginTop: 124,
@@ -1446,7 +1446,7 @@ export const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 999,
-    backgroundColor: "#138eea",
+    backgroundColor: "#16478e",
     alignItems: "center",
     justifyContent: "center",
   },

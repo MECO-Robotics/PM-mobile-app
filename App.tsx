@@ -2714,10 +2714,10 @@ export default function App() {
   const renderAttendanceStatusMark = (status: AttendanceStatus) => {
     const color =
       status === "yes"
-        ? "#22c55e"
+        ? "#166534"
         : status === "maybe"
-          ? "#f28c28"
-          : "#ff3b3b";
+          ? "#92400e"
+          : "#991b1b";
     const label = status === "yes" ? "✓" : status === "maybe" ? "?" : "×";
 
     return (
@@ -5178,7 +5178,7 @@ export default function App() {
 
     return (
       <View style={styles.loginScreen}>
-        <StatusBar backgroundColor="#0b1a35" style="light" translucent={false} />
+        <StatusBar backgroundColor="#10284d" style="light" translucent={false} />
         <SafeAreaView style={styles.loginSafeArea}>
           <View style={[styles.loginCard, { width: loginCardWidth }]}>
           <View style={styles.loginBadgeShadow}>

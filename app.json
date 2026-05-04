@@ -4,17 +4,18 @@
     "slug": "meco-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
+    "backgroundColor": "#10284d",
     "platforms": [
       "ios",
       "android"
     ],
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#10284d"
     },
     "ios": {
       "bundleIdentifier": "org.mecorobotics.mecoops",
@@ -24,7 +25,16 @@
       "package": "org.mecorobotics.mecoops",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#10284d"
+      },
+      "navigationBar": {
+        "backgroundColor": "#10284d",
+        "barStyle": "light-content"
+      },
+      "statusBar": {
+        "backgroundColor": "#10284d",
+        "barStyle": "light-content",
+        "translucent": false
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
