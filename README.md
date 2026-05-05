@@ -1,6 +1,6 @@
-# MECO Mobile
+# MECO Mission Control Mobile
 
-Expo/React Native starter for the MECO Robotics project-management and manufacturing workflow app.
+Expo/React Native mobile client for MECO Mission Control manufacturing, planning, and operations workflows.
 
 ## What this repo covers
 
@@ -13,9 +13,9 @@ Expo/React Native starter for the MECO Robotics project-management and manufactu
 
 ## Why this is separate from the hosted backend
 
-The mobile client is built with Expo/React Native. The companion `meco-platform` repo is the piece intended for DigitalOcean hosting and database management.
+The mobile client is built with Expo/React Native. The companion `meco-mission-control-platform` repo is the piece intended for DigitalOcean hosting and database management.
 
-The new `meco-web` repo complements this app with browser-first dashboards for mentors and admin workflows.
+The `meco-mission-control-web` repo complements this app with browser-first dashboards for mentors and admin workflows.
 
 ## Local commands
 
@@ -63,6 +63,6 @@ on the Windows host.
 
 ## Next product steps
 
-1. Replace the mock snapshot in `src/data/mockData.ts` with API calls to `meco-platform`.
+1. Replace the mock snapshot in `src/data/mockData.ts` with API calls to `meco-mission-control-platform`.
 2. Add auth and role-aware views for students, mentors, and admins.
 3. Connect meeting sign-in, work-log submission, and QA forms to the backend.
