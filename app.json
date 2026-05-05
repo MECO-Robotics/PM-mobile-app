@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "MECO Ops",
-    "slug": "meco-mobile",
+    "name": "MECO Mission Control",
+    "slug": "meco-mission-control-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "backgroundColor": "#10284d",
@@ -18,11 +18,11 @@
       "backgroundColor": "#10284d"
     },
     "ios": {
-      "bundleIdentifier": "org.mecorobotics.mecoops",
+      "bundleIdentifier": "org.mecorobotics.missioncontrol",
       "supportsTablet": true
     },
     "android": {
-      "package": "org.mecorobotics.mecoops",
+      "package": "org.mecorobotics.missioncontrol",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#10284d"

@@ -5285,7 +5285,7 @@ export default function App() {
               <Text style={[styles.projectMarkLabel, { color: themeColors.navyInk }]}>RB</Text>
             </View>
             <View style={styles.overlayHeaderCopy}>
-              <Text style={[styles.overlayTitle, { color: themeColors.ink }]}>MECO Robotics</Text>
+              <Text style={[styles.overlayTitle, { color: themeColors.ink }]}>MECO Mission Control</Text>
               <Text style={[styles.overlaySubtitle, { color: themeColors.subtleText }]}>Robot project selector</Text>
             </View>
           </View>
@@ -5492,7 +5492,7 @@ export default function App() {
               style={styles.brandWrap}
             >
               <Text style={[styles.brandEyebrow, appResponsiveStyles.brandEyebrow]}>
-                MECO Robotics
+                MECO Mission Control
               </Text>
               {!isCompactLayout ? (
                 <Text

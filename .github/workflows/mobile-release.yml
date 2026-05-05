@@ -192,7 +192,7 @@ jobs:
             console.error('Could not find iOS application archive URL in ios-build.json');
             process.exit(1);
           }
-          const filename = archiveUrl.split('?')[0].split('/').pop() || 'meco-mobile-ios.ipa';
+          const filename = archiveUrl.split('?')[0].split('/').pop() || 'meco-mission-control-mobile-ios.ipa';
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `build_id=${build?.id ?? ''}\n`);
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `url=${archiveUrl}\n`);
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `filename=${filename}\n`);
@@ -211,7 +211,7 @@ jobs:
             console.error('Could not find Android application archive URL in android-build.json');
             process.exit(1);
           }
-          const filename = archiveUrl.split('?')[0].split('/').pop() || 'meco-mobile-android.aab';
+          const filename = archiveUrl.split('?')[0].split('/').pop() || 'meco-mission-control-mobile-android.aab';
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `build_id=${build?.id ?? ''}\n`);
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `url=${archiveUrl}\n`);
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `filename=${filename}\n`);
@@ -240,7 +240,7 @@ jobs:
           if [ -n "${{ github.event.inputs.release_name }}" ]; then
             NAME="${{ github.event.inputs.release_name }}"
           else
-            NAME="MECO Mobile ${APP_VERSION} (${SHORT_SHA})"
+            NAME="MECO Mission Control Mobile ${APP_VERSION} (${SHORT_SHA})"
           fi
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
