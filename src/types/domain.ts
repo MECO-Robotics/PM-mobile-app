@@ -243,18 +243,30 @@ export interface Escalation {
   severity: "high" | "medium";
 }
 
+export interface BootstrapMilestone {
+  id: string;
+  title: string;
+  type?: string;
+  startDateTime: string;
+  endDateTime: string | null;
+  isExternal: boolean;
+  description: string;
+  relatedSubsystemIds?: string[];
+}
+
 export interface PlatformBootstrapPayload {
-  members: Member[];
-  subsystems: Subsystem[];
-  disciplines: Discipline[];
-  mechanisms: Mechanism[];
-  partDefinitions: PartDefinition[];
-  partInstances: PartInstance[];
-  tasks: Task[];
-  events: Event[];
-  workLogs: WorkLog[];
-  manufacturingItems: ManufacturingItem[];
-  purchaseItems: PurchaseItem[];
+  members?: Member[];
+  subsystems?: Subsystem[];
+  disciplines?: Discipline[];
+  mechanisms?: Mechanism[];
+  partDefinitions?: PartDefinition[];
+  partInstances?: PartInstance[];
+  tasks?: Task[];
+  events?: Event[];
+  milestones?: BootstrapMilestone[];
+  workLogs?: WorkLog[];
+  manufacturingItems?: ManufacturingItem[];
+  purchaseItems?: PurchaseItem[];
   qaFindings?: QAFinding[];
   testFindings?: TestFinding[];
   designIterations?: DesignIteration[];

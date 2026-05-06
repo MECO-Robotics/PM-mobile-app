@@ -177,6 +177,37 @@ function parseClientError(error: unknown) {
   return "Request failed unexpectedly.";
 }
 
+function ensureArray<T>(value: T[] | undefined | null): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function mapMilestoneTypeToEventType(type: string | undefined): EventType {
+  switch (type) {
+    case "practice":
+      return "drive-practice";
+    case "competition":
+    case "deadline":
+    case "internal-review":
+    case "demo":
+      return type;
+    default:
+      return "deadline";
+  }
+}
+
+function mapMilestonesToEvents(payload: PlatformBootstrapPayload): Event[] {
+  return ensureArray(payload.milestones).map((milestone) => ({
+    id: milestone.id,
+    title: milestone.title,
+    type: mapMilestoneTypeToEventType(milestone.type),
+    startDateTime: milestone.startDateTime,
+    endDateTime: milestone.endDateTime,
+    isExternal: milestone.isExternal,
+    description: milestone.description,
+    relatedSubsystemIds: ensureArray(milestone.relatedSubsystemIds),
+  }));
+}
+
 export default function App() {
   const { height, width } = useWindowDimensions();
   const systemColorScheme = useColorScheme();
@@ -361,17 +392,19 @@ export default function App() {
   });
 
   const applyBootstrapPayload = useCallback((payload: PlatformBootstrapPayload) => {
-    setMembers(payload.members);
-    setSubsystems(payload.subsystems);
-    setDisciplines(payload.disciplines);
-    setMechanisms(payload.mechanisms);
-    setTasks(payload.tasks);
-    setEvents(payload.events);
-    setWorkLogs(payload.workLogs);
-    setManufacturingItems(payload.manufacturingItems);
-    setPurchaseItems(payload.purchaseItems);
-    setPartDefinitions(payload.partDefinitions);
-    setPartInstances(payload.partInstances);
+    const events = ensureArray(payload.events);
+
+    setMembers(ensureArray(payload.members));
+    setSubsystems(ensureArray(payload.subsystems));
+    setDisciplines(ensureArray(payload.disciplines));
+    setMechanisms(ensureArray(payload.mechanisms));
+    setTasks(ensureArray(payload.tasks));
+    setEvents(events.length > 0 ? events : mapMilestonesToEvents(payload));
+    setWorkLogs(ensureArray(payload.workLogs));
+    setManufacturingItems(ensureArray(payload.manufacturingItems));
+    setPurchaseItems(ensureArray(payload.purchaseItems));
+    setPartDefinitions(ensureArray(payload.partDefinitions));
+    setPartInstances(ensureArray(payload.partInstances));
   }, []);
 
   const refreshWorkspaceFromServer = useCallback(
