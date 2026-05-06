@@ -323,180 +323,8 @@ function parseClientError(error: unknown) {
   return "Request failed unexpectedly.";
 }
 
-function getClientErrorMessage(
-  error: unknown,
-  context: "auth-config" | "authenticated" | "general" = "general",
-) {
-  const authErrorState = classifyMobileAuthError(error, context);
-  if (authErrorState !== "unknown") {
-    return getMobileAuthErrorMessage(authErrorState);
-  }
-
-  return parseClientError(error);
-}
-
-function isValidDateInput(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return false;
-  }
-
-  const date = new Date(`${value}T00:00:00.000Z`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
-}
-
-function isValidTimeInput(value: string) {
-  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
-}
-
-function taskDependsOnTarget(
-  taskId: string,
-  targetTaskId: string,
-  taskById: Record<string, Task>,
-  visitedTaskIds = new Set<string>(),
-): boolean {
-  if (taskId === targetTaskId) {
-    return true;
-  }
-
-  if (visitedTaskIds.has(taskId)) {
-    return false;
-  }
-
-  visitedTaskIds.add(taskId);
-
-  const task = taskById[taskId];
-  if (!task) {
-    return false;
-  }
-
-  return task.dependencyIds.some((dependencyId) =>
-    taskDependsOnTarget(dependencyId, targetTaskId, taskById, visitedTaskIds),
-  );
-}
-
-function getAutoTaskStatus(
-  task: Pick<Task, "blockers" | "dependencyIds" | "ownerId" | "status">,
-  taskById: Record<string, Task>,
-): TaskStatus {
-  if (task.status !== "not-started") {
-    return task.status;
-  }
-
-  const hasOpenDependency = task.dependencyIds
-    .map((dependencyId) => taskById[dependencyId])
-    .some((dependency) => dependency && dependency.status !== "complete");
-
-  if (task.ownerId && task.blockers.length === 0 && !hasOpenDependency) {
-    return "in-progress";
-  }
-
-  return task.status;
-}
-
-function hasOpenTaskDependency(
-  task: Pick<Task, "dependencyIds">,
-  taskById: Record<string, Task>,
-) {
-  return task.dependencyIds
-    .map((dependencyId) => taskById[dependencyId])
-    .some((dependency) => dependency && dependency.status !== "complete");
-}
-
-function isTaskReadyForQaPass(task: Task, taskById: Record<string, Task>) {
-  return (
-    task.status === "waiting-for-qa" &&
-    task.blockers.length === 0 &&
-    !hasOpenTaskDependency(task, taskById)
-  );
-}
-
-function getQaReviewTaskId(review: QaReview) {
-  if (review.taskId) {
-    return review.taskId;
-  }
-
-  return review.subjectType === "task" && review.subjectId ? review.subjectId : null;
-}
-
-function buildTaskMutationPayload(task: Task) {
-  return {
-    title: task.title,
-    summary: task.summary,
-    subsystemId: task.subsystemId,
-    disciplineId: task.disciplineId,
-    mechanismId: task.mechanismId,
-    partInstanceId: task.partInstanceId,
-    targetEventId: task.targetEventId,
-    ownerId: task.ownerId,
-    mentorId: task.mentorId,
-    dueDate: task.dueDate,
-    priority: task.priority,
-    status: task.status,
-    dependencyIds: task.dependencyIds,
-    checklistItems: task.checklistItems ?? [],
-    blockers: task.blockers,
-    linkedManufacturingIds: task.linkedManufacturingIds,
-    linkedPurchaseIds: task.linkedPurchaseIds,
-    estimatedHours: task.estimatedHours,
-    actualHours: task.actualHours,
-  };
-}
-
-function shiftDateByDays(value: string, dayDelta: number) {
-  const date = new Date(`${value}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + dayDelta);
-  return date.toISOString().slice(0, 10);
-}
-
-function csvCell(value: string | number) {
-  return `"${String(value).replace(/"/g, '""')}"`;
-}
-
 function ensureArray<T>(value: T[] | undefined | null): T[] {
   return Array.isArray(value) ? value : [];
-}
-
-type ServerTask = Task & {
-  targetMilestoneId?: string | null;
-};
-
-type EmailCodeStartResponse = {
-  sentTo?: string;
-  expiresInMinutes?: number;
-};
-
-function normalizeTaskFromServer(task: ServerTask): Task {
-  return {
-    ...task,
-    targetEventId: task.targetEventId ?? task.targetMilestoneId ?? null,
-  };
-}
-
-function mapTaskPayloadToServer<T extends { targetEventId?: string | null }>(
-  payload: T,
-) {
-  const { targetEventId, ...serverPayload } = payload;
-
-  return {
-    ...serverPayload,
-    targetMilestoneId: targetEventId ?? null,
-  };
-}
-
-function getTaskSubteamForDiscipline(disciplineId: string, fallback: TaskSubteamTab) {
-  return (
-    TASK_SUBTEAM_OPTIONS.find((option) =>
-      TASK_SUBTEAM_DISCIPLINE_IDS[option.value].includes(disciplineId),
-    )?.value ?? fallback
-  );
-}
-
-function mapTaskPriorityToRiskPriority(priority: TaskPriority): RiskPriority {
-  if (priority === "critical" || priority === "high") {
-    return "high";
-  }
-
-  return priority === "low" ? "low" : "medium";
 }
 
 function mapMilestoneTypeToEventType(type: string | undefined): EventType {
@@ -513,41 +341,7 @@ function mapMilestoneTypeToEventType(type: string | undefined): EventType {
   }
 }
 
-function mapEventTypeToMilestoneType(type: EventType) {
-  return type === "drive-practice" ? "practice" : type;
-}
-
-function normalizeRequiredEmailDomain(domain: string | null | undefined) {
-  return domain?.trim().toLowerCase().replace(/^@/, "") || REQUIRED_EMAIL_DOMAIN;
-}
-
-function hasRequiredEmailDomain(email: string, requiredDomain: string) {
-  const [, domain = ""] = email.split("@");
-  const normalizedDomain = domain.toLowerCase();
-  return (
-    normalizedDomain === requiredDomain ||
-    normalizedDomain.endsWith(`.${requiredDomain}`)
-  );
-}
-
-function buildLocalEmailSessionUser(email: string, hostedDomain: string): SessionUser {
-  const [accountName] = email.split("@");
-  const accountId = accountName.trim().toLowerCase();
-  const name = accountId.replace(/[._-]+/g, " ").trim();
-
-  return {
-    accountId: accountId || email,
-    authProvider: "email",
-    email,
-    hostedDomain,
-    name: name || email,
-    picture: null,
-  };
-}
-
 function mapMilestonesToEvents(payload: PlatformBootstrapPayload): Event[] {
-  const subsystems = ensureArray(payload.subsystems);
-
   return ensureArray(payload.milestones).map((milestone) => ({
     id: milestone.id,
     title: milestone.title,
@@ -556,32 +350,8 @@ function mapMilestonesToEvents(payload: PlatformBootstrapPayload): Event[] {
     endDateTime: milestone.endDateTime,
     isExternal: milestone.isExternal,
     description: milestone.description,
-    relatedSubsystemIds:
-      milestone.relatedSubsystemIds ??
-      subsystems
-        .filter((subsystem) => ensureArray(milestone.projectIds).includes(subsystem.projectId ?? ""))
-        .map((subsystem) => subsystem.id),
+    relatedSubsystemIds: ensureArray(milestone.relatedSubsystemIds),
   }));
-}
-
-type MilestoneMutationResponse = {
-  item?: BootstrapMilestone;
-};
-
-function applyMilestoneSubsystemLinks(
-  currentEvents: Event[],
-  milestone: BootstrapMilestone | undefined,
-  fallbackMilestoneId: string | null,
-  relatedSubsystemIds: string[],
-) {
-  const milestoneId = milestone?.id ?? fallbackMilestoneId;
-  if (!milestoneId) {
-    return currentEvents;
-  }
-
-  return currentEvents.map((event) =>
-    event.id === milestoneId ? { ...event, relatedSubsystemIds } : event,
-  );
 }
 
 export default function App() {
@@ -851,20 +621,16 @@ export default function App() {
 
   const applyBootstrapPayload = useCallback((payload: PlatformBootstrapPayload) => {
     const events = ensureArray(payload.events);
-    const tasks = ensureArray(payload.tasks).map((task) =>
-      normalizeTaskFromServer(task as ServerTask),
-    );
 
     setMembers(ensureArray(payload.members));
-    setSubsystems(normalizeTaskSubsystems(ensureArray(payload.subsystems)));
+    setSubsystems(ensureArray(payload.subsystems));
     setDisciplines(ensureArray(payload.disciplines));
     setMechanisms(ensureArray(payload.mechanisms));
-    setTasks(tasks);
+    setTasks(ensureArray(payload.tasks));
     setEvents(events.length > 0 ? events : mapMilestonesToEvents(payload));
     setWorkLogs(ensureArray(payload.workLogs));
     setManufacturingItems(ensureArray(payload.manufacturingItems));
     setPurchaseItems(ensureArray(payload.purchaseItems));
-    setQaRequests(ensureArray(payload.qaRequests));
     setPartDefinitions(ensureArray(payload.partDefinitions));
     setPartInstances(ensureArray(payload.partInstances));
   }, []);

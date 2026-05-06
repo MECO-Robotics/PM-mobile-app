@@ -268,7 +268,6 @@ export interface BootstrapMilestone {
   endDateTime: string | null;
   isExternal: boolean;
   description: string;
-  projectIds?: string[];
   relatedSubsystemIds?: string[];
 }
 
@@ -285,7 +284,6 @@ export interface PlatformBootstrapPayload {
   workLogs?: WorkLog[];
   manufacturingItems?: ManufacturingItem[];
   purchaseItems?: PurchaseItem[];
-  qaRequests?: QaRequest[];
   qaFindings?: QAFinding[];
   testFindings?: TestFinding[];
   designIterations?: DesignIteration[];
