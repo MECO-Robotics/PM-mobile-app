@@ -7,6 +7,7 @@ import type {
   ManufacturingViewTab,
   Option,
   StatusGroup,
+  TaskSubteamTab,
   TaskViewTab,
   WorkLogSortMode,
 } from "./types";
@@ -15,6 +16,18 @@ export const TASK_VIEW_OPTIONS: { value: TaskViewTab; label: string }[] = [
   { value: "queue", label: "Queue" },
   { value: "milestones", label: "Milestones" },
 ];
+
+export const TASK_SUBTEAM_OPTIONS: { value: TaskSubteamTab; label: string }[] = [
+  { value: "programming", label: "Programming" },
+  { value: "mechanical", label: "Mechanical" },
+  { value: "electrical", label: "Electrical" },
+];
+
+export const TASK_SUBTEAM_DISCIPLINE_IDS: Record<TaskSubteamTab, string[]> = {
+  programming: ["software", "programming", "integration"],
+  mechanical: ["mechanical"],
+  electrical: ["electrical"],
+};
 
 export const MANUFACTURING_VIEW_OPTIONS: { value: ManufacturingViewTab; label: string }[] = [
   { value: "cnc", label: "CNC" },
