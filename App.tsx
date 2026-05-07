@@ -1,4 +1,5 @@
 import { StatusBar } from "expo-status-bar";
+import * as ScreenOrientation from "expo-screen-orientation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Image,
@@ -32,6 +33,8 @@ import {
   SUBVIEW_INTERACTION_GUIDANCE,
   TASK_PRIORITY_OPTIONS,
   TASK_STATUS_OPTIONS,
+  TASK_SUBTEAM_DISCIPLINE_IDS,
+  TASK_SUBTEAM_OPTIONS,
   TASK_VIEW_OPTIONS,
   WORKLOG_SORT_OPTIONS,
 } from "./src/ui/constants";
@@ -80,6 +83,7 @@ import type {
   SummaryChipData,
   SubsystemDraft,
   TaskDraft,
+  TaskSubteamTab,
   TaskViewTab,
   ViewTab,
   WorkLogDraft,
@@ -95,6 +99,7 @@ import {
   ModalField,
   OptionChipRow,
   SearchField,
+  SectionTabs,
   StatusPill,
   SummaryRow,
   ToggleField,
@@ -102,12 +107,14 @@ import {
 } from "./src/ui/ui";
 import { AppThemeProvider } from "./src/ui/themeContext";
 import { languageNames, LocalizationProvider, Text, type LanguageCode } from "./src/i18n";
+import { LandscapeSubsystemTimeline } from "./src/ui/LandscapeSubsystemTimeline";
 import {
   ApiRequestError,
   requestJson,
   resolveApiBaseUrl,
 } from "./src/data/api";
 import { mecoSnapshot } from "./src/data/mockData";
+import { tasks as seededTasks } from "./src/data/tasks";
 import type {
   MemberRole,
   ManufacturingItem,
@@ -133,27 +140,10 @@ const SUBTAB_SWIPE_ACTIVATION_DISTANCE = 24;
 const SUBTAB_SWIPE_COMMIT_DISTANCE = 72;
 
 type AttendanceStatus = "yes" | "maybe" | "no";
-
-const LOW_INVENTORY_ITEMS = [
-  {
-    id: "cf-n-filament",
-    name: "CF-N filament",
-    detail: "1 partial spool left",
-    urgency: "Restock before printing intake plates",
-  },
-  {
-    id: "bandsaw-blades",
-    name: "Bandsaw blades",
-    detail: "2 usable blades",
-    urgency: "Cut stock is likely to outpace supply",
-  },
-  {
-    id: "button-heads-10-32",
-    name: "10/32 button heads 1 inch",
-    detail: "Low bin count",
-    urgency: "Needed for frame and bracket work",
-  },
-];
+type SeasonOption = {
+  id: string;
+  label: string;
+};
 
 const ATTENDANCE_STATUS_BY_MEMBER_ID: Record<string, AttendanceStatus> = {
   ava: "yes",
@@ -164,6 +154,24 @@ const ATTENDANCE_STATUS_BY_MEMBER_ID: Record<string, AttendanceStatus> = {
   priya: "maybe",
   riley: "yes",
 };
+
+const ATTENDANCE_STATUS_OPTIONS: { status: AttendanceStatus; label: string }[] = [
+  { status: "yes", label: "Present" },
+  { status: "maybe", label: "Maybe" },
+  { status: "no", label: "Out" },
+];
+
+const INITIAL_SEASONS: SeasonOption[] = [
+  { id: "test", label: "Test Season" },
+  { id: "new", label: "New Season" },
+];
+
+function withSeededSubteamTasks(currentTasks: Task[]) {
+  const currentTaskIds = new Set(currentTasks.map((task) => task.id));
+  const missingSeededTasks = seededTasks.filter((task) => !currentTaskIds.has(task.id));
+
+  return [...currentTasks, ...missingSeededTasks];
+}
 
 function parseClientError(error: unknown) {
   if (error instanceof ApiRequestError) {
@@ -213,7 +221,8 @@ export default function App() {
   const systemColorScheme = useColorScheme();
   const responsiveMetrics = useMemo(() => getResponsiveMetrics(width), [width]);
   const isCompactLayout = responsiveMetrics.isCompact;
-  const isVeryCompactLayout = responsiveMetrics.isVeryCompact;
+  const isLandscapeTimelineLayout = width > height;
+  const isLandscapeCardLayout = width > height;
   const apiBaseUrl = useMemo(() => resolveApiBaseUrl(), []);
 
   const [apiToken, setApiToken] = useState<string | null>(null);
@@ -231,25 +240,29 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<ViewTab>("home");
   const [taskView, setTaskView] = useState<TaskViewTab>("queue");
+  const [activeTaskSubteam, setActiveTaskSubteam] =
+    useState<TaskSubteamTab>("programming");
   const [manufacturingView, setManufacturingView] =
     useState<ManufacturingViewTab>("cnc");
   const [inventoryView, setInventoryView] = useState<InventoryViewTab>("purchases");
   const [isNavMenuVisible, setIsNavMenuVisible] = useState(false);
   const [isProjectOverlayVisible, setIsProjectOverlayVisible] = useState(false);
   const [isPersonMenuVisible, setIsPersonMenuVisible] = useState(false);
+  const [isSeasonMenuVisible, setIsSeasonMenuVisible] = useState(false);
   const [isAttendanceModalVisible, setIsAttendanceModalVisible] = useState(false);
-  const [isPeopleFilterVisible, setIsPeopleFilterVisible] = useState(
-    () => !isVeryCompactLayout,
-  );
+  const [attendanceStatusByMemberId, setAttendanceStatusByMemberId] =
+    useState<Record<string, AttendanceStatus>>(ATTENDANCE_STATUS_BY_MEMBER_ID);
   const [themeOverride, setThemeOverride] = useState<AppThemeName | null>(null);
   const [languageOverride, setLanguageOverride] = useState<LanguageCode | null>(null);
   const [activePersonFilter, setActivePersonFilter] = useState("all");
+  const [seasons, setSeasons] = useState<SeasonOption[]>(INITIAL_SEASONS);
+  const [activeSeasonId, setActiveSeasonId] = useState(INITIAL_SEASONS[0].id);
 
   const [members, setMembers] = useState(() => mecoSnapshot.members);
   const [subsystems, setSubsystems] = useState(() => mecoSnapshot.subsystems);
   const [disciplines, setDisciplines] = useState(() => mecoSnapshot.disciplines);
   const [mechanisms, setMechanisms] = useState(() => mecoSnapshot.mechanisms);
-  const [tasks, setTasks] = useState(() => mecoSnapshot.tasks);
+  const [tasks, setTasks] = useState(() => withSeededSubteamTasks(mecoSnapshot.tasks));
   const [events, setEvents] = useState(() => mecoSnapshot.events);
   const [workLogs, setWorkLogs] = useState(() => mecoSnapshot.workLogs);
   const [manufacturingItems, setManufacturingItems] = useState(
@@ -272,6 +285,8 @@ export default function App() {
         .map(([code, name]) => ({ id: code, name })),
     [],
   );
+  const seasonModeLabel =
+    seasons.find((option) => option.id === activeSeasonId)?.label ?? "No Season";
 
   const [taskSearch, setTaskSearch] = useState("");
   const [taskStatusFilter, setTaskStatusFilter] = useState("all");
@@ -405,7 +420,7 @@ export default function App() {
     setSubsystems(ensureArray(payload.subsystems));
     setDisciplines(ensureArray(payload.disciplines));
     setMechanisms(ensureArray(payload.mechanisms));
-    setTasks(ensureArray(payload.tasks));
+    setTasks(withSeededSubteamTasks(ensureArray(payload.tasks)));
     setEvents(events.length > 0 ? events : mapMilestonesToEvents(payload));
     setWorkLogs(ensureArray(payload.workLogs));
     setManufacturingItems(ensureArray(payload.manufacturingItems));
@@ -683,11 +698,16 @@ export default function App() {
       tasks.map((task) => [task.id, task]),
     ) as Record<string, Task>;
   }, [tasks]);
+  const activeTaskSubteamTasks = useMemo(() => {
+    const disciplineIds = TASK_SUBTEAM_DISCIPLINE_IDS[activeTaskSubteam];
+
+    return tasks.filter((task) => disciplineIds.includes(task.disciplineId));
+  }, [activeTaskSubteam, tasks]);
+  const activeTaskSubteamLabel =
+    TASK_SUBTEAM_OPTIONS.find((option) => option.value === activeTaskSubteam)?.label ??
+    "Programming";
 
   const navigationItems = useMemo<NavItem[]>(() => {
-    const openManufacturing = manufacturingItems.filter(
-      (item) => item.status !== "complete",
-    ).length;
     const homeCount = tasks.filter((task) => task.status !== "complete").length;
 
     return [
@@ -698,6 +718,12 @@ export default function App() {
         count: homeCount,
       },
       {
+        key: "attendance",
+        label: "Attendance",
+        shortLabel: "AT",
+        count: members.length,
+      },
+      {
         key: "tasks",
         label: "Tasks",
         shortLabel: "TS",
@@ -705,15 +731,9 @@ export default function App() {
       },
       {
         key: "worklogs",
-        label: "Worklogs",
+        label: "Logs",
         shortLabel: "WL",
         count: workLogs.length,
-      },
-      {
-        key: "manufacturing",
-        label: "Manufacturing",
-        shortLabel: "MF",
-        count: openManufacturing,
       },
       {
         key: "inventory",
@@ -722,14 +742,8 @@ export default function App() {
         count: partDefinitions.length + purchaseItems.length,
       },
       {
-        key: "subsystems",
-        label: "Subsystems",
-        shortLabel: "SS",
-        count: subsystems.length,
-      },
-      {
         key: "reports",
-        label: "QA & Reports",
+        label: "QA",
         shortLabel: "QA",
         count: qaReviews.length + eventReports.length,
       },
@@ -739,17 +753,10 @@ export default function App() {
         shortLabel: "RK",
         count: subsystems.reduce((sum, subsystem) => sum + subsystem.risks.length, 0),
       },
-      {
-        key: "roster",
-        label: "Roster",
-        shortLabel: "RO",
-        count: members.length,
-      },
     ];
   }, [
     tasks,
     workLogs,
-    manufacturingItems,
     partDefinitions,
     purchaseItems,
     subsystems,
@@ -759,26 +766,26 @@ export default function App() {
   ]);
 
   const taskSummary = useMemo(() => {
-    const blocked = tasks.filter((task) => task.blockers.length > 0).length;
-    const waiting = tasks.filter(
+    const blocked = activeTaskSubteamTasks.filter((task) => task.blockers.length > 0).length;
+    const waiting = activeTaskSubteamTasks.filter(
       (task) => task.status === "waiting-for-qa",
     ).length;
-    const complete = tasks.filter(
+    const complete = activeTaskSubteamTasks.filter(
       (task) => task.status === "complete",
     ).length;
 
     return [
-      { label: "Total tasks", value: String(tasks.length) },
+      { label: "Total tasks", value: String(activeTaskSubteamTasks.length) },
       { label: "Blocked", value: String(blocked) },
       { label: "Waiting QA", value: String(waiting) },
       { label: "Complete", value: String(complete) },
     ] satisfies SummaryChipData[];
-  }, [tasks]);
+  }, [activeTaskSubteamTasks]);
 
   const filteredTaskQueue = useMemo(() => {
     const search = taskSearch.trim().toLowerCase();
 
-    return [...tasks]
+    return [...activeTaskSubteamTasks]
       .filter((task) => {
         if (
           activePersonFilter !== "all" &&
@@ -834,7 +841,7 @@ export default function App() {
       })
       .sort((left, right) => left.dueDate.localeCompare(right.dueDate));
   }, [
-    tasks,
+    activeTaskSubteamTasks,
     activePersonFilter,
     membersById,
     mechanismsById,
@@ -921,7 +928,7 @@ export default function App() {
   }, [events]);
 
   const timelineTasks = useMemo(() => {
-    return [...tasks]
+    return [...activeTaskSubteamTasks]
       .filter((task) => {
         if (activePersonFilter === "all") {
           return true;
@@ -939,7 +946,7 @@ export default function App() {
       .sort((left, right) =>
       left.dueDate.localeCompare(right.dueDate),
     );
-  }, [tasks, activePersonFilter, taskArchiveFilter, timelineMilestoneFilter, timelineSubsystemFilter]);
+  }, [activeTaskSubteamTasks, activePersonFilter, taskArchiveFilter, timelineMilestoneFilter, timelineSubsystemFilter]);
 
   const filteredWorkLogs = useMemo(() => {
     const search = workLogSearch.trim().toLowerCase();
@@ -1423,6 +1430,22 @@ export default function App() {
     (member) => member.role === "mentor" || member.role === "lead",
   );
   const rosterAdmins = members.filter((member) => member.role === "admin");
+  const homeInventoryNeeds = useMemo(
+    () =>
+      [...purchaseItems]
+        .filter((item) => item.status === "requested" || item.status === "approved")
+        .sort((left, right) => {
+          const statusRank = { approved: 0, requested: 1 } as Record<string, number>;
+          const statusDelta = statusRank[left.status] - statusRank[right.status];
+          if (statusDelta !== 0) {
+            return statusDelta;
+          }
+
+          return right.estimatedCost - left.estimatedCost;
+        })
+        .slice(0, 5),
+    [purchaseItems],
+  );
   const homePriorityTasks = useMemo(() => {
     const priorityRank: Record<TaskPriority, number> = {
       critical: 0,
@@ -1468,13 +1491,30 @@ export default function App() {
         .sort((left, right) => left.name.localeCompare(right.name))
         .map((member) => ({
           member,
-          status: ATTENDANCE_STATUS_BY_MEMBER_ID[member.id] ?? "maybe",
+          status: attendanceStatusByMemberId[member.id] ?? "maybe",
         })),
-    [members],
+    [attendanceStatusByMemberId, members],
   );
-  const attendancePreview = meetingAttendance.slice(0, 10);
+  const attendanceSummary = useMemo(() => {
+    const presentCount = meetingAttendance.filter(({ status }) => status === "yes").length;
+    const maybeCount = meetingAttendance.filter(({ status }) => status === "maybe").length;
+    const outCount = meetingAttendance.filter(({ status }) => status === "no").length;
 
-  const activeTabLabel = navigationItems.find((item) => item.key === activeTab)?.label ?? "Home";
+    return [
+      { label: "Present", value: String(presentCount) },
+      { label: "Maybe", value: String(maybeCount) },
+      { label: "Out", value: String(outCount) },
+      { label: "Total", value: String(meetingAttendance.length) },
+    ] satisfies SummaryChipData[];
+  }, [meetingAttendance]);
+  const attendancePreview = meetingAttendance
+    .filter(({ status }) => status !== "no")
+    .slice(0, 10);
+
+  const activeTabLabel =
+    activeTab === "home"
+      ? "Home"
+      : (navigationItems.find((item) => item.key === activeTab)?.label ?? "Home");
   const activeSubtabOptions = useMemo(() => {
     if (activeTab === "tasks") {
       return TASK_VIEW_OPTIONS;
@@ -1519,9 +1559,6 @@ export default function App() {
         marginHorizontal: responsiveMetrics.gutter,
         paddingHorizontal: responsiveMetrics.panelPadding,
         paddingVertical: responsiveMetrics.isVeryCompact ? 8 : 10,
-      },
-      navStrip: {
-        paddingHorizontal: responsiveMetrics.gutter,
       },
       iconButton: {
         backgroundColor: themeColors.canvas,
@@ -1777,10 +1814,10 @@ export default function App() {
   }, [loadPublicAuthConfig]);
 
   useEffect(() => {
-    if (isVeryCompactLayout) {
-      setIsPeopleFilterVisible(false);
-    }
-  }, [isVeryCompactLayout]);
+    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.ALL).catch(
+      () => undefined,
+    );
+  }, []);
 
   useEffect(() => {
     if (activePersonFilter === "all") {
@@ -1791,6 +1828,14 @@ export default function App() {
       setActivePersonFilter("all");
     }
   }, [activePersonFilter, members]);
+
+  useEffect(() => {
+    setAttendanceStatusByMemberId((current) =>
+      Object.fromEntries(
+        members.map((member) => [member.id, current[member.id] ?? "maybe"]),
+      ),
+    );
+  }, [members]);
 
   useEffect(() => {
     if (selectedMemberId && !members.some((member) => member.id === selectedMemberId)) {
@@ -1809,7 +1854,8 @@ export default function App() {
     setTaskDraft(
       buildTaskDraft({
         subsystemId: subsystems[0]?.id ?? "",
-        disciplineId: disciplines[0]?.id ?? "",
+        disciplineId:
+          TASK_SUBTEAM_DISCIPLINE_IDS[activeTaskSubteam][0] ?? disciplines[0]?.id ?? "",
         ownerId: members[0]?.id ?? "",
         mentorId:
           members.find((member) => member.role === "mentor" || member.role === "lead")?.id ??
@@ -1819,6 +1865,29 @@ export default function App() {
       }),
     );
     setTaskEditorMode("create");
+  };
+
+  const openTaskQueueFromTask = (task: Task) => {
+    const nextSubteam =
+      TASK_SUBTEAM_OPTIONS.find((option) =>
+        TASK_SUBTEAM_DISCIPLINE_IDS[option.value].includes(task.disciplineId),
+      )?.value ?? activeTaskSubteam;
+
+    setActiveTaskSubteam(nextSubteam);
+    setTaskView("queue");
+    setTaskSearch("");
+    setTaskSubsystemFilter("all");
+    setTaskOwnerFilter("all");
+    setTaskStatusFilter("all");
+    setTaskPriorityFilter("all");
+    setTaskBlockerFilter("all");
+    setTaskArchiveFilter("active");
+    setActiveTab("tasks");
+  };
+
+  const openInventoryPurchases = () => {
+    setInventoryView("purchases");
+    setActiveTab("inventory");
   };
 
   const openEditTaskEditor = (task: Task) => {
@@ -2738,6 +2807,8 @@ export default function App() {
 
   const resetWorkspaceData = () => {
     setActivePersonFilter("all");
+    setIsPersonMenuVisible(false);
+    setIsSeasonMenuVisible(false);
     closeTaskEditor();
     closeWorkLogEditor();
     closeMilestoneEditor();
@@ -2749,6 +2820,72 @@ export default function App() {
     closeQaReportEditor();
     closeEventReportEditor();
     void syncFromBackend();
+  };
+
+  const clearWorkspaceForNewSeason = () => {
+    setMembers((current) => current.filter((member) => member.role === "student"));
+    setSubsystems([]);
+    setDisciplines([]);
+    setMechanisms([]);
+    setTasks([]);
+    setEvents([]);
+    setWorkLogs([]);
+    setManufacturingItems([]);
+    setPurchaseItems([]);
+    setPartDefinitions([]);
+    setPartInstances([]);
+    setQaReviews([]);
+    setEventReports([]);
+    setActiveTab("home");
+    setActivePersonFilter("all");
+    setSelectedMemberId(null);
+  };
+
+  const createSeason = () => {
+    const nextSeasonNumber = seasons.length + 1;
+    const seasonId = `season-${Date.now()}`;
+    const seasonLabel = nextSeasonNumber === 1 ? "New Season" : `New Season ${nextSeasonNumber}`;
+
+    setSeasons((current) => [...current, { id: seasonId, label: seasonLabel }]);
+    setActiveSeasonId(seasonId);
+    setIsSeasonMenuVisible(false);
+    clearWorkspaceForNewSeason();
+  };
+
+  const deleteSeason = (seasonId: string) => {
+    setSeasons((current) => {
+      const nextSeasons = current.filter((season) => season.id !== seasonId);
+
+      if (activeSeasonId === seasonId) {
+        setActiveSeasonId(nextSeasons[0]?.id ?? "");
+      }
+
+      return nextSeasons;
+    });
+  };
+
+  const signOut = () => {
+    setApiToken(null);
+    setSessionUser(null);
+    setHasAuthenticated(false);
+    setIsPersonMenuVisible(false);
+    setIsSeasonMenuVisible(false);
+    setIsNavMenuVisible(false);
+    setIsProjectOverlayVisible(false);
+    setActivePersonFilter("all");
+    setSelectedMemberId(null);
+    setSyncError(null);
+    setAuthError(null);
+    closeTaskEditor();
+    closeWorkLogEditor();
+    closeMilestoneEditor();
+    closeManufacturingEditor();
+    closePurchaseEditor();
+    closeMemberEditor();
+    closeSubsystemEditor();
+    closePartDefinitionEditor();
+    closeQaReportEditor();
+    closeEventReportEditor();
   };
 
   const renderAttendanceStatusMark = (status: AttendanceStatus) => {
@@ -2775,39 +2912,55 @@ export default function App() {
         actions={
           <Pressable onPress={syncFromBackend} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
             <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>
-              Refresh
+              {isSyncing ? "Refreshing" : "Refresh"}
             </Text>
           </Pressable>
         }
       >
         <View style={styles.homeSection}>
-          <View style={styles.homeSectionHeader}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={openInventoryPurchases}
+            style={styles.homeSectionHeader}
+          >
             <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>
-              Running low
+              Inventory to buy
             </Text>
             <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-              Inventory to check before the meeting
+              Top {homeInventoryNeeds.length} purchase items still waiting.
             </Text>
-          </View>
-          {LOW_INVENTORY_ITEMS.map((item) => (
-            <View
-              key={item.id}
-              style={[styles.inventoryAlertRow, appResponsiveStyles.rowCard]}
-            >
-              <View style={styles.queueRowPrimaryText}>
-                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
-                  {item.name}
+          </Pressable>
+          {homeInventoryNeeds.map((item) => {
+            const requesterName = item.requestedById
+              ? (membersById[item.requestedById]?.name ?? "Unassigned")
+              : "Unassigned";
+
+            return (
+              <Pressable
+                key={item.id}
+                onPress={() => openEditPurchaseEditor(item)}
+                style={[styles.inventoryAlertRow, appResponsiveStyles.rowCard]}
+              >
+                <View style={styles.queueRowHeader}>
+                  <View style={styles.queueRowPrimaryText}>
+                    <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                      {item.title}
+                    </Text>
+                    <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                      {item.vendor} - Qty {item.quantity} - requester {requesterName}
+                    </Text>
+                  </View>
+                  <StatusPill label={item.status} value={item.status} />
+                </View>
+                <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
+                  Estimated ${item.estimatedCost.toFixed(0)}
                 </Text>
-                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                  {item.detail}
-                </Text>
-              </View>
-              <StatusPill label="Low" value="high" />
-              <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
-                {item.urgency}
-              </Text>
-            </View>
-          ))}
+              </Pressable>
+            );
+          })}
+          {homeInventoryNeeds.length === 0 ? (
+            <EmptyState text="No purchase items need buying right now." />
+          ) : null}
         </View>
 
         <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
@@ -2826,7 +2979,7 @@ export default function App() {
           return (
             <Pressable
               key={task.id}
-              onPress={() => openEditTaskEditor(task)}
+              onPress={() => openTaskQueueFromTask(task)}
               style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
             >
               <View style={styles.queueRowHeader}>
@@ -2859,7 +3012,7 @@ export default function App() {
 
         <Pressable
           accessibilityRole="button"
-          onPress={() => setIsAttendanceModalVisible(true)}
+          onPress={() => setActiveTab("attendance")}
           style={styles.homeSection}
         >
           <View style={styles.homeSectionHeader}>
@@ -2867,7 +3020,7 @@ export default function App() {
               Meeting attendance
             </Text>
             <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-              Top {attendancePreview.length} alphabetically - tap for everyone
+              Top {attendancePreview.length} coming to the meeting - tap for everyone.
             </Text>
           </View>
           {attendancePreview.map(({ member, status }) => (
@@ -2886,7 +3039,95 @@ export default function App() {
               {renderAttendanceStatusMark(status)}
             </View>
           ))}
+          {attendancePreview.length === 0 ? (
+            <EmptyState text="No one is marked as coming yet." />
+          ) : null}
         </Pressable>
+      </WorkspacePanel>
+    );
+  };
+
+  const renderAttendance = () => {
+    return (
+      <WorkspacePanel
+        title="Attendance"
+        subtitle={`${members.length} people loaded from the workspace server.`}
+        actions={
+          <Pressable onPress={syncFromBackend} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>
+              {isSyncing ? "Refreshing" : "Refresh"}
+            </Text>
+          </Pressable>
+        }
+      >
+        <SummaryRow chips={attendanceSummary} />
+
+        <View style={styles.homeSection}>
+          <View style={styles.homeSectionHeader}>
+            <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>
+              People
+            </Text>
+            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
+              Synced from the server and sorted alphabetically.
+            </Text>
+          </View>
+          {meetingAttendance.map(({ member, status }) => (
+            <View
+              key={member.id}
+              style={[styles.attendanceRow, appResponsiveStyles.rowCard]}
+            >
+              <View style={[styles.memberAvatar, appResponsiveStyles.memberAvatar]}>
+                <Text style={[styles.memberAvatarLabel, { color: themeColors.navyInk }]}>
+                  {member.name.slice(0, 1).toUpperCase()}
+                </Text>
+              </View>
+              <View style={styles.queueRowPrimaryText}>
+                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                  {member.name}
+                </Text>
+                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                  {capitalize(member.role)}
+                  {member.email ? ` - ${member.email}` : ""}
+                </Text>
+              </View>
+              <View style={styles.attendanceStatusControls}>
+                {ATTENDANCE_STATUS_OPTIONS.map((option) => {
+                  const isSelected = status === option.status;
+
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
+                      key={option.status}
+                      onPress={() =>
+                        setAttendanceStatusByMemberId((current) => ({
+                          ...current,
+                          [member.id]: option.status,
+                        }))
+                      }
+                      style={[
+                        styles.attendanceStatusButton,
+                        isSelected && styles.attendanceStatusButtonActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.attendanceStatusButtonLabel,
+                          isSelected && styles.attendanceStatusButtonLabelActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ))}
+          {meetingAttendance.length === 0 ? (
+            <EmptyState text="No people were returned by the server." />
+          ) : null}
+        </View>
       </WorkspacePanel>
     );
   };
@@ -2894,8 +3135,8 @@ export default function App() {
   const renderTaskTimeline = () => {
     return (
       <WorkspacePanel
-        title="Task timeline"
-        subtitle="Calendar-ordered milestones and ownership cues for the next execution window."
+        title={`${activeTaskSubteamLabel} timeline`}
+        subtitle="Calendar-ordered milestones and ownership cues for the selected subteam."
         actions={
           <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
             <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add task</Text>
@@ -2969,8 +3210,8 @@ export default function App() {
   const renderTaskQueue = () => {
     return (
       <WorkspacePanel
-        title="Task queue"
-        subtitle="Search and filter queue cards to keep ownership, due dates, and QA state in view."
+        title={`${activeTaskSubteamLabel} task queue`}
+        subtitle="Search and filter queue cards for the selected subteam's work."
         actions={
           <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
             <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
@@ -3072,47 +3313,57 @@ export default function App() {
             <Pressable
               key={task.id}
               onPress={() => openEditTaskEditor(task)}
-              style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
+              style={[
+                styles.queueRowCard,
+                appResponsiveStyles.rowCard,
+                isLandscapeCardLayout && styles.queueRowCardLandscape,
+              ]}
             >
-              <View style={styles.queueRowHeader}>
-                <View style={styles.queueRowPrimaryText}>
-                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{task.title}</Text>
-                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                    {subsystemName} - {disciplineName}
-                  </Text>
-                </View>
-                <Text style={editTagStyle}>EDIT</Text>
-              </View>
+              <View style={isLandscapeCardLayout && styles.taskCardLandscapeContent}>
+                <View style={isLandscapeCardLayout && styles.taskCardLandscapeMain}>
+                  <View style={styles.queueRowHeader}>
+                    <View style={styles.queueRowPrimaryText}>
+                      <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{task.title}</Text>
+                      <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                        {subsystemName} - {disciplineName}
+                      </Text>
+                    </View>
+                    <Text style={editTagStyle}>EDIT</Text>
+                  </View>
 
-              <Text numberOfLines={2} style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{task.summary}</Text>
+                  <Text numberOfLines={isLandscapeCardLayout ? 3 : 2} style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{task.summary}</Text>
 
-              <View style={styles.compactMetaGrid}>
-                <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-                  <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Owner {ownerName}</Text>
+                  <View style={styles.queuePillRow}>
+                    <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
+                    <StatusPill label={`${task.priority} priority`} value={task.priority} />
+                    {task.linkedManufacturingIds.length > 0 ? (
+                      <StatusPill label="Needs fabrication" value="waiting" />
+                    ) : null}
+                    {task.linkedPurchaseIds.length > 0 ? (
+                      <StatusPill label="Needs purchase" value="requested" />
+                    ) : null}
+                  </View>
                 </View>
-                <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-                  <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Due {formatDate(task.dueDate)}</Text>
-                </View>
-                <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-                  <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Milestone {targetEvent}</Text>
-                </View>
-                <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-                  <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Mechanism {mechanismName}</Text>
-                </View>
-                <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-                  <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Part {linkedPart}</Text>
-                </View>
-              </View>
 
-              <View style={styles.queuePillRow}>
-                <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
-                <StatusPill label={`${task.priority} priority`} value={task.priority} />
-                {task.linkedManufacturingIds.length > 0 ? (
-                  <StatusPill label="Needs fabrication" value="waiting" />
-                ) : null}
-                {task.linkedPurchaseIds.length > 0 ? (
-                  <StatusPill label="Needs purchase" value="requested" />
-                ) : null}
+                <View style={isLandscapeCardLayout && styles.taskCardLandscapeAside}>
+                  <View style={styles.compactMetaGrid}>
+                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Owner {ownerName}</Text>
+                    </View>
+                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Due {formatDate(task.dueDate)}</Text>
+                    </View>
+                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Milestone {targetEvent}</Text>
+                    </View>
+                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Mechanism {mechanismName}</Text>
+                    </View>
+                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Part {linkedPart}</Text>
+                    </View>
+                  </View>
+                </View>
               </View>
 
               {task.blockers.length > 0 ? (
@@ -3300,8 +3551,27 @@ export default function App() {
   };
 
   const renderTasks = () => {
+    if (isLandscapeTimelineLayout) {
+      return (
+        <LandscapeSubsystemTimeline
+          colors={themeColors}
+          events={events}
+          membersById={membersById}
+          onAddTask={openCreateTaskEditor}
+          onTaskPress={openEditTaskEditor}
+          subsystems={subsystems}
+          tasks={timelineTasks}
+        />
+      );
+    }
+
     return (
       <>
+        <SectionTabs
+          activeValue={activeTaskSubteam}
+          onChange={setActiveTaskSubteam}
+          options={TASK_SUBTEAM_OPTIONS}
+        />
         {taskView === "timeline"
           ? renderTaskTimeline()
           : taskView === "queue"
@@ -4231,6 +4501,10 @@ export default function App() {
       return renderHome();
     }
 
+    if (activeTab === "attendance") {
+      return renderAttendance();
+    }
+
     if (activeTab === "tasks") {
       return renderTasks();
     }
@@ -4298,172 +4572,179 @@ export default function App() {
           title={taskEditorMode === "edit" ? "Edit task" : "Create task"}
           visible={Boolean(taskEditorMode)}
         >
-          <ModalField
-            label="Title"
-            onChangeText={(value) => setTaskDraft((current) => ({ ...current, title: value }))}
-            placeholder="Task title"
-            value={taskDraft.title}
-          />
-          <ModalField
-            label="Summary"
-            multiline
-            onChangeText={(value) => setTaskDraft((current) => ({ ...current, summary: value }))}
-            placeholder="Task summary"
-            value={taskDraft.summary}
-          />
-          <ModalField
-            label="Due date (YYYY-MM-DD)"
-            onChangeText={(value) => setTaskDraft((current) => ({ ...current, dueDate: value }))}
-            placeholder="2026-04-24"
-            value={taskDraft.dueDate}
-          />
-          <DropdownField
-            clearLabel="No subsystem"
-            label="Subsystem"
-            onChange={(value) =>
-              setTaskDraft((current) => {
-                const subsystemId = value;
-                const nextMechanisms = mechanisms.filter(
-                  (mechanism) => mechanism.subsystemId === subsystemId,
-                );
-                const mechanismId = nextMechanisms[0]?.id ?? null;
-                const partInstanceId = mechanismId
-                  ? partInstances.find((partInstance) => partInstance.mechanismId === mechanismId)
-                      ?.id ?? null
-                  : null;
+          <View style={isLandscapeCardLayout ? styles.taskEditorLandscapeGrid : styles.taskEditorStack}>
+            <View style={[styles.taskEditorStack, isLandscapeCardLayout && styles.taskEditorLandscapeColumn]}>
+              <ModalField
+                label="Title"
+                onChangeText={(value) => setTaskDraft((current) => ({ ...current, title: value }))}
+                placeholder="Task title"
+                value={taskDraft.title}
+              />
+              <ModalField
+                label="Summary"
+                multiline
+                onChangeText={(value) => setTaskDraft((current) => ({ ...current, summary: value }))}
+                placeholder="Task summary"
+                value={taskDraft.summary}
+              />
+              <ModalField
+                label="Due date (YYYY-MM-DD)"
+                onChangeText={(value) => setTaskDraft((current) => ({ ...current, dueDate: value }))}
+                placeholder="2026-04-24"
+                value={taskDraft.dueDate}
+              />
+              <DropdownField
+                clearLabel="No subsystem"
+                label="Subsystem"
+                onChange={(value) =>
+                  setTaskDraft((current) => {
+                    const subsystemId = value;
+                    const nextMechanisms = mechanisms.filter(
+                      (mechanism) => mechanism.subsystemId === subsystemId,
+                    );
+                    const mechanismId = nextMechanisms[0]?.id ?? null;
+                    const partInstanceId = mechanismId
+                      ? partInstances.find((partInstance) => partInstance.mechanismId === mechanismId)
+                          ?.id ?? null
+                      : null;
 
-                return {
-                  ...current,
-                  subsystemId,
-                  mechanismId,
-                  partInstanceId,
-                };
-              })
-            }
-            options={subsystemOptions}
-            placeholder="Select subsystem"
-            value={taskDraft.subsystemId}
-          />
-          <DropdownField
-            clearLabel="No discipline"
-            label="Discipline"
-            onChange={(value) =>
-              setTaskDraft((current) => ({ ...current, disciplineId: value }))
-            }
-            options={disciplineOptions}
-            placeholder="Select discipline"
-            value={taskDraft.disciplineId}
-          />
-          <DropdownField
-            clearLabel="No mechanism"
-            label="Mechanism"
-            onChange={(value) =>
-              setTaskDraft((current) => {
-                const mechanismId = value || null;
-                const partInstanceId = mechanismId
-                  ? partInstances.find((partInstance) => partInstance.mechanismId === mechanismId)
-                      ?.id ?? null
-                  : null;
-
-                return {
-                  ...current,
-                  mechanismId,
-                  partInstanceId,
-                };
-              })
-            }
-            options={mechanismOptions}
-            placeholder="Select mechanism"
-            value={taskDraft.mechanismId || ""}
-          />
-          <DropdownField
-            clearLabel="No part instance"
-            label="Part instance"
-            onChange={(value) =>
-              setTaskDraft((current) => ({
-                ...current,
-                partInstanceId: value || null,
-              }))
-            }
-            options={mechanismAndTaskPartOptions}
-            placeholder="Select part instance"
-            value={taskDraft.partInstanceId || ""}
-          />
-          <DropdownField
-            clearLabel="No target event"
-            label="Target event"
-            onChange={(value) =>
-              setTaskDraft((current) => ({
-                ...current,
-                targetEventId: value || null,
-              }))
-            }
-            options={eventOptions}
-            placeholder="Select target event"
-            value={taskDraft.targetEventId || ""}
-          />
-          <DropdownField
-            clearLabel="No owner"
-            label="Owner"
-            onChange={(value) =>
-              setTaskDraft((current) => ({ ...current, ownerId: value }))
-            }
-            options={memberOptions}
-            placeholder="Select owner"
-            value={taskDraft.ownerId}
-          />
-          <DropdownField
-            clearLabel="No mentor"
-            label="Mentor"
-            onChange={(value) =>
-              setTaskDraft((current) => ({ ...current, mentorId: value }))
-            }
-            options={memberOptions}
-            placeholder="Select mentor"
-            value={taskDraft.mentorId}
-          />
-          <DropdownField
-            label="Status"
-            onChange={(value) =>
-              setTaskDraft((current) => ({
-                ...current,
-                status: value as TaskStatus,
-              }))
-            }
-            options={TASK_STATUS_OPTIONS}
-            value={taskDraft.status}
-          />
-          <DropdownField
-            label="Priority"
-            onChange={(value) =>
-              setTaskDraft((current) => ({
-                ...current,
-                priority: value as TaskPriority,
-              }))
-            }
-            options={TASK_PRIORITY_OPTIONS}
-            value={taskDraft.priority}
-          />
-          <AdvancedOptions>
-            <View style={styles.modalField}>
-              <Text style={[styles.modalFieldLabel, { color: themeColors.subtleText }]}>Traceability</Text>
-              <Text style={[styles.modalFieldInput, { backgroundColor: themeColors.canvas, borderColor: themeColors.border, color: themeColors.ink }]}>
-                {`${subsystemsById[taskDraft.subsystemId]?.name ?? "No subsystem"} / `}
-                {`${disciplinesById[taskDraft.disciplineId]?.name ?? "No discipline"} / `}
-                {`${taskDraft.mechanismId ? mechanismsById[taskDraft.mechanismId]?.name : "No mechanism"} / `}
-                {`${taskDraft.partInstanceId ? partInstancesById[taskDraft.partInstanceId]?.name : "No part instance"} / `}
-                {`${taskDraft.targetEventId ? eventsById[taskDraft.targetEventId]?.title : "No event"}`}
-              </Text>
+                    return {
+                      ...current,
+                      subsystemId,
+                      mechanismId,
+                      partInstanceId,
+                    };
+                  })
+                }
+                options={subsystemOptions}
+                placeholder="Select subsystem"
+                value={taskDraft.subsystemId}
+              />
+              <DropdownField
+                clearLabel="No discipline"
+                label="Discipline"
+                onChange={(value) =>
+                  setTaskDraft((current) => ({ ...current, disciplineId: value }))
+                }
+                options={disciplineOptions}
+                placeholder="Select discipline"
+                value={taskDraft.disciplineId}
+              />
             </View>
-            <ModalField
-              label="Blockers (comma separated)"
-              onChangeText={(value) =>
-                setTaskDraft((current) => ({ ...current, blockersText: value }))
-              }
-              placeholder="Waiting on batch, cable routing"
-              value={taskDraft.blockersText}
-            />
-          </AdvancedOptions>
+
+            <View style={[styles.taskEditorStack, isLandscapeCardLayout && styles.taskEditorLandscapeColumn]}>
+              <DropdownField
+                clearLabel="No mechanism"
+                label="Mechanism"
+                onChange={(value) =>
+                  setTaskDraft((current) => {
+                    const mechanismId = value || null;
+                    const partInstanceId = mechanismId
+                      ? partInstances.find((partInstance) => partInstance.mechanismId === mechanismId)
+                          ?.id ?? null
+                      : null;
+
+                    return {
+                      ...current,
+                      mechanismId,
+                      partInstanceId,
+                    };
+                  })
+                }
+                options={mechanismOptions}
+                placeholder="Select mechanism"
+                value={taskDraft.mechanismId || ""}
+              />
+              <DropdownField
+                clearLabel="No part instance"
+                label="Part instance"
+                onChange={(value) =>
+                  setTaskDraft((current) => ({
+                    ...current,
+                    partInstanceId: value || null,
+                  }))
+                }
+                options={mechanismAndTaskPartOptions}
+                placeholder="Select part instance"
+                value={taskDraft.partInstanceId || ""}
+              />
+              <DropdownField
+                clearLabel="No target event"
+                label="Target event"
+                onChange={(value) =>
+                  setTaskDraft((current) => ({
+                    ...current,
+                    targetEventId: value || null,
+                  }))
+                }
+                options={eventOptions}
+                placeholder="Select target event"
+                value={taskDraft.targetEventId || ""}
+              />
+              <DropdownField
+                clearLabel="No owner"
+                label="Owner"
+                onChange={(value) =>
+                  setTaskDraft((current) => ({ ...current, ownerId: value }))
+                }
+                options={memberOptions}
+                placeholder="Select owner"
+                value={taskDraft.ownerId}
+              />
+              <DropdownField
+                clearLabel="No mentor"
+                label="Mentor"
+                onChange={(value) =>
+                  setTaskDraft((current) => ({ ...current, mentorId: value }))
+                }
+                options={memberOptions}
+                placeholder="Select mentor"
+                value={taskDraft.mentorId}
+              />
+              <DropdownField
+                label="Status"
+                onChange={(value) =>
+                  setTaskDraft((current) => ({
+                    ...current,
+                    status: value as TaskStatus,
+                  }))
+                }
+                options={TASK_STATUS_OPTIONS}
+                value={taskDraft.status}
+              />
+              <DropdownField
+                label="Priority"
+                onChange={(value) =>
+                  setTaskDraft((current) => ({
+                    ...current,
+                    priority: value as TaskPriority,
+                  }))
+                }
+                options={TASK_PRIORITY_OPTIONS}
+                value={taskDraft.priority}
+              />
+              <AdvancedOptions>
+                <View style={styles.modalField}>
+                  <Text style={[styles.modalFieldLabel, { color: themeColors.subtleText }]}>Traceability</Text>
+                  <Text style={[styles.modalFieldInput, { backgroundColor: themeColors.canvas, borderColor: themeColors.border, color: themeColors.ink }]}>
+                    {`${subsystemsById[taskDraft.subsystemId]?.name ?? "No subsystem"} / `}
+                    {`${disciplinesById[taskDraft.disciplineId]?.name ?? "No discipline"} / `}
+                    {`${taskDraft.mechanismId ? mechanismsById[taskDraft.mechanismId]?.name : "No mechanism"} / `}
+                    {`${taskDraft.partInstanceId ? partInstancesById[taskDraft.partInstanceId]?.name : "No part instance"} / `}
+                    {`${taskDraft.targetEventId ? eventsById[taskDraft.targetEventId]?.title : "No event"}`}
+                  </Text>
+                </View>
+                <ModalField
+                  label="Blockers (comma separated)"
+                  onChangeText={(value) =>
+                    setTaskDraft((current) => ({ ...current, blockersText: value }))
+                  }
+                  placeholder="Waiting on batch, cable routing"
+                  value={taskDraft.blockersText}
+                />
+              </AdvancedOptions>
+            </View>
+          </View>
         </EditorModal>
 
         <EditorModal
@@ -5113,6 +5394,7 @@ export default function App() {
     <Modal
       animationType="fade"
       onRequestClose={closeNavigationMenu}
+      supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
       transparent
       visible={isNavMenuVisible}
     >
@@ -5312,6 +5594,7 @@ export default function App() {
     <Modal
       animationType="fade"
       onRequestClose={() => setIsProjectOverlayVisible(false)}
+      supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
       transparent
       visible={isProjectOverlayVisible}
     >
@@ -5371,6 +5654,7 @@ export default function App() {
     <Modal
       animationType="fade"
       onRequestClose={() => setIsAttendanceModalVisible(false)}
+      supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
       transparent
       visible={isAttendanceModalVisible}
     >
@@ -5430,11 +5714,21 @@ export default function App() {
   const renderPersonMenu = () => (
     <Modal
       animationType="fade"
-      onRequestClose={() => setIsPersonMenuVisible(false)}
+      onRequestClose={() => {
+        setIsPersonMenuVisible(false);
+        setIsSeasonMenuVisible(false);
+      }}
+      supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
       transparent
       visible={isPersonMenuVisible}
     >
-      <Pressable onPress={() => setIsPersonMenuVisible(false)} style={styles.overlayScrim}>
+      <Pressable
+        onPress={() => {
+          setIsPersonMenuVisible(false);
+          setIsSeasonMenuVisible(false);
+        }}
+        style={styles.overlayScrim}
+      >
         <Pressable onPress={() => undefined} style={[styles.overlayCard, appResponsiveStyles.overlayCard]}>
           <View style={styles.overlayHeader}>
             <View style={[styles.personMark, { backgroundColor: themeColors.navySurface }]}>
@@ -5456,30 +5750,94 @@ export default function App() {
           >
             <View>
               <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>Theme</Text>
-              <Text style={[styles.settingsRowSubtitle, { color: themeColors.subtleText }]}>
-                {themeOverride ? "Manual preference" : "Matching iPhone"}
-              </Text>
             </View>
             <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>
               {themeMode === "dark" ? "Dark" : "Light"}
             </Text>
           </Pressable>
 
-          {themeOverride ? (
-            <Pressable
-              onPress={() => setThemeOverride(null)}
-              style={[styles.settingsRow, appResponsiveStyles.settingsRow]}
-            >
-              <View>
-                <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>
-                  Use iPhone theme
+          <Pressable
+            onPress={() => setIsSeasonMenuVisible((current) => !current)}
+            style={[
+              styles.settingsRow,
+              appResponsiveStyles.settingsRow,
+              isSeasonMenuVisible && [styles.settingsRowActive, appResponsiveStyles.settingsRowActive],
+            ]}
+          >
+            <View>
+              <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>Season</Text>
+            </View>
+            {isSeasonMenuVisible ? (
+              <Pressable
+                accessibilityLabel="Add new season"
+                accessibilityRole="button"
+                onPress={(event) => {
+                  event.stopPropagation();
+                  createSeason();
+                }}
+                style={styles.settingsIconButton}
+              >
+                <Text style={[styles.settingsIconButtonLabel, { color: themeColors.navyInk }]}>
+                  +
                 </Text>
-                <Text style={[styles.settingsRowSubtitle, { color: themeColors.subtleText }]}>
-                  Return to automatic appearance
-                </Text>
-              </View>
-              <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>Auto</Text>
-            </Pressable>
+              </Pressable>
+            ) : (
+              <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>
+                {seasonModeLabel}
+              </Text>
+            )}
+          </Pressable>
+
+          {isSeasonMenuVisible ? (
+            <View style={styles.settingsSubmenu}>
+              {seasons.map((option) => {
+                const isSelected = activeSeasonId === option.id;
+
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                    key={option.id}
+                    onPress={() => {
+                      setActiveSeasonId(option.id);
+                      setIsSeasonMenuVisible(false);
+                    }}
+                    style={[
+                      styles.settingsSubmenuRow,
+                      isSelected && styles.settingsSubmenuRowActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.settingsSubmenuLabel,
+                        { color: themeColors.ink },
+                        isSelected && { color: themeColors.navyInk },
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                    <Pressable
+                      accessibilityLabel={`Delete ${option.label}`}
+                      accessibilityRole="button"
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        deleteSeason(option.id);
+                      }}
+                      style={styles.settingsIconButton}
+                    >
+                      <Text
+                        style={[
+                          styles.settingsIconButtonLabel,
+                          { color: themeColors.navyInk },
+                        ]}
+                      >
+                        -
+                      </Text>
+                    </Pressable>
+                  </Pressable>
+                );
+              })}
+            </View>
           ) : null}
 
           <View style={[styles.settingsRow, appResponsiveStyles.settingsRow]}>
@@ -5503,9 +5861,18 @@ export default function App() {
           >
             <View>
               <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>Refresh data</Text>
-              <Text style={[styles.settingsRowSubtitle, { color: themeColors.subtleText }]}>Sync the current workspace</Text>
             </View>
             <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>Run</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={signOut}
+            style={[styles.settingsRow, appResponsiveStyles.settingsRow]}
+          >
+            <View>
+              <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>Sign out</Text>
+            </View>
+            <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>Exit</Text>
           </Pressable>
         </Pressable>
       </Pressable>
@@ -5583,17 +5950,10 @@ export default function App() {
           <View style={[styles.topbarRight, isCompactLayout && styles.topbarRightCompact]}>
             <Pressable
               accessibilityRole="button"
-              onPress={() => setIsPeopleFilterVisible((current) => !current)}
-              style={[styles.iconButton, appResponsiveStyles.iconButton]}
-            >
-              <View style={[styles.eyeIcon, { borderColor: themeColors.navyInk }]}>
-                <View style={[styles.eyePupil, { backgroundColor: themeColors.navyInk }]} />
-              </View>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setIsPersonMenuVisible(true)}
+              onPress={() => {
+                setIsSeasonMenuVisible(false);
+                setIsPersonMenuVisible(true);
+              }}
               style={[
                 styles.personButton,
                 appResponsiveStyles.iconButton,
@@ -5609,17 +5969,6 @@ export default function App() {
           <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
             <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>Backend sync issue</Text>
             <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>{syncError}</Text>
-          </View>
-        ) : null}
-
-        {isPeopleFilterVisible ? (
-          <View style={[styles.personFilterStrip, appResponsiveStyles.navStrip]}>
-            <OptionChipRow
-              allLabel="All people"
-              onChange={setActivePersonFilter}
-              options={members.map((member) => ({ id: member.id, name: member.name }))}
-              value={activePersonFilter}
-            />
           </View>
         ) : null}
 
