@@ -183,6 +183,37 @@ function parseClientError(error: unknown) {
   return "Request failed unexpectedly.";
 }
 
+function ensureArray<T>(value: T[] | undefined | null): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function mapMilestoneTypeToEventType(type: string | undefined): EventType {
+  switch (type) {
+    case "practice":
+      return "drive-practice";
+    case "competition":
+    case "deadline":
+    case "internal-review":
+    case "demo":
+      return type;
+    default:
+      return "deadline";
+  }
+}
+
+function mapMilestonesToEvents(payload: PlatformBootstrapPayload): Event[] {
+  return ensureArray(payload.milestones).map((milestone) => ({
+    id: milestone.id,
+    title: milestone.title,
+    type: mapMilestoneTypeToEventType(milestone.type),
+    startDateTime: milestone.startDateTime,
+    endDateTime: milestone.endDateTime,
+    isExternal: milestone.isExternal,
+    description: milestone.description,
+    relatedSubsystemIds: ensureArray(milestone.relatedSubsystemIds),
+  }));
+}
+
 export default function App() {
   const { height, width } = useWindowDimensions();
   const systemColorScheme = useColorScheme();
@@ -372,21 +403,19 @@ export default function App() {
   });
 
   const applyBootstrapPayload = useCallback((payload: PlatformBootstrapPayload) => {
-    setMembers(Array.isArray(payload.members) ? payload.members : []);
-    setSubsystems(Array.isArray(payload.subsystems) ? payload.subsystems : []);
-    setDisciplines(Array.isArray(payload.disciplines) ? payload.disciplines : []);
-    setMechanisms(Array.isArray(payload.mechanisms) ? payload.mechanisms : []);
-    setTasks(withSeededSubteamTasks(Array.isArray(payload.tasks) ? payload.tasks : []));
-    setEvents(Array.isArray(payload.events) ? payload.events : []);
-    setWorkLogs(Array.isArray(payload.workLogs) ? payload.workLogs : []);
-    setManufacturingItems(
-      Array.isArray(payload.manufacturingItems) ? payload.manufacturingItems : [],
-    );
-    setPurchaseItems(Array.isArray(payload.purchaseItems) ? payload.purchaseItems : []);
-    setPartDefinitions(
-      Array.isArray(payload.partDefinitions) ? payload.partDefinitions : [],
-    );
-    setPartInstances(Array.isArray(payload.partInstances) ? payload.partInstances : []);
+    const events = ensureArray(payload.events);
+
+    setMembers(ensureArray(payload.members));
+    setSubsystems(ensureArray(payload.subsystems));
+    setDisciplines(ensureArray(payload.disciplines));
+    setMechanisms(ensureArray(payload.mechanisms));
+    setTasks(withSeededSubteamTasks(ensureArray(payload.tasks)));
+    setEvents(events.length > 0 ? events : mapMilestonesToEvents(payload));
+    setWorkLogs(ensureArray(payload.workLogs));
+    setManufacturingItems(ensureArray(payload.manufacturingItems));
+    setPurchaseItems(ensureArray(payload.purchaseItems));
+    setPartDefinitions(ensureArray(payload.partDefinitions));
+    setPartInstances(ensureArray(payload.partInstances));
   }, []);
 
   const refreshWorkspaceFromServer = useCallback(
