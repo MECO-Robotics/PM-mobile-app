@@ -503,6 +503,25 @@ export const styles = StyleSheet.create({
     padding: spacing.sm,
     gap: 6,
   },
+  queueRowCardLandscape: {
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  taskCardLandscapeContent: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.md,
+  },
+  taskCardLandscapeMain: {
+    flex: 1.6,
+    minWidth: 0,
+    gap: spacing.xs,
+  },
+  taskCardLandscapeAside: {
+    flex: 1,
+    minWidth: 220,
+    gap: spacing.xs,
+  },
   queueRowHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -970,6 +989,10 @@ export const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
+  modalCardLandscape: {
+    maxWidth: 920,
+    maxHeight: "84%",
+  },
   modalCardCompact: {
     maxHeight: "92%",
     padding: spacing.sm,
@@ -983,6 +1006,19 @@ export const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
+  },
+  taskEditorStack: {
+    gap: spacing.sm,
+  },
+  taskEditorLandscapeGrid: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.md,
+  },
+  taskEditorLandscapeColumn: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.sm,
   },
   modalField: {
     gap: 6,
