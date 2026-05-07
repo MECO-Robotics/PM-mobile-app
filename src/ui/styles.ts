@@ -117,21 +117,6 @@ export const styles = StyleSheet.create({
     fontWeight: "900",
     lineHeight: 16,
   },
-  eyeIcon: {
-    width: 22,
-    height: 14,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: colors.navyInk,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  eyePupil: {
-    width: 6,
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: colors.navyInk,
-  },
   brandWrap: {
     flex: 1,
     minWidth: 0,
@@ -198,13 +183,6 @@ export const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   sidebarNavRowCompact: {
-    paddingHorizontal: spacing.md,
-  },
-  personFilterStrip: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-  },
-  personFilterStripCompact: {
     paddingHorizontal: spacing.md,
   },
   sidebarTab: {
@@ -675,6 +653,35 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+    flexWrap: "wrap",
+  },
+  attendanceStatusControls: {
+    flexDirection: "row",
+    gap: spacing.xs,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
+  attendanceStatusButton: {
+    minHeight: 32,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  attendanceStatusButtonActive: {
+    borderColor: colors.blue,
+    backgroundColor: colors.navySurface,
+  },
+  attendanceStatusButtonLabel: {
+    color: colors.subtleText,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  attendanceStatusButtonLabelActive: {
+    color: colors.navyInk,
   },
   attendanceMark: {
     width: 28,
@@ -1566,5 +1573,47 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "900",
     textTransform: "uppercase",
+  },
+  settingsSubmenu: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.xs,
+    gap: spacing.xs,
+  },
+  settingsSubmenuRow: {
+    minHeight: 36,
+    borderRadius: 8,
+    paddingHorizontal: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  settingsSubmenuRowActive: {
+    backgroundColor: colors.navySurface,
+  },
+  settingsSubmenuLabel: {
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: "800",
+    flex: 1,
+  },
+  settingsIconButton: {
+    minWidth: 28,
+    minHeight: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  settingsIconButtonLabel: {
+    color: colors.navyInk,
+    fontSize: 18,
+    fontWeight: "900",
+    lineHeight: 20,
   },
 });

@@ -9,9 +9,9 @@
     "postinstall": "node scripts/patch-freeport-async.js",
     "sim:reset": "node scripts/reset-ios-sim.js",
     "preios": "node scripts/reset-ios-sim.js",
-    "dev": "powershell -ExecutionPolicy Bypass -File ./script/build_and_run.ps1 --android",
+    "dev": "bash ./script/build_and_run.sh --android",
     "start": "expo start",
-    "android": "powershell -ExecutionPolicy Bypass -File ./script/build_and_run.ps1 --android",
+    "android": "bash ./script/build_and_run.sh --android",
     "ios": "expo start --ios --localhost --port 8081",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"

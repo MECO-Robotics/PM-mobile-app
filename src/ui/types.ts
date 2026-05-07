@@ -8,6 +8,7 @@ import type {
 } from "../types/domain";
 export type ViewTab =
   | "home"
+  | "attendance"
   | "tasks"
   | "worklogs"
   | "manufacturing"
@@ -18,6 +19,7 @@ export type ViewTab =
   | "roster";
 
 export type TaskViewTab = "timeline" | "queue" | "milestones";
+export type TaskSubteamTab = "programming" | "mechanical" | "electrical";
 export type ManufacturingViewTab = "cnc" | "prints" | "fabrication";
 export type InventoryViewTab = "materials" | "parts" | "purchases";
 

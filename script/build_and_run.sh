@@ -45,6 +45,10 @@ use_android_sdk() {
     fi
   fi
 
+  if [[ -z "$sdk" && -d "$HOME/Library/Android/sdk" ]]; then
+    sdk="$HOME/Library/Android/sdk"
+  fi
+
   if [[ -n "$sdk" && -d "$sdk" ]]; then
     export ANDROID_HOME="$sdk"
     export ANDROID_SDK_ROOT="$sdk"
