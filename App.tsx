@@ -96,6 +96,7 @@ import {
   ToggleField,
 } from "./src/ui/ui";
 import { AppThemeProvider } from "./src/ui/themeContext";
+import { languageNames, LocalizationProvider, Text, type LanguageCode } from "./src/i18n";
 import { LandscapeSubsystemTimeline } from "./src/ui/LandscapeSubsystemTimeline";
 import {
   ApiRequestError,
@@ -335,7 +336,7 @@ export default function App() {
   const [attendanceStatusByMemberId, setAttendanceStatusByMemberId] =
     useState<Record<string, AttendanceStatus>>(ATTENDANCE_STATUS_BY_MEMBER_ID);
   const [themeOverride, setThemeOverride] = useState<AppThemeName | null>(null);
-  const [languageOverride] = useState<LanguageCode | null>(null);
+  const [languageOverride, setLanguageOverride] = useState<LanguageCode | null>(null);
   const [activePersonFilter, setActivePersonFilter] = useState("all");
   const [seasons, setSeasons] = useState<SeasonOption[]>(INITIAL_SEASONS);
   const [activeSeasonId, setActiveSeasonId] = useState(INITIAL_SEASONS[0].id);
@@ -362,6 +363,12 @@ export default function App() {
   const themeMode = themeOverride ?? systemThemeMode;
   const isDarkModeEnabled = themeMode === "dark";
   const themeColors = appThemes[themeMode];
+  const languageOptions = useMemo(
+    () =>
+      (Object.entries(languageNames) as [LanguageCode, string][])
+        .map(([code, name]) => ({ id: code, name })),
+    [],
+  );
   const seasonModeLabel =
     seasons.find((option) => option.id === activeSeasonId)?.label ?? "No Season";
 
@@ -6680,6 +6687,21 @@ export default function App() {
               })}
             </View>
           ) : null}
+
+          <View style={[styles.settingsRow, appResponsiveStyles.settingsRow]}>
+            <View style={styles.queueRowPrimaryText}>
+              <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>Language</Text>
+              <Text style={[styles.settingsRowSubtitle, { color: themeColors.subtleText }]}>
+                {languageOverride ? languageNames[languageOverride] : "Use phone language"}
+              </Text>
+            </View>
+          </View>
+          <OptionChipRow
+            allLabel="System language"
+            onChange={(value) => setLanguageOverride(value === "all" ? null : (value as LanguageCode))}
+            options={languageOptions}
+            value={languageOverride ?? "all"}
+          />
 
           <Pressable
             onPress={resetWorkspaceData}

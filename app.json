@@ -18,7 +18,8 @@
         {
           "initialOrientation": "DEFAULT"
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "splash": {
       "image": "./assets/splash-icon.png",
