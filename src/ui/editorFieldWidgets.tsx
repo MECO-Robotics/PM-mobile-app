@@ -1,5 +1,6 @@
-import { Pressable, Text, TextInput, type KeyboardTypeOptions, View } from "react-native";
+import { Pressable, TextInput, type KeyboardTypeOptions, View } from "react-native";
 
+import { Text, useTranslation } from "../i18n";
 import { styles } from "./styles";
 import { useAppTheme } from "./themeContext";
 
@@ -19,6 +20,7 @@ export function ModalField({
   keyboardType?: KeyboardTypeOptions;
 }) {
   const { colors: themeColors } = useAppTheme();
+  const { t } = useTranslation();
 
   return (
     <View style={styles.modalField}>
@@ -27,7 +29,7 @@ export function ModalField({
         keyboardType={keyboardType}
         multiline={multiline}
         onChangeText={onChangeText}
-        placeholder={placeholder}
+        placeholder={placeholder ? t(placeholder) : undefined}
         placeholderTextColor={themeColors.subtleText}
         style={[
           styles.modalFieldInput,

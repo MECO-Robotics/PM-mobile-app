@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { useMemo } from "react";
-import { PanResponder, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { PanResponder, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
 
+import { Text } from "../i18n";
 import { getResponsiveMetrics, scaleFont } from "./responsive";
 import { styles } from "./styles";
 import { useAppTheme } from "./themeContext";

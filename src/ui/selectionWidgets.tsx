@@ -2,12 +2,12 @@ import type { ReactNode } from "react";
 import {
   Pressable,
   ScrollView,
-  Text,
   TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
 
+import { Text, useTranslation } from "../i18n";
 import { getResponsiveMetrics, scaleFont } from "./responsive";
 import { styles } from "./styles";
 import { useAppTheme } from "./themeContext";
@@ -29,6 +29,7 @@ export function SearchField({
   const { width } = useWindowDimensions();
   const metrics = getResponsiveMetrics(width);
   const { colors: themeColors } = useAppTheme();
+  const { t } = useTranslation();
 
   return (
     <View
@@ -44,7 +45,7 @@ export function SearchField({
     >
       <TextInput
         onChangeText={onChangeText}
-        placeholder={placeholder}
+        placeholder={t(placeholder)}
         placeholderTextColor={themeColors.subtleText}
         style={[
           styles.searchFieldInput,
