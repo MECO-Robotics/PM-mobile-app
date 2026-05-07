@@ -1,4 +1,5 @@
 import { StatusBar } from "expo-status-bar";
+import * as ScreenOrientation from "expo-screen-orientation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Image,
@@ -102,6 +103,7 @@ import {
   WorkspacePanel,
 } from "./src/ui/ui";
 import { AppThemeProvider } from "./src/ui/themeContext";
+import { LandscapeSubsystemTimeline } from "./src/ui/LandscapeSubsystemTimeline";
 import {
   ApiRequestError,
   requestJson,
@@ -214,6 +216,8 @@ export default function App() {
   const responsiveMetrics = useMemo(() => getResponsiveMetrics(width), [width]);
   const isCompactLayout = responsiveMetrics.isCompact;
   const isVeryCompactLayout = responsiveMetrics.isVeryCompact;
+  const isLandscapeTimelineLayout = width > height;
+  const isLandscapeCardLayout = width > height;
   const apiBaseUrl = useMemo(() => resolveApiBaseUrl(), []);
 
   const [apiToken, setApiToken] = useState<string | null>(null);
@@ -1770,6 +1774,12 @@ export default function App() {
   }, [loadPublicAuthConfig]);
 
   useEffect(() => {
+    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.ALL).catch(
+      () => undefined,
+    );
+  }, []);
+
+  useEffect(() => {
     if (isVeryCompactLayout) {
       setIsPeopleFilterVisible(false);
     }
@@ -3065,47 +3075,57 @@ export default function App() {
             <Pressable
               key={task.id}
               onPress={() => openEditTaskEditor(task)}
-              style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
+              style={[
+                styles.queueRowCard,
+                appResponsiveStyles.rowCard,
+                isLandscapeCardLayout && styles.queueRowCardLandscape,
+              ]}
             >
-              <View style={styles.queueRowHeader}>
-                <View style={styles.queueRowPrimaryText}>
-                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{task.title}</Text>
-                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                    {subsystemName} - {disciplineName}
-                  </Text>
-                </View>
-                <Text style={editTagStyle}>EDIT</Text>
-              </View>
+              <View style={isLandscapeCardLayout && styles.taskCardLandscapeContent}>
+                <View style={isLandscapeCardLayout && styles.taskCardLandscapeMain}>
+                  <View style={styles.queueRowHeader}>
+                    <View style={styles.queueRowPrimaryText}>
+                      <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{task.title}</Text>
+                      <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                        {subsystemName} - {disciplineName}
+                      </Text>
+                    </View>
+                    <Text style={editTagStyle}>EDIT</Text>
+                  </View>
 
-              <Text numberOfLines={2} style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{task.summary}</Text>
+                  <Text numberOfLines={isLandscapeCardLayout ? 3 : 2} style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{task.summary}</Text>
 
-              <View style={styles.compactMetaGrid}>
-                <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-                  <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Owner {ownerName}</Text>
+                  <View style={styles.queuePillRow}>
+                    <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
+                    <StatusPill label={`${task.priority} priority`} value={task.priority} />
+                    {task.linkedManufacturingIds.length > 0 ? (
+                      <StatusPill label="Needs fabrication" value="waiting" />
+                    ) : null}
+                    {task.linkedPurchaseIds.length > 0 ? (
+                      <StatusPill label="Needs purchase" value="requested" />
+                    ) : null}
+                  </View>
                 </View>
-                <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-                  <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Due {formatDate(task.dueDate)}</Text>
-                </View>
-                <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-                  <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Milestone {targetEvent}</Text>
-                </View>
-                <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-                  <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Mechanism {mechanismName}</Text>
-                </View>
-                <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-                  <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Part {linkedPart}</Text>
-                </View>
-              </View>
 
-              <View style={styles.queuePillRow}>
-                <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
-                <StatusPill label={`${task.priority} priority`} value={task.priority} />
-                {task.linkedManufacturingIds.length > 0 ? (
-                  <StatusPill label="Needs fabrication" value="waiting" />
-                ) : null}
-                {task.linkedPurchaseIds.length > 0 ? (
-                  <StatusPill label="Needs purchase" value="requested" />
-                ) : null}
+                <View style={isLandscapeCardLayout && styles.taskCardLandscapeAside}>
+                  <View style={styles.compactMetaGrid}>
+                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Owner {ownerName}</Text>
+                    </View>
+                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Due {formatDate(task.dueDate)}</Text>
+                    </View>
+                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Milestone {targetEvent}</Text>
+                    </View>
+                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Mechanism {mechanismName}</Text>
+                    </View>
+                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Part {linkedPart}</Text>
+                    </View>
+                  </View>
+                </View>
               </View>
 
               {task.blockers.length > 0 ? (
@@ -3293,6 +3313,20 @@ export default function App() {
   };
 
   const renderTasks = () => {
+    if (isLandscapeTimelineLayout) {
+      return (
+        <LandscapeSubsystemTimeline
+          colors={themeColors}
+          events={events}
+          membersById={membersById}
+          onAddTask={openCreateTaskEditor}
+          onTaskPress={openEditTaskEditor}
+          subsystems={subsystems}
+          tasks={timelineTasks}
+        />
+      );
+    }
+
     return (
       <>
         {taskView === "timeline"
@@ -4291,172 +4325,179 @@ export default function App() {
           title={taskEditorMode === "edit" ? "Edit task" : "Create task"}
           visible={Boolean(taskEditorMode)}
         >
-          <ModalField
-            label="Title"
-            onChangeText={(value) => setTaskDraft((current) => ({ ...current, title: value }))}
-            placeholder="Task title"
-            value={taskDraft.title}
-          />
-          <ModalField
-            label="Summary"
-            multiline
-            onChangeText={(value) => setTaskDraft((current) => ({ ...current, summary: value }))}
-            placeholder="Task summary"
-            value={taskDraft.summary}
-          />
-          <ModalField
-            label="Due date (YYYY-MM-DD)"
-            onChangeText={(value) => setTaskDraft((current) => ({ ...current, dueDate: value }))}
-            placeholder="2026-04-24"
-            value={taskDraft.dueDate}
-          />
-          <DropdownField
-            clearLabel="No subsystem"
-            label="Subsystem"
-            onChange={(value) =>
-              setTaskDraft((current) => {
-                const subsystemId = value;
-                const nextMechanisms = mechanisms.filter(
-                  (mechanism) => mechanism.subsystemId === subsystemId,
-                );
-                const mechanismId = nextMechanisms[0]?.id ?? null;
-                const partInstanceId = mechanismId
-                  ? partInstances.find((partInstance) => partInstance.mechanismId === mechanismId)
-                      ?.id ?? null
-                  : null;
+          <View style={isLandscapeCardLayout ? styles.taskEditorLandscapeGrid : styles.taskEditorStack}>
+            <View style={[styles.taskEditorStack, isLandscapeCardLayout && styles.taskEditorLandscapeColumn]}>
+              <ModalField
+                label="Title"
+                onChangeText={(value) => setTaskDraft((current) => ({ ...current, title: value }))}
+                placeholder="Task title"
+                value={taskDraft.title}
+              />
+              <ModalField
+                label="Summary"
+                multiline
+                onChangeText={(value) => setTaskDraft((current) => ({ ...current, summary: value }))}
+                placeholder="Task summary"
+                value={taskDraft.summary}
+              />
+              <ModalField
+                label="Due date (YYYY-MM-DD)"
+                onChangeText={(value) => setTaskDraft((current) => ({ ...current, dueDate: value }))}
+                placeholder="2026-04-24"
+                value={taskDraft.dueDate}
+              />
+              <DropdownField
+                clearLabel="No subsystem"
+                label="Subsystem"
+                onChange={(value) =>
+                  setTaskDraft((current) => {
+                    const subsystemId = value;
+                    const nextMechanisms = mechanisms.filter(
+                      (mechanism) => mechanism.subsystemId === subsystemId,
+                    );
+                    const mechanismId = nextMechanisms[0]?.id ?? null;
+                    const partInstanceId = mechanismId
+                      ? partInstances.find((partInstance) => partInstance.mechanismId === mechanismId)
+                          ?.id ?? null
+                      : null;
 
-                return {
-                  ...current,
-                  subsystemId,
-                  mechanismId,
-                  partInstanceId,
-                };
-              })
-            }
-            options={subsystemOptions}
-            placeholder="Select subsystem"
-            value={taskDraft.subsystemId}
-          />
-          <DropdownField
-            clearLabel="No discipline"
-            label="Discipline"
-            onChange={(value) =>
-              setTaskDraft((current) => ({ ...current, disciplineId: value }))
-            }
-            options={disciplineOptions}
-            placeholder="Select discipline"
-            value={taskDraft.disciplineId}
-          />
-          <DropdownField
-            clearLabel="No mechanism"
-            label="Mechanism"
-            onChange={(value) =>
-              setTaskDraft((current) => {
-                const mechanismId = value || null;
-                const partInstanceId = mechanismId
-                  ? partInstances.find((partInstance) => partInstance.mechanismId === mechanismId)
-                      ?.id ?? null
-                  : null;
-
-                return {
-                  ...current,
-                  mechanismId,
-                  partInstanceId,
-                };
-              })
-            }
-            options={mechanismOptions}
-            placeholder="Select mechanism"
-            value={taskDraft.mechanismId || ""}
-          />
-          <DropdownField
-            clearLabel="No part instance"
-            label="Part instance"
-            onChange={(value) =>
-              setTaskDraft((current) => ({
-                ...current,
-                partInstanceId: value || null,
-              }))
-            }
-            options={mechanismAndTaskPartOptions}
-            placeholder="Select part instance"
-            value={taskDraft.partInstanceId || ""}
-          />
-          <DropdownField
-            clearLabel="No target event"
-            label="Target event"
-            onChange={(value) =>
-              setTaskDraft((current) => ({
-                ...current,
-                targetEventId: value || null,
-              }))
-            }
-            options={eventOptions}
-            placeholder="Select target event"
-            value={taskDraft.targetEventId || ""}
-          />
-          <DropdownField
-            clearLabel="No owner"
-            label="Owner"
-            onChange={(value) =>
-              setTaskDraft((current) => ({ ...current, ownerId: value }))
-            }
-            options={memberOptions}
-            placeholder="Select owner"
-            value={taskDraft.ownerId}
-          />
-          <DropdownField
-            clearLabel="No mentor"
-            label="Mentor"
-            onChange={(value) =>
-              setTaskDraft((current) => ({ ...current, mentorId: value }))
-            }
-            options={memberOptions}
-            placeholder="Select mentor"
-            value={taskDraft.mentorId}
-          />
-          <DropdownField
-            label="Status"
-            onChange={(value) =>
-              setTaskDraft((current) => ({
-                ...current,
-                status: value as TaskStatus,
-              }))
-            }
-            options={TASK_STATUS_OPTIONS}
-            value={taskDraft.status}
-          />
-          <DropdownField
-            label="Priority"
-            onChange={(value) =>
-              setTaskDraft((current) => ({
-                ...current,
-                priority: value as TaskPriority,
-              }))
-            }
-            options={TASK_PRIORITY_OPTIONS}
-            value={taskDraft.priority}
-          />
-          <AdvancedOptions>
-            <View style={styles.modalField}>
-              <Text style={[styles.modalFieldLabel, { color: themeColors.subtleText }]}>Traceability</Text>
-              <Text style={[styles.modalFieldInput, { backgroundColor: themeColors.canvas, borderColor: themeColors.border, color: themeColors.ink }]}>
-                {`${subsystemsById[taskDraft.subsystemId]?.name ?? "No subsystem"} / `}
-                {`${disciplinesById[taskDraft.disciplineId]?.name ?? "No discipline"} / `}
-                {`${taskDraft.mechanismId ? mechanismsById[taskDraft.mechanismId]?.name : "No mechanism"} / `}
-                {`${taskDraft.partInstanceId ? partInstancesById[taskDraft.partInstanceId]?.name : "No part instance"} / `}
-                {`${taskDraft.targetEventId ? eventsById[taskDraft.targetEventId]?.title : "No event"}`}
-              </Text>
+                    return {
+                      ...current,
+                      subsystemId,
+                      mechanismId,
+                      partInstanceId,
+                    };
+                  })
+                }
+                options={subsystemOptions}
+                placeholder="Select subsystem"
+                value={taskDraft.subsystemId}
+              />
+              <DropdownField
+                clearLabel="No discipline"
+                label="Discipline"
+                onChange={(value) =>
+                  setTaskDraft((current) => ({ ...current, disciplineId: value }))
+                }
+                options={disciplineOptions}
+                placeholder="Select discipline"
+                value={taskDraft.disciplineId}
+              />
             </View>
-            <ModalField
-              label="Blockers (comma separated)"
-              onChangeText={(value) =>
-                setTaskDraft((current) => ({ ...current, blockersText: value }))
-              }
-              placeholder="Waiting on batch, cable routing"
-              value={taskDraft.blockersText}
-            />
-          </AdvancedOptions>
+
+            <View style={[styles.taskEditorStack, isLandscapeCardLayout && styles.taskEditorLandscapeColumn]}>
+              <DropdownField
+                clearLabel="No mechanism"
+                label="Mechanism"
+                onChange={(value) =>
+                  setTaskDraft((current) => {
+                    const mechanismId = value || null;
+                    const partInstanceId = mechanismId
+                      ? partInstances.find((partInstance) => partInstance.mechanismId === mechanismId)
+                          ?.id ?? null
+                      : null;
+
+                    return {
+                      ...current,
+                      mechanismId,
+                      partInstanceId,
+                    };
+                  })
+                }
+                options={mechanismOptions}
+                placeholder="Select mechanism"
+                value={taskDraft.mechanismId || ""}
+              />
+              <DropdownField
+                clearLabel="No part instance"
+                label="Part instance"
+                onChange={(value) =>
+                  setTaskDraft((current) => ({
+                    ...current,
+                    partInstanceId: value || null,
+                  }))
+                }
+                options={mechanismAndTaskPartOptions}
+                placeholder="Select part instance"
+                value={taskDraft.partInstanceId || ""}
+              />
+              <DropdownField
+                clearLabel="No target event"
+                label="Target event"
+                onChange={(value) =>
+                  setTaskDraft((current) => ({
+                    ...current,
+                    targetEventId: value || null,
+                  }))
+                }
+                options={eventOptions}
+                placeholder="Select target event"
+                value={taskDraft.targetEventId || ""}
+              />
+              <DropdownField
+                clearLabel="No owner"
+                label="Owner"
+                onChange={(value) =>
+                  setTaskDraft((current) => ({ ...current, ownerId: value }))
+                }
+                options={memberOptions}
+                placeholder="Select owner"
+                value={taskDraft.ownerId}
+              />
+              <DropdownField
+                clearLabel="No mentor"
+                label="Mentor"
+                onChange={(value) =>
+                  setTaskDraft((current) => ({ ...current, mentorId: value }))
+                }
+                options={memberOptions}
+                placeholder="Select mentor"
+                value={taskDraft.mentorId}
+              />
+              <DropdownField
+                label="Status"
+                onChange={(value) =>
+                  setTaskDraft((current) => ({
+                    ...current,
+                    status: value as TaskStatus,
+                  }))
+                }
+                options={TASK_STATUS_OPTIONS}
+                value={taskDraft.status}
+              />
+              <DropdownField
+                label="Priority"
+                onChange={(value) =>
+                  setTaskDraft((current) => ({
+                    ...current,
+                    priority: value as TaskPriority,
+                  }))
+                }
+                options={TASK_PRIORITY_OPTIONS}
+                value={taskDraft.priority}
+              />
+              <AdvancedOptions>
+                <View style={styles.modalField}>
+                  <Text style={[styles.modalFieldLabel, { color: themeColors.subtleText }]}>Traceability</Text>
+                  <Text style={[styles.modalFieldInput, { backgroundColor: themeColors.canvas, borderColor: themeColors.border, color: themeColors.ink }]}>
+                    {`${subsystemsById[taskDraft.subsystemId]?.name ?? "No subsystem"} / `}
+                    {`${disciplinesById[taskDraft.disciplineId]?.name ?? "No discipline"} / `}
+                    {`${taskDraft.mechanismId ? mechanismsById[taskDraft.mechanismId]?.name : "No mechanism"} / `}
+                    {`${taskDraft.partInstanceId ? partInstancesById[taskDraft.partInstanceId]?.name : "No part instance"} / `}
+                    {`${taskDraft.targetEventId ? eventsById[taskDraft.targetEventId]?.title : "No event"}`}
+                  </Text>
+                </View>
+                <ModalField
+                  label="Blockers (comma separated)"
+                  onChangeText={(value) =>
+                    setTaskDraft((current) => ({ ...current, blockersText: value }))
+                  }
+                  placeholder="Waiting on batch, cable routing"
+                  value={taskDraft.blockersText}
+                />
+              </AdvancedOptions>
+            </View>
+          </View>
         </EditorModal>
 
         <EditorModal
@@ -5106,6 +5147,7 @@ export default function App() {
     <Modal
       animationType="fade"
       onRequestClose={closeNavigationMenu}
+      supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
       transparent
       visible={isNavMenuVisible}
     >
@@ -5305,6 +5347,7 @@ export default function App() {
     <Modal
       animationType="fade"
       onRequestClose={() => setIsProjectOverlayVisible(false)}
+      supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
       transparent
       visible={isProjectOverlayVisible}
     >
@@ -5364,6 +5407,7 @@ export default function App() {
     <Modal
       animationType="fade"
       onRequestClose={() => setIsAttendanceModalVisible(false)}
+      supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
       transparent
       visible={isAttendanceModalVisible}
     >
@@ -5424,6 +5468,7 @@ export default function App() {
     <Modal
       animationType="fade"
       onRequestClose={() => setIsPersonMenuVisible(false)}
+      supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
       transparent
       visible={isPersonMenuVisible}
     >
