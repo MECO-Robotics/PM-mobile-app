@@ -102,7 +102,6 @@ import {
 } from "./src/ui/ui";
 import { AppThemeProvider } from "./src/ui/themeContext";
 import { languageNames, LocalizationProvider, Text, type LanguageCode } from "./src/i18n";
-import { LandscapeSubsystemTimeline } from "./src/ui/LandscapeSubsystemTimeline";
 import {
   ApiRequestError,
   requestJson,
