@@ -1,7 +1,9 @@
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 
+import { Text, useTranslation } from "../i18n";
 import type { Event, Member, Subsystem, Task } from "../types/domain";
 import type { AppThemeColors } from "../theme";
+import { getAppLocale } from "./helpers";
 import { landscapeTimelineStyles as styles } from "./landscapeTimelineStyles";
 
 const DAY_WIDTH = 56;
@@ -66,8 +68,8 @@ function getLaneTaskRange(task: Task, monthStart: Date, dayCount: number) {
   };
 }
 
-function formatMonth(anchor: Date) {
-  return anchor.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+function formatMonth(anchor: Date, locale: string) {
+  return anchor.toLocaleDateString(locale, { month: "long", year: "numeric" });
 }
 
 function buildLanes(tasks: Task[], subsystems: Subsystem[]) {
@@ -97,6 +99,8 @@ export function LandscapeSubsystemTimeline({
   subsystems,
   tasks,
 }: Props) {
+  const { t } = useTranslation();
+  const locale = getAppLocale();
   const lanes = buildLanes(tasks, subsystems);
   const timelineStart = parseDate(toDateKey(new Date()));
   const timelineDays = getTimelineDays(timelineStart);
@@ -119,7 +123,7 @@ export function LandscapeSubsystemTimeline({
             <Text style={[styles.controlLabel, { color: colors.navyInk }]}>Month</Text>
           </View>
           <View style={[styles.controlButton, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-            <Text style={[styles.controlLabel, { color: colors.ink }]}>{formatMonth(timelineStart)}</Text>
+            <Text style={[styles.controlLabel, { color: colors.ink }]}>{formatMonth(timelineStart, locale)}</Text>
           </View>
           <Pressable onPress={onAddTask} style={[styles.addButton, { backgroundColor: colors.blue }]}>
             <Text style={styles.addLabel}>Add</Text>
@@ -160,10 +164,10 @@ export function LandscapeSubsystemTimeline({
                       ]}
                     />
                     <Text numberOfLines={1} style={[styles.lanePrimary, { color: colors.ink }]}>
-                      {lane.subsystem?.name ?? "Unknown"}
+                      {lane.subsystem?.name ?? t("Unknown")}
                     </Text>
                     <Text numberOfLines={1} style={[styles.laneSecondary, { color: colors.subtleText }]}>
-                      {owner ?? "Unassigned"}
+                      {owner ?? t("Unassigned")}
                     </Text>
                   </View>
                 );
@@ -174,7 +178,7 @@ export function LandscapeSubsystemTimeline({
               <View style={[styles.chart, { width: chartWidth }]}>
                 <View style={[styles.monthLabel, { borderColor: colors.border }]}>
                   <Text style={[styles.monthText, { color: colors.navyInk }]}>
-                    {timelineStart.toLocaleDateString("en-US", { month: "long" })}
+                    {timelineStart.toLocaleDateString(locale, { month: "long" })}
                   </Text>
                 </View>
                 <View style={[styles.dayHeaderRow, { borderColor: colors.border }]}>
@@ -193,7 +197,7 @@ export function LandscapeSubsystemTimeline({
                         ]}
                       >
                         <Text style={[styles.weekday, { color: colors.subtleText }]}>
-                          {day.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase()}
+                          {day.toLocaleDateString(locale, { weekday: "short" }).toLocaleUpperCase(locale)}
                         </Text>
                         <Text style={[styles.dayNumber, { color: colors.ink }]}>{day.getDate()}</Text>
                       </View>

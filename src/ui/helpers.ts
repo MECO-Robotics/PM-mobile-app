@@ -1,3 +1,5 @@
+import * as Localization from "expo-localization";
+
 import type {
   Event,
   ManufacturingItem,
@@ -238,8 +240,47 @@ export function derivePartLifecycleStatus(
   return "planned";
 }
 
-export function formatDate(value: string) {
-  return value.slice(5);
+function parseDateOnly(value: string) {
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  return new Date(year, month - 1, day);
+}
+
+let appLocaleOverride: string | null = null;
+
+export function setAppLocaleOverride(locale: string | null) {
+  appLocaleOverride = locale;
+}
+
+export function getDeviceLocale() {
+  const nativeLocale = Localization.getLocales()[0]?.languageTag;
+
+  if (typeof nativeLocale === "string" && nativeLocale.trim().length > 0) {
+    return nativeLocale;
+  }
+
+  return Intl.DateTimeFormat().resolvedOptions().locale;
+}
+
+export function getAppLocale() {
+  return appLocaleOverride ?? getDeviceLocale();
+}
+
+export function formatDate(value: string, locale = getAppLocale()) {
+  const date = parseDateOnly(value);
+
+  if (!date) {
+    return value.slice(5);
+  }
+
+  return date.toLocaleDateString(locale, {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export function datePortion(dateTime: string) {
@@ -268,8 +309,8 @@ export function localTodayDate() {
   return offsetAdjusted.toISOString().slice(0, 10);
 }
 
-export function formatDateTime(value: string) {
-  return new Date(value).toLocaleString(undefined, {
+export function formatDateTime(value: string, locale = getAppLocale()) {
+  return new Date(value).toLocaleString(locale, {
     month: "short",
     day: "numeric",
     hour: "numeric",

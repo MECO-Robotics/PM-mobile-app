@@ -6,11 +6,11 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  Text,
   useWindowDimensions,
   View,
 } from "react-native";
 
+import { Text } from "../i18n";
 import { styles } from "./styles";
 import { useAppTheme } from "./themeContext";
 
