@@ -701,6 +701,12 @@ export default function App() {
   const themeMode = themeOverride ?? systemThemeMode;
   const isDarkModeEnabled = themeMode === "dark";
   const themeColors = appThemes[themeMode];
+  const languageOptions = useMemo(
+    () =>
+      (Object.entries(languageNames) as [LanguageCode, string][])
+        .map(([code, name]) => ({ id: code, name })),
+    [],
+  );
   const seasonModeLabel =
     seasons.find((option) => option.id === activeSeasonId)?.label ?? "No Season";
 
@@ -6878,6 +6884,21 @@ export default function App() {
               })}
             </View>
           ) : null}
+
+          <View style={[styles.settingsRow, appResponsiveStyles.settingsRow]}>
+            <View style={styles.queueRowPrimaryText}>
+              <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>Language</Text>
+              <Text style={[styles.settingsRowSubtitle, { color: themeColors.subtleText }]}>
+                {languageOverride ? languageNames[languageOverride] : "Use phone language"}
+              </Text>
+            </View>
+          </View>
+          <OptionChipRow
+            allLabel="System language"
+            onChange={(value) => setLanguageOverride(value === "all" ? null : (value as LanguageCode))}
+            options={languageOptions}
+            value={languageOverride ?? "all"}
+          />
 
           <Pressable
             onPress={resetWorkspaceData}
