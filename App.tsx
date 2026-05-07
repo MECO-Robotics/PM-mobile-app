@@ -90,6 +90,9 @@ import {
   DropdownField,
   ModalField,
   SearchField,
+  SectionTabs,
+  StatusPill,
+  SummaryRow,
   ToggleField,
 } from "./src/ui/ui";
 import { AppThemeProvider } from "./src/ui/themeContext";
@@ -165,57 +168,6 @@ type SeasonOption = {
   id: string;
   label: string;
 };
-type WorkLogTimerState = {
-  id: string;
-  elapsedMs: number;
-  isPaused: boolean;
-  reminderNotificationIds: string[];
-  startedAt: number | null;
-};
-
-function formatTimerElapsed(elapsedMs: number) {
-  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  const paddedMinutes = String(minutes).padStart(2, "0");
-  const paddedSeconds = String(seconds).padStart(2, "0");
-
-  return hours > 0
-    ? `${hours}:${paddedMinutes}:${paddedSeconds}`
-    : `${minutes}:${paddedSeconds}`;
-}
-
-function formatHoursFromTimer(elapsedMs: number) {
-  const roundedHours = Math.round((elapsedMs / MS_PER_HOUR) * 100) / 100;
-
-  return Number.isInteger(roundedHours)
-    ? String(roundedHours)
-    : String(roundedHours).replace(/0$/, "");
-}
-
-function getWorkLogTimerElapsedMs(
-  timer: WorkLogTimerState | null,
-  now = Date.now(),
-) {
-  if (!timer) {
-    return 0;
-  }
-
-  return (
-    timer.elapsedMs +
-    (timer.startedAt && !timer.isPaused
-      ? Math.max(0, now - timer.startedAt)
-      : 0)
-  );
-}
-type RiskPriority = "high" | "medium" | "low";
-
-const RISK_PRIORITY_RANK: Record<RiskPriority, number> = {
-  high: 0,
-  medium: 1,
-  low: 2,
-};
 
 const ATTENDANCE_STATUS_BY_MEMBER_ID: Record<string, AttendanceStatus> = {
   ava: "yes",
@@ -227,75 +179,16 @@ const ATTENDANCE_STATUS_BY_MEMBER_ID: Record<string, AttendanceStatus> = {
   riley: "yes",
 };
 
+const ATTENDANCE_STATUS_OPTIONS: { status: AttendanceStatus; label: string }[] = [
+  { status: "yes", label: "Present" },
+  { status: "maybe", label: "Maybe" },
+  { status: "no", label: "Out" },
+];
+
 const INITIAL_SEASONS: SeasonOption[] = [
   { id: "test", label: "Test Season" },
   { id: "new", label: "New Season" },
 ];
-
-const REQUIRED_EMAIL_DOMAIN = "mecorobotics.org";
-
-const REQUIRED_TASK_SUBSYSTEMS: Subsystem[] = [
-  {
-    id: "climber",
-    name: "Climber",
-    description: "Endgame lift, latch, and climb release mechanisms.",
-    isCore: false,
-    parentSubsystemId: null,
-    responsibleEngineerId: "priya",
-    mentorIds: ["jordan"],
-    risks: ["Hook alignment", "Winch load margin"],
-  },
-  {
-    id: "controls",
-    name: "Controls",
-    description: "Robot software, safety, and autonomous logic.",
-    isCore: false,
-    parentSubsystemId: "drive",
-    responsibleEngineerId: "ethan",
-    mentorIds: ["riley"],
-    risks: ["Auto safety interlocks"],
-  },
-  {
-    id: "drive",
-    name: "Drivetrain",
-    description: "Core drivetrain, chassis interfaces, and shared base electronics.",
-    isCore: true,
-    parentSubsystemId: null,
-    responsibleEngineerId: "ava",
-    mentorIds: ["jordan"],
-    risks: ["Sensor drift", "Cable clearance"],
-  },
-  {
-    id: "manipulator",
-    name: "Manipulator",
-    description: "Intake, handling, and game-piece interaction hardware.",
-    isCore: false,
-    parentSubsystemId: "drive",
-    responsibleEngineerId: "lucas",
-    mentorIds: ["riley"],
-    risks: ["Chain wear", "Assembly tolerance"],
-  },
-  {
-    id: "vision",
-    name: "Vision",
-    description: "Camera targeting, pose estimation, and visual feedback.",
-    isCore: false,
-    parentSubsystemId: "drive",
-    responsibleEngineerId: "ethan",
-    mentorIds: ["riley"],
-    risks: ["Camera calibration", "Lighting variability"],
-  },
-];
-function buildSubsystemOptions(subsystems: Subsystem[]) {
-  return subsystems.map((subsystem) => ({
-    id: subsystem.id,
-    name: subsystem.name,
-  }));
-}
-
-function normalizeTaskSubsystems(currentSubsystems: Subsystem[]) {
-  return currentSubsystems.length > 0 ? currentSubsystems : REQUIRED_TASK_SUBSYSTEMS;
-}
 
 function withSeededSubteamTasks(currentTasks: Task[]) {
   const currentTaskIds = new Set(currentTasks.map((task) => task.id));
@@ -357,7 +250,6 @@ export default function App() {
   const systemColorScheme = useColorScheme();
   const responsiveMetrics = useMemo(() => getResponsiveMetrics(width), [width]);
   const isCompactLayout = responsiveMetrics.isCompact;
-  const isVeryCompactLayout = responsiveMetrics.isVeryCompact;
   const isLandscapeTimelineLayout = width > height;
   const isLandscapeCardLayout = width > height;
   const apiBaseUrl = useMemo(() => resolveApiBaseUrl(), []);
@@ -625,7 +517,7 @@ export default function App() {
     setSubsystems(ensureArray(payload.subsystems));
     setDisciplines(ensureArray(payload.disciplines));
     setMechanisms(ensureArray(payload.mechanisms));
-    setTasks(ensureArray(payload.tasks));
+    setTasks(withSeededSubteamTasks(ensureArray(payload.tasks)));
     setEvents(events.length > 0 ? events : mapMilestonesToEvents(payload));
     setWorkLogs(ensureArray(payload.workLogs));
     setManufacturingItems(ensureArray(payload.manufacturingItems));
@@ -1087,108 +979,6 @@ export default function App() {
   const activeTaskSubteamLabel =
     TASK_SUBTEAM_OPTIONS.find((option) => option.value === activeTaskSubteam)?.label ??
     "Programming";
-  const selectedTaskDependencyIds = useMemo(() => {
-    return splitList(taskDraft.dependencyIdsText)
-      .filter((dependencyId) => taskById[dependencyId])
-      .filter((dependencyId) => dependencyId !== activeTaskId);
-  }, [activeTaskId, taskById, taskDraft.dependencyIdsText]);
-  const selectedTaskDependencies = useMemo(() => {
-    return selectedTaskDependencyIds
-      .map((dependencyId) => taskById[dependencyId])
-      .filter((task): task is Task => Boolean(task));
-  }, [selectedTaskDependencyIds, taskById]);
-  const openTaskDependencies = useMemo(() => {
-    return selectedTaskDependencies.filter((dependency) => dependency.status !== "complete");
-  }, [selectedTaskDependencies]);
-  const taskDependencyReadinessMessage = useMemo(() => {
-    if (openTaskDependencies.length === 0) {
-      return null;
-    }
-
-    const dependencyNames = openTaskDependencies
-      .map((dependency) => `${dependency.title} (${STATUS_LABELS[dependency.status]})`)
-      .join(", ");
-
-    if (taskDraft.status === "complete") {
-      return `This task is marked complete but still depends on: ${dependencyNames}.`;
-    }
-
-    if (taskDraft.status === "waiting-for-qa") {
-      return `This task is waiting for QA with unfinished dependencies: ${dependencyNames}.`;
-    }
-
-    return `This task is not ready until these dependencies finish: ${dependencyNames}.`;
-  }, [openTaskDependencies, taskDraft.status]);
-  const downstreamTaskDependencies = useMemo(() => {
-    if (!activeTaskId) {
-      return [];
-    }
-
-    return tasks
-      .filter((task) => task.id !== activeTaskId)
-      .filter((task) => task.dependencyIds.includes(activeTaskId))
-      .sort(
-        (firstTask, secondTask) =>
-          firstTask.dueDate.localeCompare(secondTask.dueDate) ||
-          firstTask.title.localeCompare(secondTask.title),
-      )
-      .slice(0, 6);
-  }, [activeTaskId, tasks]);
-  const availableTaskDependencyOptions = useMemo(() => {
-    const selectedIds = new Set(selectedTaskDependencyIds);
-    const search = taskDependencySearch.trim().toLowerCase();
-
-    return tasks
-      .filter((task) => task.id !== activeTaskId)
-      .filter((task) => !selectedIds.has(task.id))
-      .filter(
-        (task) => !activeTaskId || !taskDependsOnTarget(task.id, activeTaskId, taskById),
-      )
-      .filter((task) => {
-        if (!search) {
-          return true;
-        }
-
-        const subsystemName = subsystemsById[task.subsystemId]?.name ?? "";
-        const ownerName = task.ownerId ? (membersById[task.ownerId]?.name ?? "") : "";
-
-        return [
-          task.id,
-          task.title,
-          task.summary,
-          STATUS_LABELS[task.status],
-          subsystemName,
-          ownerName,
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(search);
-      })
-      .sort((firstTask, secondTask) => {
-        const firstSubsystemScore = firstTask.subsystemId === taskDraft.subsystemId ? 0 : 1;
-        const secondSubsystemScore = secondTask.subsystemId === taskDraft.subsystemId ? 0 : 1;
-        const firstDisciplineScore = firstTask.disciplineId === taskDraft.disciplineId ? 0 : 1;
-        const secondDisciplineScore = secondTask.disciplineId === taskDraft.disciplineId ? 0 : 1;
-
-        return (
-          firstSubsystemScore - secondSubsystemScore ||
-          firstDisciplineScore - secondDisciplineScore ||
-          firstTask.dueDate.localeCompare(secondTask.dueDate) ||
-          firstTask.title.localeCompare(secondTask.title)
-        );
-      })
-      .slice(0, search ? 20 : 10);
-  }, [
-    activeTaskId,
-    membersById,
-    selectedTaskDependencyIds,
-    subsystemsById,
-    taskById,
-    taskDependencySearch,
-    taskDraft.disciplineId,
-    taskDraft.subsystemId,
-    tasks,
-  ]);
 
   const navigationItems = useMemo<NavItem[]>(() => {
     const homeCount = tasks.filter((task) => task.status !== "complete").length;
@@ -1249,12 +1039,22 @@ export default function App() {
     eventReports,
   ]);
 
-  const taskLoggedHoursById = useMemo(() => {
-    return workLogs.reduce<Record<string, number>>((hoursByTaskId, workLog) => {
-      hoursByTaskId[workLog.taskId] = (hoursByTaskId[workLog.taskId] ?? 0) + workLog.hours;
-      return hoursByTaskId;
-    }, {});
-  }, [workLogs]);
+  const taskSummary = useMemo(() => {
+    const blocked = activeTaskSubteamTasks.filter((task) => task.blockers.length > 0).length;
+    const waiting = activeTaskSubteamTasks.filter(
+      (task) => task.status === "waiting-for-qa",
+    ).length;
+    const complete = activeTaskSubteamTasks.filter(
+      (task) => task.status === "complete",
+    ).length;
+
+    return [
+      { label: "Total tasks", value: String(activeTaskSubteamTasks.length) },
+      { label: "Blocked", value: String(blocked) },
+      { label: "Waiting QA", value: String(waiting) },
+      { label: "Complete", value: String(complete) },
+    ] satisfies SummaryChipData[];
+  }, [activeTaskSubteamTasks]);
 
   const filteredTaskQueue = useMemo(() => {
     const search = taskSearch.trim().toLowerCase();
@@ -2115,109 +1915,6 @@ export default function App() {
     (member) => member.role === "mentor" || member.role === "lead",
   );
   const rosterAdmins = members.filter((member) => member.role === "admin");
-  const homeActionItems = useMemo(() => {
-    const today = localTodayDate();
-    const dueSoonDate = shiftDateByDays(today, 3);
-
-    const taskActions = tasks
-      .filter((task) => task.status !== "complete")
-      .flatMap((task) => {
-        const subsystemName = subsystemsById[task.subsystemId]?.name ?? "Unknown subsystem";
-        const ownerName = task.ownerId
-          ? (membersById[task.ownerId]?.name ?? "Unassigned")
-          : "Unassigned";
-        const openDependencies = task.dependencyIds
-          .map((dependencyId) => taskById[dependencyId])
-          .filter((dependency): dependency is Task => Boolean(dependency))
-          .filter((dependency) => dependency.status !== "complete");
-        const actions = [];
-
-        if (task.blockers.length > 0) {
-          actions.push({
-            detail: `${subsystemName} - ${ownerName} - ${task.blockers.join(" | ")}`,
-            id: `blocked-${task.id}`,
-            label: "Blocked task",
-            onPressTargetId: task.id,
-            priority: "critical" as const,
-            source: "task" as const,
-            title: task.title,
-          });
-        } else if (task.dueDate < today) {
-          actions.push({
-            detail: `${subsystemName} - ${ownerName} - was due ${formatDate(task.dueDate)}`,
-            id: `overdue-${task.id}`,
-            label: "Overdue",
-            onPressTargetId: task.id,
-            priority: "critical" as const,
-            source: "task" as const,
-            title: task.title,
-          });
-        } else if (task.status === "waiting-for-qa") {
-          actions.push({
-            detail: `${subsystemName} - ${ownerName} - needs a QA decision`,
-            id: `qa-${task.id}`,
-            label: "Waiting QA",
-            onPressTargetId: task.id,
-            priority: "high" as const,
-            source: "task" as const,
-            title: task.title,
-          });
-        } else if (openDependencies.length > 0) {
-          actions.push({
-            detail: `${subsystemName} - ${ownerName} - waiting on ${openDependencies.map((dependency) => dependency.title).join(", ")}`,
-            id: `dependencies-${task.id}`,
-            label: "Dependency wait",
-            onPressTargetId: task.id,
-            priority: "high" as const,
-            source: "task" as const,
-            title: task.title,
-          });
-        } else if (task.dueDate <= dueSoonDate) {
-          actions.push({
-            detail: `${subsystemName} - ${ownerName} - due ${formatDate(task.dueDate)}`,
-            id: `due-soon-${task.id}`,
-            label: "Due soon",
-            onPressTargetId: task.id,
-            priority: "medium" as const,
-            source: "task" as const,
-            title: task.title,
-          });
-        }
-
-        return actions;
-      });
-
-    const manufacturingActions = manufacturingItems
-      .filter((item) => item.status !== "complete")
-      .filter((item) => item.dueDate <= dueSoonDate || item.status === "qa")
-      .map((item) => ({
-        detail: `${subsystemsById[item.subsystemId]?.name ?? "Unknown subsystem"} - ${item.material} - Qty ${item.quantity}`,
-        id: `manufacturing-${item.id}`,
-        label: item.status === "qa" ? "Manufacturing QA" : "Manufacturing due",
-        onPressTargetId: item.id,
-        priority: item.status === "qa" || item.dueDate < today ? "high" as const : "medium" as const,
-        source: "manufacturing" as const,
-        title: item.title,
-      }));
-
-    const purchaseActions = purchaseItems
-      .filter((item) => item.status === "requested" || item.status === "approved")
-      .map((item) => ({
-        detail: `${subsystemsById[item.subsystemId]?.name ?? "Unknown subsystem"} - ${item.vendor} - Qty ${item.quantity}`,
-        id: `purchase-${item.id}`,
-        label: item.status === "approved" ? "Ready to buy" : "Purchase request",
-        onPressTargetId: item.id,
-        priority: item.status === "approved" ? "high" as const : "medium" as const,
-        source: "purchase" as const,
-        title: item.title,
-      }));
-
-    const priorityRank = { critical: 0, high: 1, medium: 2 };
-
-    return [...taskActions, ...manufacturingActions, ...purchaseActions]
-      .sort((left, right) => priorityRank[left.priority] - priorityRank[right.priority])
-      .slice(0, 8);
-  }, [manufacturingItems, membersById, purchaseItems, subsystemsById, taskById, tasks]);
   const homeInventoryNeeds = useMemo(
     () =>
       [...purchaseItems]
@@ -2659,12 +2356,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (isVeryCompactLayout) {
-      setIsPeopleFilterVisible(false);
-    }
-  }, [isVeryCompactLayout]);
-
-  useEffect(() => {
     if (activePersonFilter === "all") {
       return;
     }
@@ -2716,7 +2407,7 @@ export default function App() {
     setActiveTaskId(null);
     setTaskDraft(
       buildTaskDraft({
-        subsystemId: taskSubsystemOptions[0]?.id ?? "",
+        subsystemId: subsystems[0]?.id ?? "",
         disciplineId:
           TASK_SUBTEAM_DISCIPLINE_IDS[activeTaskSubteam][0] ?? disciplines[0]?.id ?? "",
         ownerId: members[0]?.id ?? "",
@@ -2734,7 +2425,10 @@ export default function App() {
   };
 
   const openTaskQueueFromTask = (task: Task) => {
-    const nextSubteam = getTaskSubteamForDiscipline(task.disciplineId, activeTaskSubteam);
+    const nextSubteam =
+      TASK_SUBTEAM_OPTIONS.find((option) =>
+        TASK_SUBTEAM_DISCIPLINE_IDS[option.value].includes(task.disciplineId),
+      )?.value ?? activeTaskSubteam;
 
     setActiveTaskSubteam(nextSubteam);
     setTaskView("queue");
@@ -4444,7 +4138,6 @@ export default function App() {
     setPartInstances([]);
     setQaReviews([]);
     setEventReports([]);
-    clearWorkLogTimer();
     setActiveTab("home");
     setActivePersonFilter("all");
     setSelectedMemberId(null);
@@ -4464,6 +4157,318 @@ export default function App() {
   const deleteSeason = (seasonId: string) => {
     setSeasons((current) => {
       const nextSeasons = current.filter((season) => season.id !== seasonId);
+
+      if (activeSeasonId === seasonId) {
+        setActiveSeasonId(nextSeasons[0]?.id ?? "");
+      }
+
+      return nextSeasons;
+    });
+  };
+
+  const signOut = () => {
+    setApiToken(null);
+    setSessionUser(null);
+    setHasAuthenticated(false);
+    setIsPersonMenuVisible(false);
+    setIsSeasonMenuVisible(false);
+    setIsNavMenuVisible(false);
+    setIsProjectOverlayVisible(false);
+    setActivePersonFilter("all");
+    setSelectedMemberId(null);
+    setSyncError(null);
+    setAuthError(null);
+    closeTaskEditor();
+    closeWorkLogEditor();
+    closeMilestoneEditor();
+    closeManufacturingEditor();
+    closePurchaseEditor();
+    closeMemberEditor();
+    closeSubsystemEditor();
+    closePartDefinitionEditor();
+    closeQaReportEditor();
+    closeEventReportEditor();
+  };
+
+  const renderAttendanceStatusMark = (status: AttendanceStatus) => {
+    const color =
+      status === "yes"
+        ? "#166534"
+        : status === "maybe"
+          ? "#92400e"
+          : "#991b1b";
+    const label = status === "yes" ? "✓" : status === "maybe" ? "?" : "×";
+
+    return (
+      <View style={[styles.attendanceMark, { borderColor: color }]}>
+        <Text style={[styles.attendanceMarkLabel, { color }]}>{label}</Text>
+      </View>
+    );
+  };
+
+  const renderHome = () => {
+    return (
+      <WorkspacePanel
+        title="Home"
+        subtitle="Priority tasks and workspace status for the next execution window."
+        actions={
+          <Pressable onPress={syncFromBackend} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>
+              {isSyncing ? "Refreshing" : "Refresh"}
+            </Text>
+          </Pressable>
+        }
+      >
+        <View style={styles.homeSection}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={openInventoryPurchases}
+            style={styles.homeSectionHeader}
+          >
+            <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>
+              Inventory to buy
+            </Text>
+            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
+              Top {homeInventoryNeeds.length} purchase items still waiting.
+            </Text>
+          </Pressable>
+          {homeInventoryNeeds.map((item) => {
+            const requesterName = item.requestedById
+              ? (membersById[item.requestedById]?.name ?? "Unassigned")
+              : "Unassigned";
+
+            return (
+              <Pressable
+                key={item.id}
+                onPress={() => openEditPurchaseEditor(item)}
+                style={[styles.inventoryAlertRow, appResponsiveStyles.rowCard]}
+              >
+                <View style={styles.queueRowHeader}>
+                  <View style={styles.queueRowPrimaryText}>
+                    <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                      {item.title}
+                    </Text>
+                    <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                      {item.vendor} - Qty {item.quantity} - requester {requesterName}
+                    </Text>
+                  </View>
+                  <StatusPill label={item.status} value={item.status} />
+                </View>
+                <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
+                  Estimated ${item.estimatedCost.toFixed(0)}
+                </Text>
+              </Pressable>
+            );
+          })}
+          {homeInventoryNeeds.length === 0 ? (
+            <EmptyState text="No purchase items need buying right now." />
+          ) : null}
+        </View>
+
+        <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+          <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+            Tasks for this meeting
+          </Text>
+          <SummaryRow chips={homeTaskSummary} />
+        </View>
+
+        {homePriorityTasks.map((task) => {
+          const subsystemName = subsystemsById[task.subsystemId]?.name ?? "Unknown";
+          const ownerName = task.ownerId
+            ? (membersById[task.ownerId]?.name ?? "Unassigned")
+            : "Unassigned";
+
+          return (
+            <Pressable
+              key={task.id}
+              onPress={() => openTaskQueueFromTask(task)}
+              style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
+            >
+              <View style={styles.queueRowHeader}>
+                <View style={styles.queueRowPrimaryText}>
+                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                    {task.title}
+                  </Text>
+                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                    {subsystemName} - {ownerName} - due {formatDate(task.dueDate)}
+                  </Text>
+                </View>
+                <StatusPill label={task.priority} value={task.priority} />
+              </View>
+              <Text numberOfLines={2} style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
+                {task.summary}
+              </Text>
+              <View style={styles.queuePillRow}>
+                <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
+                {task.blockers.length > 0 ? (
+                  <StatusPill label="Blocked" value="critical" />
+                ) : null}
+              </View>
+            </Pressable>
+          );
+        })}
+
+        {homePriorityTasks.length === 0 ? (
+          <EmptyState text="No open tasks need attention right now." />
+        ) : null}
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setActiveTab("attendance")}
+          style={styles.homeSection}
+        >
+          <View style={styles.homeSectionHeader}>
+            <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>
+              Meeting attendance
+            </Text>
+            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
+              Top {attendancePreview.length} coming to the meeting - tap for everyone.
+            </Text>
+          </View>
+          {attendancePreview.map(({ member, status }) => (
+            <View
+              key={member.id}
+              style={[styles.attendanceRow, appResponsiveStyles.rowCard]}
+            >
+              <View style={styles.queueRowPrimaryText}>
+                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                  {member.name}
+                </Text>
+                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                  {capitalize(member.role)}
+                </Text>
+              </View>
+              {renderAttendanceStatusMark(status)}
+            </View>
+          ))}
+          {attendancePreview.length === 0 ? (
+            <EmptyState text="No one is marked as coming yet." />
+          ) : null}
+        </Pressable>
+      </WorkspacePanel>
+    );
+  };
+
+  const renderAttendance = () => {
+    return (
+      <WorkspacePanel
+        title="Attendance"
+        subtitle={`${members.length} people loaded from the workspace server.`}
+        actions={
+          <Pressable onPress={syncFromBackend} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>
+              {isSyncing ? "Refreshing" : "Refresh"}
+            </Text>
+          </Pressable>
+        }
+      >
+        <SummaryRow chips={attendanceSummary} />
+
+        <View style={styles.homeSection}>
+          <View style={styles.homeSectionHeader}>
+            <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>
+              People
+            </Text>
+            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
+              Synced from the server and sorted alphabetically.
+            </Text>
+          </View>
+          {meetingAttendance.map(({ member, status }) => (
+            <View
+              key={member.id}
+              style={[styles.attendanceRow, appResponsiveStyles.rowCard]}
+            >
+              <View style={[styles.memberAvatar, appResponsiveStyles.memberAvatar]}>
+                <Text style={[styles.memberAvatarLabel, { color: themeColors.navyInk }]}>
+                  {member.name.slice(0, 1).toUpperCase()}
+                </Text>
+              </View>
+              <View style={styles.queueRowPrimaryText}>
+                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                  {member.name}
+                </Text>
+                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                  {capitalize(member.role)}
+                  {member.email ? ` - ${member.email}` : ""}
+                </Text>
+              </View>
+              <View style={styles.attendanceStatusControls}>
+                {ATTENDANCE_STATUS_OPTIONS.map((option) => {
+                  const isSelected = status === option.status;
+
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
+                      key={option.status}
+                      onPress={() =>
+                        setAttendanceStatusByMemberId((current) => ({
+                          ...current,
+                          [member.id]: option.status,
+                        }))
+                      }
+                      style={[
+                        styles.attendanceStatusButton,
+                        isSelected && styles.attendanceStatusButtonActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.attendanceStatusButtonLabel,
+                          isSelected && styles.attendanceStatusButtonLabelActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ))}
+          {meetingAttendance.length === 0 ? (
+            <EmptyState text="No people were returned by the server." />
+          ) : null}
+        </View>
+      </WorkspacePanel>
+    );
+  };
+
+  const renderTaskTimeline = () => {
+    return (
+      <WorkspacePanel
+        title={`${activeTaskSubteamLabel} timeline`}
+        subtitle="Calendar-ordered milestones and ownership cues for the selected subteam."
+        actions={
+          <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add task</Text>
+          </Pressable>
+        }
+      >
+        <FilterToolbar>
+          <OptionChipRow
+            allLabel="All subsystems"
+            onChange={setTimelineSubsystemFilter}
+            options={subsystems.map((subsystem) => ({
+              id: subsystem.id,
+              name: subsystem.name,
+            }))}
+            value={timelineSubsystemFilter}
+          />
+          <OptionChipRow
+            allLabel="All milestones"
+            onChange={setTimelineMilestoneFilter}
+            options={eventOptions}
+            value={timelineMilestoneFilter}
+          />
+          <OptionChipRow
+            allLabel="Any archive"
+            onChange={(value) => setTaskArchiveFilter(value as ArchiveFilterMode)}
+            options={ARCHIVE_FILTER_OPTIONS}
+            value={taskArchiveFilter}
+          />
+        </FilterToolbar>
+        <SummaryRow chips={taskSummary} />
 
         {timelineTasks.map((task) => {
           const progress = timelineProgress(task.status);
@@ -4507,8 +4512,8 @@ export default function App() {
   const renderTaskQueue = () => {
     return (
       <WorkspacePanel
-        title="Task queue"
-        subtitle="Search and filter queue cards to keep ownership, due dates, and QA state in view."
+        title={`${activeTaskSubteamLabel} task queue`}
+        subtitle="Search and filter queue cards for the selected subteam's work."
         actions={
           <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
             <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
@@ -4730,6 +4735,11 @@ export default function App() {
 
     return (
       <>
+        <SectionTabs
+          activeValue={activeTaskSubteam}
+          onChange={setActiveTaskSubteam}
+          options={TASK_SUBTEAM_OPTIONS}
+        />
         {taskView === "timeline"
           ? renderTaskTimeline()
           : taskView === "queue"
@@ -4946,6 +4956,40 @@ export default function App() {
       default:
         return <RosterScreen {...screenProps} />;
     }
+
+    if (activeTab === "attendance") {
+      return renderAttendance();
+    }
+
+    if (activeTab === "tasks") {
+      return renderTasks();
+    }
+
+    if (activeTab === "worklogs") {
+      return renderWorkLogs();
+    }
+
+    if (activeTab === "manufacturing") {
+      return renderManufacturing();
+    }
+
+    if (activeTab === "inventory") {
+      return renderInventory();
+    }
+
+    if (activeTab === "subsystems") {
+      return renderSubsystems();
+    }
+
+    if (activeTab === "reports") {
+      return renderReports();
+    }
+
+    if (activeTab === "risks") {
+      return renderRisks();
+    }
+
+    return renderRoster();
   };
 
   const renderEditorModals = () => {
@@ -6500,7 +6544,10 @@ export default function App() {
   const renderPersonMenu = () => (
     <Modal
       animationType="fade"
-      onRequestClose={() => setIsPersonMenuVisible(false)}
+      onRequestClose={() => {
+        setIsPersonMenuVisible(false);
+        setIsSeasonMenuVisible(false);
+      }}
       supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
       transparent
       visible={isPersonMenuVisible}
@@ -6569,7 +6616,7 @@ export default function App() {
                   event.stopPropagation();
                   createSeason();
                 }}
-                style={[styles.settingsIconButton, appResponsiveStyles.settingsIconButton]}
+                style={styles.settingsIconButton}
               >
                 <Text style={[styles.settingsIconButtonLabel, { color: themeColors.navyInk }]}>
                   +
@@ -6583,7 +6630,7 @@ export default function App() {
           </Pressable>
 
           {isSeasonMenuVisible ? (
-            <View style={[styles.settingsSubmenu, appResponsiveStyles.settingsSubmenu]}>
+            <View style={styles.settingsSubmenu}>
               {seasons.map((option) => {
                 const isSelected = activeSeasonId === option.id;
 
@@ -6598,10 +6645,7 @@ export default function App() {
                     }}
                     style={[
                       styles.settingsSubmenuRow,
-                      isSelected && [
-                        styles.settingsSubmenuRowActive,
-                        appResponsiveStyles.settingsSubmenuRowActive,
-                      ],
+                      isSelected && styles.settingsSubmenuRowActive,
                     ]}
                   >
                     <Text
@@ -6620,7 +6664,7 @@ export default function App() {
                         event.stopPropagation();
                         deleteSeason(option.id);
                       }}
-                      style={[styles.settingsIconButton, appResponsiveStyles.settingsIconButton]}
+                      style={styles.settingsIconButton}
                     >
                       <Text
                         style={[
@@ -6647,6 +6691,15 @@ export default function App() {
             <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>Run</Text>
           </Pressable>
 
+          <Pressable
+            onPress={signOut}
+            style={[styles.settingsRow, appResponsiveStyles.settingsRow]}
+          >
+            <View>
+              <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>Sign out</Text>
+            </View>
+            <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>Exit</Text>
+          </Pressable>
         </Pressable>
       </Pressable>
     </Modal>

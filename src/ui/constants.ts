@@ -24,8 +24,8 @@ export const TASK_SUBTEAM_OPTIONS: { value: TaskSubteamTab; label: string }[] = 
 ];
 
 export const TASK_SUBTEAM_DISCIPLINE_IDS: Record<TaskSubteamTab, string[]> = {
-  programming: ["software", "programming", "integration", "testing"],
-  mechanical: ["mechanical", "design", "manufacturing", "assembly"],
+  programming: ["software", "programming", "integration"],
+  mechanical: ["mechanical"],
   electrical: ["electrical"],
 };
 
