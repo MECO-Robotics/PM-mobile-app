@@ -18,10 +18,7 @@
         {
           "initialOrientation": "DEFAULT"
         }
-      ],
-      "expo-localization",
-      "expo-notifications",
-      "expo-web-browser"
+      ]
     ],
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -30,7 +27,21 @@
     },
     "ios": {
       "bundleIdentifier": "org.mecorobotics.missioncontrol",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "requireFullScreen": true,
+      "infoPlist": {
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ],
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
+      }
     },
     "android": {
       "package": "org.mecorobotics.missioncontrol",

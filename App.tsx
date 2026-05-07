@@ -1,8 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
-import * as Google from "expo-auth-session/providers/google";
-import * as WebBrowser from "expo-web-browser";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Image,
@@ -95,7 +93,7 @@ import {
   ToggleField,
 } from "./src/ui/ui";
 import { AppThemeProvider } from "./src/ui/themeContext";
-import { LocalizationProvider, Text, type LanguageCode } from "./src/i18n";
+import { LandscapeSubsystemTimeline } from "./src/ui/LandscapeSubsystemTimeline";
 import {
   ApiRequestError,
   classifyMobileAuthError,
@@ -359,6 +357,7 @@ export default function App() {
   const systemColorScheme = useColorScheme();
   const responsiveMetrics = useMemo(() => getResponsiveMetrics(width), [width]);
   const isCompactLayout = responsiveMetrics.isCompact;
+  const isVeryCompactLayout = responsiveMetrics.isVeryCompact;
   const isLandscapeTimelineLayout = width > height;
   const isLandscapeCardLayout = width > height;
   const apiBaseUrl = useMemo(() => resolveApiBaseUrl(), []);
@@ -2660,46 +2659,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    workLogTimerRef.current = workLogTimer;
-  }, [workLogTimer]);
-
-  useEffect(() => {
-    let didCancel = false;
-
-    void restorePersistedWorkLogTimerReminder().then((restoredTimer) => {
-      if (didCancel || workLogTimerRef.current) {
-        return;
-      }
-
-      if (!restoredTimer) {
-        void cancelWorkLogTimerReminders();
-        void clearPersistedWorkLogTimerState();
-        return;
-      }
-
-      const restoredReminderNotificationIds =
-        restoredTimer.isPaused === true ? [] : restoredTimer.reminderNotificationIds;
-      const restoredWorkLogTimer = {
-        elapsedMs: restoredTimer.elapsedMs,
-        id: restoredTimer.id,
-        isPaused: restoredTimer.isPaused === true,
-        reminderNotificationIds: restoredReminderNotificationIds,
-        startedAt: restoredTimer.startedAt,
-      };
-      workLogTimerRef.current = restoredWorkLogTimer;
-      setWorkLogTimer(restoredWorkLogTimer);
-      setWorkLogTimerTick(Date.now());
-
-      if (restoredTimer.isPaused === true) {
-        void cancelWorkLogTimerReminders(restoredTimer.reminderNotificationIds);
-        void persistWorkLogTimerState(restoredWorkLogTimer);
-      }
-    });
-
-    return () => {
-      didCancel = true;
-    };
-  }, []);
+    if (isVeryCompactLayout) {
+      setIsPeopleFilterVisible(false);
+    }
+  }, [isVeryCompactLayout]);
 
   useEffect(() => {
     if (activePersonFilter === "all") {
@@ -4502,44 +4465,278 @@ export default function App() {
     setSeasons((current) => {
       const nextSeasons = current.filter((season) => season.id !== seasonId);
 
-      if (activeSeasonId === seasonId) {
-        setActiveSeasonId(nextSeasons[0]?.id ?? "");
+        {timelineTasks.map((task) => {
+          const progress = timelineProgress(task.status);
+          const subsystemName = subsystemsById[task.subsystemId]?.name ?? "Unknown";
+          const ownerName = task.ownerId
+            ? (membersById[task.ownerId]?.name ?? "Unassigned")
+            : "Unassigned";
+          const targetEvent = task.targetEventId ? eventsById[task.targetEventId]?.title : null;
+
+          return (
+            <Pressable
+              key={task.id}
+              onPress={() => openEditTaskEditor(task)}
+              style={[styles.timelineRow, appResponsiveStyles.rowCard]}
+            >
+              <View style={styles.timelineRowHeader}>
+                <View style={styles.timelineRowText}>
+                  <Text style={[styles.timelineTitle, appResponsiveStyles.rowTitle]}>{task.title}</Text>
+                  <Text style={[styles.timelineMeta, appResponsiveStyles.metaLine]}>
+                    {subsystemName} - {ownerName} - due {formatDate(task.dueDate)}
+                    {targetEvent ? ` - ${targetEvent}` : ""}
+                  </Text>
+                </View>
+                <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
+              </View>
+
+              <View style={styles.timelineTrack}>
+                <View style={[styles.timelineFill, { width: `${Math.max(8, progress * 100)}%` }]} />
+              </View>
+            </Pressable>
+          );
+        })}
+
+        {timelineTasks.length === 0 ? <EmptyState text="No timeline tasks match the current filters." /> : null}
+
+        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.timeline} />
+      </WorkspacePanel>
+    );
+  };
+
+  const renderTaskQueue = () => {
+    return (
+      <WorkspacePanel
+        title="Task queue"
+        subtitle="Search and filter queue cards to keep ownership, due dates, and QA state in view."
+        actions={
+          <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
+          </Pressable>
+        }
+      >
+        <FilterToolbar>
+          <SearchField
+            onChangeText={setTaskSearch}
+            placeholder="Search tasks"
+            value={taskSearch}
+          />
+
+          <OptionChipRow
+            allLabel="All subsystems"
+            onChange={setTaskSubsystemFilter}
+            options={subsystems.map((subsystem) => ({
+              id: subsystem.id,
+              name: subsystem.name,
+            }))}
+            value={taskSubsystemFilter}
+          />
+
+          <OptionChipRow
+            allLabel="All owners"
+            onChange={setTaskOwnerFilter}
+            options={members.map((member) => ({
+              id: member.id,
+              name: member.name,
+            }))}
+            value={taskOwnerFilter}
+          />
+
+          <OptionChipRow
+            allLabel="All statuses"
+            onChange={setTaskStatusFilter}
+            options={TASK_STATUS_OPTIONS}
+            value={taskStatusFilter}
+          />
+
+          <OptionChipRow
+            allLabel="All priorities"
+            onChange={setTaskPriorityFilter}
+            options={TASK_PRIORITY_OPTIONS}
+            value={taskPriorityFilter}
+          />
+
+          <OptionChipRow
+            allLabel="All blockers"
+            onChange={(value) => setTaskBlockerFilter(value as BlockerFilterMode)}
+            options={BLOCKER_FILTER_OPTIONS}
+            value={taskBlockerFilter}
+          />
+
+          <OptionChipRow
+            allLabel="Any archive"
+            onChange={(value) => setTaskArchiveFilter(value as ArchiveFilterMode)}
+            options={ARCHIVE_FILTER_OPTIONS}
+            value={taskArchiveFilter}
+          />
+        </FilterToolbar>
+
+        <SummaryRow chips={taskSummary} />
+
+        {!isCompactLayout ? (
+          <View style={styles.tableHeaderRow}>
+            <Text
+              style={[
+                styles.tableHeaderText,
+                styles.tableHeaderPrimary,
+                appResponsiveStyles.tableHeaderText,
+              ]}
+            >
+              Task
+            </Text>
+            <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>Owner</Text>
+            <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>Due</Text>
+            <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>Status</Text>
+          </View>
+        ) : null}
+
+        {filteredTaskQueue.map((task) => {
+          const subsystemName = subsystemsById[task.subsystemId]?.name ?? "Unknown";
+          const ownerName = task.ownerId
+            ? (membersById[task.ownerId]?.name ?? "Unassigned")
+            : "Unassigned";
+          const disciplineName = disciplinesById[task.disciplineId]?.name ?? "Unknown discipline";
+          const mechanismName = task.mechanismId
+            ? (mechanismsById[task.mechanismId]?.name ?? "Unknown mechanism")
+            : "No mechanism";
+          const linkedPart = task.partInstanceId
+            ? (partInstancesById[task.partInstanceId]?.name ?? "Unknown part")
+            : "No part";
+          const targetEvent = task.targetEventId
+            ? (eventsById[task.targetEventId]?.title ?? "Event")
+            : "No event";
+
+          return (
+            <Pressable
+              key={task.id}
+              onPress={() => openEditTaskEditor(task)}
+              style={[
+                styles.queueRowCard,
+                appResponsiveStyles.rowCard,
+                isLandscapeCardLayout && styles.queueRowCardLandscape,
+              ]}
+            >
+              <View style={isLandscapeCardLayout && styles.taskCardLandscapeContent}>
+                <View style={isLandscapeCardLayout && styles.taskCardLandscapeMain}>
+                  <View style={styles.queueRowHeader}>
+                    <View style={styles.queueRowPrimaryText}>
+                      <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{task.title}</Text>
+                      <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                        {subsystemName} - {disciplineName}
+                      </Text>
+                    </View>
+                    <Text style={editTagStyle}>EDIT</Text>
+                  </View>
+
+                  <Text numberOfLines={isLandscapeCardLayout ? 3 : 2} style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{task.summary}</Text>
+
+                  <View style={styles.queuePillRow}>
+                    <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
+                    <StatusPill label={`${task.priority} priority`} value={task.priority} />
+                    {task.linkedManufacturingIds.length > 0 ? (
+                      <StatusPill label="Needs fabrication" value="waiting" />
+                    ) : null}
+                    {task.linkedPurchaseIds.length > 0 ? (
+                      <StatusPill label="Needs purchase" value="requested" />
+                    ) : null}
+                  </View>
+                </View>
+
+                <View style={isLandscapeCardLayout && styles.taskCardLandscapeAside}>
+                  <View style={styles.compactMetaGrid}>
+                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Owner {ownerName}</Text>
+                    </View>
+                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Due {formatDate(task.dueDate)}</Text>
+                    </View>
+                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Milestone {targetEvent}</Text>
+                    </View>
+                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Mechanism {mechanismName}</Text>
+                    </View>
+                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Part {linkedPart}</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {task.blockers.length > 0 ? (
+                <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+                  <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>Blockers</Text>
+                  <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>{task.blockers.join(" | ")}</Text>
+                  <View style={styles.quickActionRow}>
+                    <Pressable
+                      onPress={() => clearTaskBlockers(task)}
+                      style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                    >
+                      <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                        Clear blockers
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => openCreateQaReportEditor(task.id)}
+                      style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                    >
+                      <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                        QA report
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : null}
+            </Pressable>
+          );
+        })}
+
+        {filteredTaskQueue.length === 0 ? <EmptyState text="No tasks match the current filters." /> : null}
+
+        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.queue} />
+      </WorkspacePanel>
+    );
+  };
+
+  const renderTaskMilestones = () => {
+    const milestoneTypeOptions = EVENT_TYPE_OPTIONS.map((option) => ({
+      id: option.id,
+      name: option.name,
+    }));
+
+    const getMilestoneSortIcon = (field: MilestoneSortField) => {
+      if (milestoneSortField !== field) {
+        return "";
       }
 
       return nextSeasons;
     });
   };
 
-  const signOut = () => {
-    setApiToken(null);
-    setSessionUser(null);
-    setHasAuthenticated(false);
-    setAuthCode("");
-    setAuthEmail("");
-    setAuthError(null);
-    setAuthNotice(null);
-    setIsAuthenticating(false);
-    setIsGoogleSignInPending(false);
-    setHasRequestedEmailCode(false);
-    setIsPersonMenuVisible(false);
-    setIsSeasonMenuVisible(false);
-    setIsNavMenuVisible(false);
-    setIsProjectOverlayVisible(false);
-    setActivePersonFilter("all");
-    setSelectedMemberId(null);
-    setSyncError(null);
-    closeTaskEditor();
-    closeWorkLogEditor();
-    closeMilestoneEditor();
-    closeDeadlineEditor();
-    closeManufacturingEditor();
-    closePurchaseEditor();
-    closeMemberEditor();
-    closeSubsystemEditor();
-    closePartDefinitionEditor();
-    closeQaReportEditor();
-    closeEventReportEditor();
-    clearWorkLogTimer();
+  const renderTasks = () => {
+    if (isLandscapeTimelineLayout) {
+      return (
+        <LandscapeSubsystemTimeline
+          colors={themeColors}
+          events={events}
+          membersById={membersById}
+          onAddTask={openCreateTaskEditor}
+          onTaskPress={openEditTaskEditor}
+          subsystems={subsystems}
+          tasks={timelineTasks}
+        />
+      );
+    }
+
+    return (
+      <>
+        {taskView === "timeline"
+          ? renderTaskTimeline()
+          : taskView === "queue"
+            ? renderTaskQueue()
+            : renderTaskMilestones()}
+      </>
+    );
   };
 
   const screenProps = {
@@ -4784,26 +4981,6 @@ export default function App() {
           title={taskEditorMode === "edit" ? "Edit task" : "Create task"}
           visible={Boolean(taskEditorMode)}
         >
-          {taskEditorError ? (
-            <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
-              <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
-                Missing task details
-              </Text>
-              <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
-                {taskEditorError}
-              </Text>
-            </View>
-          ) : null}
-          {taskDependencyReadinessMessage ? (
-            <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
-              <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
-                Waiting on dependencies
-              </Text>
-              <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
-                {taskDependencyReadinessMessage}
-              </Text>
-            </View>
-          ) : null}
           <View style={isLandscapeCardLayout ? styles.taskEditorLandscapeGrid : styles.taskEditorStack}>
             <View style={[styles.taskEditorStack, isLandscapeCardLayout && styles.taskEditorLandscapeColumn]}>
               <ModalField
@@ -4820,13 +4997,7 @@ export default function App() {
                 value={taskDraft.summary}
               />
               <ModalField
-                label="Start date (YYYY-MM-DD)"
-                onChangeText={(value) => setTaskDraft((current) => ({ ...current, startDate: value }))}
-                placeholder={isoToday()}
-                value={taskDraft.startDate}
-              />
-              <ModalField
-                label="End date required (YYYY-MM-DD)"
+                label="Due date (YYYY-MM-DD)"
                 onChangeText={(value) => setTaskDraft((current) => ({ ...current, dueDate: value }))}
                 placeholder="2026-04-24"
                 value={taskDraft.dueDate}
@@ -4854,7 +5025,7 @@ export default function App() {
                     };
                   })
                 }
-                options={taskSubsystemOptions}
+                options={subsystemOptions}
                 placeholder="Select subsystem"
                 value={taskDraft.subsystemId}
               />
@@ -4973,158 +5144,6 @@ export default function App() {
                   </Text>
                 </View>
                 <ModalField
-                  label="Estimated hours"
-                  keyboardType="decimal-pad"
-                  onChangeText={(value) =>
-                    setTaskDraft((current) => ({ ...current, estimatedHours: value }))
-                  }
-                  placeholder="4"
-                  value={taskDraft.estimatedHours}
-                />
-                <ModalField
-                  label="Checklist / substeps (comma separated)"
-                  multiline
-                  onChangeText={(value) =>
-                    setTaskDraft((current) => ({ ...current, checklistItemsText: value }))
-                  }
-                  placeholder="Cut bracket, Deburr, Test fit, Add photo evidence"
-                  value={taskDraft.checklistItemsText}
-                />
-                <View style={styles.modalField}>
-                  <Text style={[styles.modalFieldLabel, { color: themeColors.subtleText }]}>Dependencies</Text>
-                  <View
-                    style={[
-                      styles.modalFieldInput,
-                      { backgroundColor: themeColors.canvas, borderColor: themeColors.border },
-                    ]}
-                  >
-                    {selectedTaskDependencies.length > 0 ? (
-                      <View style={styles.quickActionRow}>
-                        {selectedTaskDependencies.map((dependency) => (
-                          <Pressable
-                            key={dependency.id}
-                            onPress={() => removeTaskDependency(dependency.id)}
-                            style={[
-                              styles.quickActionButton,
-                              {
-                                alignItems: "flex-start",
-                                backgroundColor: themeColors.navySurface,
-                                borderColor: themeColors.navySurface,
-                                gap: 2,
-                                maxWidth: "100%",
-                              },
-                            ]}
-                          >
-                            <Text
-                              numberOfLines={2}
-                              style={[styles.quickActionButtonLabel, { color: themeColors.navyInk }]}
-                            >
-                              {dependency.title}
-                            </Text>
-                            <Text
-                              numberOfLines={2}
-                              style={{ color: themeColors.subtleText, fontSize: 11, fontWeight: "700" }}
-                            >
-                              {`${STATUS_LABELS[dependency.status]} | due ${formatDate(dependency.dueDate)} | ${subsystemsById[dependency.subsystemId]?.name ?? "No subsystem"} | remove`}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    ) : (
-                      <Text style={{ color: themeColors.subtleText }}>No dependencies selected</Text>
-                    )}
-                  </View>
-                  {downstreamTaskDependencies.length > 0 ? (
-                    <View
-                      style={[
-                        styles.modalFieldInput,
-                        { backgroundColor: themeColors.surface, borderColor: themeColors.border },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.quickActionButtonLabel,
-                          { color: themeColors.ink, marginBottom: 6 },
-                        ]}
-                      >
-                        Waiting on this task
-                      </Text>
-                      <View style={styles.quickActionRow}>
-                        {downstreamTaskDependencies.map((dependentTask) => (
-                          <View
-                            key={dependentTask.id}
-                            style={[
-                              styles.quickActionButton,
-                              {
-                                alignItems: "flex-start",
-                                backgroundColor: themeColors.canvas,
-                                borderColor: themeColors.border,
-                                gap: 2,
-                                maxWidth: "100%",
-                              },
-                            ]}
-                          >
-                            <Text
-                              numberOfLines={2}
-                              style={[styles.quickActionButtonLabel, { color: themeColors.ink }]}
-                            >
-                              {dependentTask.title}
-                            </Text>
-                            <Text
-                              numberOfLines={2}
-                              style={{
-                                color: themeColors.subtleText,
-                                fontSize: 11,
-                                fontWeight: "700",
-                              }}
-                            >
-                              {`${STATUS_LABELS[dependentTask.status]} | due ${formatDate(dependentTask.dueDate)} | ${subsystemsById[dependentTask.subsystemId]?.name ?? "No subsystem"}`}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  ) : null}
-                  <SearchField
-                    onChangeText={setTaskDependencySearch}
-                    placeholder="Search dependency tasks"
-                    value={taskDependencySearch}
-                  />
-                  {availableTaskDependencyOptions.length > 0 ? (
-                    <View style={styles.quickActionRow}>
-                      {availableTaskDependencyOptions.map((dependency) => (
-                        <Pressable
-                          key={dependency.id}
-                          onPress={() => addTaskDependency(dependency.id)}
-                          style={[
-                            styles.quickActionButton,
-                            {
-                              alignItems: "flex-start",
-                              backgroundColor: themeColors.surface,
-                              borderColor: themeColors.border,
-                              gap: 2,
-                              maxWidth: "100%",
-                            },
-                          ]}
-                        >
-                          <Text
-                            numberOfLines={2}
-                            style={[styles.quickActionButtonLabel, { color: themeColors.ink }]}
-                          >
-                            {dependency.title}
-                          </Text>
-                          <Text
-                            numberOfLines={2}
-                            style={{ color: themeColors.subtleText, fontSize: 11, fontWeight: "700" }}
-                          >
-                            {`${STATUS_LABELS[dependency.status]} | due ${formatDate(dependency.dueDate)} | ${subsystemsById[dependency.subsystemId]?.name ?? "No subsystem"}`}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  ) : null}
-                </View>
-                <ModalField
                   label="Blockers (comma separated)"
                   onChangeText={(value) =>
                     setTaskDraft((current) => ({ ...current, blockersText: value }))
@@ -5135,30 +5154,6 @@ export default function App() {
               </AdvancedOptions>
             </View>
           </View>
-        </EditorModal>
-
-        <EditorModal
-          onCancel={closeDeadlineEditor}
-          onSave={saveDeadlineDraft}
-          saveLabel="Create deadline"
-          title="Create deadline"
-          visible={deadlineEditorVisible}
-        >
-          <ModalField
-            label="Title"
-            onChangeText={setDeadlineTitle}
-            placeholder="Deadline title"
-            value={deadlineTitle}
-          />
-          <ModalField
-            label="Day (YYYY-MM-DD)"
-            onChangeText={setDeadlineDate}
-            placeholder={localTodayDate()}
-            value={deadlineDate}
-          />
-          {deadlineError ? (
-            <Text style={{ color: themeColors.orangeInk }}>{deadlineError}</Text>
-          ) : null}
         </EditorModal>
 
         <EditorModal
@@ -6505,10 +6500,7 @@ export default function App() {
   const renderPersonMenu = () => (
     <Modal
       animationType="fade"
-      onRequestClose={() => {
-        setIsPersonMenuVisible(false);
-        setIsSeasonMenuVisible(false);
-      }}
+      onRequestClose={() => setIsPersonMenuVisible(false)}
       supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
       transparent
       visible={isPersonMenuVisible}
