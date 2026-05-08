@@ -107,7 +107,7 @@ import {
 } from "./src/ui/ui";
 import { AppThemeProvider } from "./src/ui/themeContext";
 import { languageNames, LocalizationProvider, Text, type LanguageCode } from "./src/i18n";
-import { LandscapeSubsystemTimeline } from "./src/ui/LandscapeSubsystemTimeline";
+import { LandscapeSubsystemTimeline } from "./src/ui/landscapeTimeline/LandscapeSubsystemTimeline";
 import {
   ApiRequestError,
   requestJson,
@@ -132,7 +132,17 @@ import type {
   TaskStatus,
   WorkLog,
 } from "./src/types/domain";
+
 import { appThemes, colors, type AppThemeName } from "./src/theme";
+
+const TASK_EDITOR_SUBSYSTEM_OPTIONS = [
+  { id: "drive", name: "Drivetrain" },
+  { id: "shooter", name: "Shooter" },
+  { id: "intake", name: "Intake" },
+  { id: "covayer", name: "Covayer" },
+  { id: "vision", name: "Vision" },
+  { id: "climb", name: "Climb" },
+];
 
 const SWIPE_ACTIVATION_DISTANCE = 18;
 const SWIPE_COMMIT_DISTANCE = 52;
@@ -189,6 +199,36 @@ function ensureArray<T>(value: T[] | undefined | null): T[] {
   return Array.isArray(value) ? value : [];
 }
 
+type ServerTask = Task & {
+  targetMilestoneId?: string | null;
+};
+
+function normalizeTaskFromServer(task: ServerTask): Task {
+  return {
+    ...task,
+    targetEventId: task.targetEventId ?? task.targetMilestoneId ?? null,
+  };
+}
+
+function mapTaskPayloadToServer<T extends { targetEventId?: string | null }>(
+  payload: T,
+) {
+  const { targetEventId, ...serverPayload } = payload;
+
+  return {
+    ...serverPayload,
+    targetMilestoneId: targetEventId ?? null,
+  };
+}
+
+function getTaskSubteamForDiscipline(disciplineId: string, fallback: TaskSubteamTab) {
+  return (
+    TASK_SUBTEAM_OPTIONS.find((option) =>
+      TASK_SUBTEAM_DISCIPLINE_IDS[option.value].includes(disciplineId),
+    )?.value ?? fallback
+  );
+}
+
 function mapMilestoneTypeToEventType(type: string | undefined): EventType {
   switch (type) {
     case "practice":
@@ -203,7 +243,13 @@ function mapMilestoneTypeToEventType(type: string | undefined): EventType {
   }
 }
 
+function mapEventTypeToMilestoneType(type: EventType) {
+  return type === "drive-practice" ? "practice" : type;
+}
+
 function mapMilestonesToEvents(payload: PlatformBootstrapPayload): Event[] {
+  const subsystems = ensureArray(payload.subsystems);
+
   return ensureArray(payload.milestones).map((milestone) => ({
     id: milestone.id,
     title: milestone.title,
@@ -212,7 +258,11 @@ function mapMilestonesToEvents(payload: PlatformBootstrapPayload): Event[] {
     endDateTime: milestone.endDateTime,
     isExternal: milestone.isExternal,
     description: milestone.description,
-    relatedSubsystemIds: ensureArray(milestone.relatedSubsystemIds),
+    relatedSubsystemIds:
+      milestone.relatedSubsystemIds ??
+      subsystems
+        .filter((subsystem) => ensureArray(milestone.projectIds).includes(subsystem.projectId ?? ""))
+        .map((subsystem) => subsystem.id),
   }));
 }
 
@@ -361,6 +411,10 @@ export default function App() {
   const [milestoneEndDate, setMilestoneEndDate] = useState("");
   const [milestoneEndTime, setMilestoneEndTime] = useState("");
   const [milestoneError, setMilestoneError] = useState<string | null>(null);
+  const [deadlineEditorVisible, setDeadlineEditorVisible] = useState(false);
+  const [deadlineTitle, setDeadlineTitle] = useState("");
+  const [deadlineDate, setDeadlineDate] = useState("");
+  const [deadlineError, setDeadlineError] = useState<string | null>(null);
 
   const [workLogEditorMode, setWorkLogEditorMode] = useState<EditorMode | null>(null);
   const [activeWorkLogId, setActiveWorkLogId] = useState<string | null>(null);
@@ -415,12 +469,15 @@ export default function App() {
 
   const applyBootstrapPayload = useCallback((payload: PlatformBootstrapPayload) => {
     const events = ensureArray(payload.events);
+    const tasks = ensureArray(payload.tasks).map((task) =>
+      normalizeTaskFromServer(task as ServerTask),
+    );
 
     setMembers(ensureArray(payload.members));
     setSubsystems(ensureArray(payload.subsystems));
     setDisciplines(ensureArray(payload.disciplines));
     setMechanisms(ensureArray(payload.mechanisms));
-    setTasks(withSeededSubteamTasks(ensureArray(payload.tasks)));
+    setTasks(withSeededSubteamTasks(tasks));
     setEvents(events.length > 0 ? events : mapMilestonesToEvents(payload));
     setWorkLogs(ensureArray(payload.workLogs));
     setManufacturingItems(ensureArray(payload.manufacturingItems));
@@ -1861,6 +1918,7 @@ export default function App() {
           members.find((member) => member.role === "mentor" || member.role === "lead")?.id ??
           members[0]?.id ??
           "",
+        startDate: isoToday(),
         dueDate: isoToday(),
       }),
     );
@@ -1868,10 +1926,7 @@ export default function App() {
   };
 
   const openTaskQueueFromTask = (task: Task) => {
-    const nextSubteam =
-      TASK_SUBTEAM_OPTIONS.find((option) =>
-        TASK_SUBTEAM_DISCIPLINE_IDS[option.value].includes(task.disciplineId),
-      )?.value ?? activeTaskSubteam;
+    const nextSubteam = getTaskSubteamForDiscipline(task.disciplineId, activeTaskSubteam);
 
     setActiveTaskSubteam(nextSubteam);
     setTaskView("queue");
@@ -1906,11 +1961,18 @@ export default function App() {
     const title = taskDraft.title.trim();
     const summary = taskDraft.summary.trim();
 
-    if (!title || !summary || !taskDraft.subsystemId || !taskDraft.ownerId || !taskDraft.mentorId) {
+    if (
+      !title ||
+      !summary ||
+      !taskDraft.subsystemId ||
+      !taskDraft.ownerId ||
+      !taskDraft.mentorId ||
+      !taskDraft.dueDate.trim()
+    ) {
       return;
     }
 
-    const payload = {
+    const payload = mapTaskPayloadToServer({
       title,
       summary,
       subsystemId: taskDraft.subsystemId,
@@ -1921,7 +1983,8 @@ export default function App() {
       targetEventId: taskDraft.targetEventId,
       ownerId: taskDraft.ownerId,
       mentorId: taskDraft.mentorId,
-      dueDate: taskDraft.dueDate || isoToday(),
+      startDate: taskDraft.startDate || undefined,
+      dueDate: taskDraft.dueDate,
       priority: taskDraft.priority,
       status: taskDraft.status,
       dependencyIds: [],
@@ -1930,7 +1993,7 @@ export default function App() {
       linkedPurchaseIds: [],
       estimatedHours: 0,
       actualHours: 0,
-    };
+    });
 
     const isEdit = taskEditorMode === "edit" && activeTaskId;
     const ok = await runMutation(
@@ -1942,6 +2005,7 @@ export default function App() {
     );
 
     if (ok) {
+      setActiveTaskSubteam(getTaskSubteamForDiscipline(taskDraft.disciplineId, activeTaskSubteam));
       closeTaskEditor();
     }
   };
@@ -1955,6 +2019,13 @@ export default function App() {
     setMilestoneEndDate("");
     setMilestoneEndTime("");
     setMilestoneError(null);
+  };
+
+  const openCreateDeadlineEditor = () => {
+    setDeadlineTitle("");
+    setDeadlineDate(localTodayDate());
+    setDeadlineError(null);
+    setDeadlineEditorVisible(true);
   };
 
   const openEditMilestoneEditor = (event: Event) => {
@@ -1980,6 +2051,11 @@ export default function App() {
     setMilestoneError(null);
   };
 
+  const closeDeadlineEditor = () => {
+    setDeadlineEditorVisible(false);
+    setDeadlineError(null);
+  };
+
   const saveMilestoneDraft = async () => {
     const title = milestoneDraft.title.trim();
 
@@ -1990,6 +2066,13 @@ export default function App() {
 
     const parsedSubsystemIds = splitList(milestoneDraft.relatedSubsystemIdsText)
       .filter((subsystemId) => subsystemsById[subsystemId]);
+    const projectIds = Array.from(
+      new Set(
+        parsedSubsystemIds
+          .map((subsystemId) => subsystemsById[subsystemId]?.projectId)
+          .filter((projectId): projectId is string => Boolean(projectId)),
+      ),
+    );
 
     const startDateTime = buildDateTime(
       milestoneStartDate,
@@ -2011,17 +2094,17 @@ export default function App() {
 
     const payload = {
       title,
-      type: milestoneDraft.type,
+      type: mapEventTypeToMilestoneType(milestoneDraft.type),
       startDateTime,
       endDateTime,
       isExternal: milestoneDraft.isExternal,
       description: milestoneDraft.description.trim(),
-      relatedSubsystemIds: Array.from(new Set(parsedSubsystemIds)),
+      projectIds,
     };
 
     const isEdit = milestoneEditorMode === "edit" && activeMilestoneId;
     const ok = await runMutation(
-      isEdit ? `/api/events/${activeMilestoneId}` : "/api/events",
+      isEdit ? `/api/milestones/${activeMilestoneId}` : "/api/milestones",
       {
         method: isEdit ? "PATCH" : "POST",
         body: JSON.stringify(payload),
@@ -2033,12 +2116,38 @@ export default function App() {
     }
   };
 
+  const saveDeadlineDraft = async () => {
+    const title = deadlineTitle.trim();
+
+    if (!title || !deadlineDate.trim()) {
+      setDeadlineError("Deadline title and day are required.");
+      return;
+    }
+
+    const ok = await runMutation("/api/milestones", {
+      method: "POST",
+      body: JSON.stringify({
+        title,
+        type: "deadline",
+        startDateTime: buildDateTime(deadlineDate, "12:00"),
+        endDateTime: null,
+        isExternal: false,
+        description: "",
+        projectIds: [],
+      }),
+    });
+
+    if (ok) {
+      closeDeadlineEditor();
+    }
+  };
+
   const deleteMilestoneDraft = async () => {
     if (!activeMilestoneId) {
       return;
     }
 
-    const ok = await runMutation(`/api/events/${activeMilestoneId}`, {
+    const ok = await runMutation(`/api/milestones/${activeMilestoneId}`, {
       method: "DELETE",
     });
 
@@ -2072,7 +2181,7 @@ export default function App() {
 
     await runMutation(`/api/tasks/${task.id}`, {
       method: "PATCH",
-      body: JSON.stringify({
+      body: JSON.stringify(mapTaskPayloadToServer({
         title: task.title,
         summary: task.summary,
         subsystemId: task.subsystemId,
@@ -2091,7 +2200,7 @@ export default function App() {
         linkedPurchaseIds: task.linkedPurchaseIds,
         estimatedHours: task.estimatedHours,
         actualHours: task.actualHours,
-      }),
+      })),
     });
   };
 
@@ -2598,7 +2707,7 @@ export default function App() {
 
     await runMutation("/api/tasks", {
       method: "POST",
-      body: JSON.stringify({
+      body: JSON.stringify(mapTaskPayloadToServer({
         title: `Acquire ${partName}`,
         summary:
           acquisitionMethod === "manufacture"
@@ -2620,7 +2729,7 @@ export default function App() {
         linkedPurchaseIds: [],
         estimatedHours: 0,
         actualHours: 0,
-      }),
+      })),
     });
   };
 
@@ -3557,6 +3666,7 @@ export default function App() {
           colors={themeColors}
           events={events}
           membersById={membersById}
+          onAddDeadline={openCreateDeadlineEditor}
           onAddTask={openCreateTaskEditor}
           onTaskPress={openEditTaskEditor}
           subsystems={subsystems}
@@ -4543,6 +4653,10 @@ export default function App() {
       id: subsystem.id,
       name: subsystem.name,
     }));
+    const taskSubsystemOptions = TASK_EDITOR_SUBSYSTEM_OPTIONS;
+    const taskSubsystemName =
+      taskSubsystemOptions.find((option) => option.id === taskDraft.subsystemId)?.name ??
+      subsystemsById[taskDraft.subsystemId]?.name;
     const disciplineOptions = disciplines.map((discipline) => ({
       id: discipline.id,
       name: discipline.name,
@@ -4588,7 +4702,13 @@ export default function App() {
                 value={taskDraft.summary}
               />
               <ModalField
-                label="Due date (YYYY-MM-DD)"
+                label="Start date (YYYY-MM-DD)"
+                onChangeText={(value) => setTaskDraft((current) => ({ ...current, startDate: value }))}
+                placeholder={isoToday()}
+                value={taskDraft.startDate}
+              />
+              <ModalField
+                label="End date required (YYYY-MM-DD)"
                 onChangeText={(value) => setTaskDraft((current) => ({ ...current, dueDate: value }))}
                 placeholder="2026-04-24"
                 value={taskDraft.dueDate}
@@ -4616,7 +4736,7 @@ export default function App() {
                     };
                   })
                 }
-                options={subsystemOptions}
+                options={taskSubsystemOptions}
                 placeholder="Select subsystem"
                 value={taskDraft.subsystemId}
               />
@@ -4727,7 +4847,7 @@ export default function App() {
                 <View style={styles.modalField}>
                   <Text style={[styles.modalFieldLabel, { color: themeColors.subtleText }]}>Traceability</Text>
                   <Text style={[styles.modalFieldInput, { backgroundColor: themeColors.canvas, borderColor: themeColors.border, color: themeColors.ink }]}>
-                    {`${subsystemsById[taskDraft.subsystemId]?.name ?? "No subsystem"} / `}
+                    {`${taskSubsystemName ?? "No subsystem"} / `}
                     {`${disciplinesById[taskDraft.disciplineId]?.name ?? "No discipline"} / `}
                     {`${taskDraft.mechanismId ? mechanismsById[taskDraft.mechanismId]?.name : "No mechanism"} / `}
                     {`${taskDraft.partInstanceId ? partInstancesById[taskDraft.partInstanceId]?.name : "No part instance"} / `}
@@ -4745,6 +4865,30 @@ export default function App() {
               </AdvancedOptions>
             </View>
           </View>
+        </EditorModal>
+
+        <EditorModal
+          onCancel={closeDeadlineEditor}
+          onSave={saveDeadlineDraft}
+          saveLabel="Create deadline"
+          title="Create deadline"
+          visible={deadlineEditorVisible}
+        >
+          <ModalField
+            label="Title"
+            onChangeText={setDeadlineTitle}
+            placeholder="Deadline title"
+            value={deadlineTitle}
+          />
+          <ModalField
+            label="Day (YYYY-MM-DD)"
+            onChangeText={setDeadlineDate}
+            placeholder={localTodayDate()}
+            value={deadlineDate}
+          />
+          {deadlineError ? (
+            <Text style={{ color: themeColors.orangeInk }}>{deadlineError}</Text>
+          ) : null}
         </EditorModal>
 
         <EditorModal

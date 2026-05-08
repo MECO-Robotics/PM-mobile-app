@@ -33,6 +33,7 @@ export function buildTaskDraft(seed?: Partial<Task>): TaskDraft {
     disciplineId: seed?.disciplineId ?? "",
     ownerId: seed?.ownerId ?? "",
     mentorId: seed?.mentorId ?? "",
+    startDate: seed?.startDate ?? "",
     dueDate: seed?.dueDate ?? isoToday(),
     priority: seed?.priority ?? "medium",
     status: seed?.status ?? "not-started",
