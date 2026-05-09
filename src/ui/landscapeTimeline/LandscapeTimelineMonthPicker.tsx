@@ -3,7 +3,7 @@ import { Pressable, View } from "react-native";
 
 import { Text } from "../../i18n";
 import type { AppThemeColors } from "../../theme";
-import { landscapeTimelineStyles as styles } from "./landscapeTimelineStyles";
+import { landscapeTimelineHeaderStyles as styles } from "./landscapeTimelineHeaderStyles";
 
 type Props = {
   colors: AppThemeColors;

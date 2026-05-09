@@ -41,6 +41,15 @@ function getTaskStartDate(task: Task) {
   return addDays(parseDate(task.dueDate), -estimatedDays + 1);
 }
 
+export function getTaskDateRange(task: Task) {
+  const taskStart = getTaskStartDate(task);
+  const taskEnd = parseDate(task.dueDate);
+
+  return taskStart <= taskEnd
+    ? { start: taskStart, end: taskEnd }
+    : { start: taskEnd, end: taskStart };
+}
+
 export function getTimelineDays(anchor: Date) {
   return Array.from({ length: getDaysInMonth(anchor) }, (_value, index) => addDays(anchor, index));
 }
@@ -84,10 +93,7 @@ export function getTimelineStartDate(tasks: Task[], fallbackStart: Date, dayCoun
 
   const fallbackEnd = addDays(fallbackStart, dayCount - 1);
   const hasVisibleTask = tasks.some((task) => {
-    const taskStart = getTaskStartDate(task);
-    const taskEnd = parseDate(task.dueDate);
-    const firstDate = taskStart <= taskEnd ? taskStart : taskEnd;
-    const lastDate = taskStart <= taskEnd ? taskEnd : taskStart;
+    const { start: firstDate, end: lastDate } = getTaskDateRange(task);
 
     return firstDate <= fallbackEnd && lastDate >= fallbackStart;
   });
@@ -166,6 +172,8 @@ export function buildLanes(tasks: Task[], subsystems: Subsystem[], monthStart: D
     };
   });
 }
+
+export type PackedLane = ReturnType<typeof buildLanes>[number];
 
 export function expandLanesForViewport<TLane extends ReturnType<typeof buildLanes>[number]>(
   lanes: TLane[],
