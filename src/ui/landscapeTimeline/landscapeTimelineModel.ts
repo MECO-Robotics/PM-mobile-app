@@ -7,14 +7,8 @@ const LANE_MIN_HEIGHT = 52;
 const TASK_BAR_HEIGHT = 26;
 const TASK_BAR_GAP = 7;
 const TASK_BAR_TOP_PADDING = 10;
-const FALLBACK_SUBSYSTEM_COLOR = "#64748b";
-const SUBSYSTEM_COLORS_BY_ID: Record<string, string> = {
-  covayer: "#E76F51",
-  drive: "#2A9D8F",
-  intake: "#C855BC",
-  shooter: "#c0392b",
-  vision: "#F4A261",
-};
+const SUBSYSTEM_COLORS = ["#ef4b5c", "#ffae61", "#be5bd7", "#7c5cff", "#5f90ff"];
+const TASK_COLORS = ["#c65386", "#7b55df", "#cc7447", "#6d7d90", "#2d6be8"];
 
 export function parseDate(value: string) {
   const [year, month, day] = value.slice(0, 10).split("-").map(Number);
@@ -119,15 +113,13 @@ function getLaneHeight(trackCount: number) {
   );
 }
 
-function getSubsystemColor(subsystemId: string) {
-  return SUBSYSTEM_COLORS_BY_ID[subsystemId] ?? FALLBACK_SUBSYSTEM_COLOR;
-}
-
 export function buildLanes(tasks: Task[], subsystems: Subsystem[], monthStart: Date, dayCount: number) {
   const subsystemsById = Object.fromEntries(
     subsystems.map((subsystem) => [subsystem.id, subsystem]),
   ) as Record<string, Subsystem>;
-  const lanesBySubsystem = new Map<string, { subsystem: Subsystem | null; tasks: Task[] }>();
+  const lanesBySubsystem = new Map<string, { subsystem: Subsystem | null; tasks: Task[] }>(
+    subsystems.map((subsystem) => [subsystem.id, { subsystem, tasks: [] }]),
+  );
 
   [...tasks]
     .sort((left, right) => {
@@ -150,17 +142,16 @@ export function buildLanes(tasks: Task[], subsystems: Subsystem[], monthStart: D
       lanesBySubsystem.set(task.subsystemId, lane);
     });
 
-  return Array.from(lanesBySubsystem.entries()).map(([subsystemId, lane]) => {
-    const subsystemColor = getSubsystemColor(subsystemId);
+  return Array.from(lanesBySubsystem.entries()).map(([subsystemId, lane], laneIndex) => {
     const trackEndIndexes: number[] = [];
-    const packedTasks = lane.tasks.map((task) => {
+    const packedTasks = lane.tasks.map((task, taskIndex) => {
       const dateIndexes = getTaskDateIndexes(task, monthStart, dayCount);
       const trackIndex = trackEndIndexes.findIndex((endIndex) => endIndex < dateIndexes.firstIndex);
       const nextTrackIndex = trackIndex >= 0 ? trackIndex : trackEndIndexes.length;
       trackEndIndexes[nextTrackIndex] = dateIndexes.lastIndex;
 
       return {
-        color: subsystemColor,
+        color: TASK_COLORS[(laneIndex + taskIndex) % TASK_COLORS.length],
         task,
         top: TASK_BAR_TOP_PADDING + nextTrackIndex * (TASK_BAR_HEIGHT + TASK_BAR_GAP),
       };
@@ -168,7 +159,7 @@ export function buildLanes(tasks: Task[], subsystems: Subsystem[], monthStart: D
 
     return {
       id: subsystemId,
-      color: subsystemColor,
+      color: SUBSYSTEM_COLORS[laneIndex % SUBSYSTEM_COLORS.length],
       height: getLaneHeight(trackEndIndexes.length),
       subsystem: lane.subsystem,
       tasks: packedTasks,

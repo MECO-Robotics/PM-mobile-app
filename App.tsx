@@ -135,15 +135,6 @@ import type {
 
 import { appThemes, colors, type AppThemeName } from "./src/theme";
 
-const TASK_EDITOR_SUBSYSTEM_OPTIONS = [
-  { id: "drive", name: "Drivetrain" },
-  { id: "shooter", name: "Shooter" },
-  { id: "intake", name: "Intake" },
-  { id: "covayer", name: "Covayer" },
-  { id: "vision", name: "Vision" },
-  { id: "climb", name: "Climb" },
-];
-
 const SWIPE_ACTIVATION_DISTANCE = 18;
 const SWIPE_COMMIT_DISTANCE = 52;
 const SUBTAB_SWIPE_ACTIVATION_DISTANCE = 24;
@@ -175,6 +166,75 @@ const INITIAL_SEASONS: SeasonOption[] = [
   { id: "test", label: "Test Season" },
   { id: "new", label: "New Season" },
 ];
+
+const REQUIRED_TASK_SUBSYSTEMS: Subsystem[] = [
+  {
+    id: "climber",
+    name: "Climber",
+    description: "Endgame lift, latch, and climb release mechanisms.",
+    isCore: false,
+    parentSubsystemId: null,
+    responsibleEngineerId: "priya",
+    mentorIds: ["jordan"],
+    risks: ["Hook alignment", "Winch load margin"],
+  },
+  {
+    id: "controls",
+    name: "Controls",
+    description: "Robot software, safety, and autonomous logic.",
+    isCore: false,
+    parentSubsystemId: "drive",
+    responsibleEngineerId: "ethan",
+    mentorIds: ["riley"],
+    risks: ["Auto safety interlocks"],
+  },
+  {
+    id: "drive",
+    name: "Drivetrain",
+    description: "Core drivetrain, chassis interfaces, and shared base electronics.",
+    isCore: true,
+    parentSubsystemId: null,
+    responsibleEngineerId: "ava",
+    mentorIds: ["jordan"],
+    risks: ["Sensor drift", "Cable clearance"],
+  },
+  {
+    id: "manipulator",
+    name: "Manipulator",
+    description: "Intake, handling, and game-piece interaction hardware.",
+    isCore: false,
+    parentSubsystemId: "drive",
+    responsibleEngineerId: "lucas",
+    mentorIds: ["riley"],
+    risks: ["Chain wear", "Assembly tolerance"],
+  },
+  {
+    id: "vision",
+    name: "Vision",
+    description: "Camera targeting, pose estimation, and visual feedback.",
+    isCore: false,
+    parentSubsystemId: "drive",
+    responsibleEngineerId: "ethan",
+    mentorIds: ["riley"],
+    risks: ["Camera calibration", "Lighting variability"],
+  },
+];
+const REQUIRED_TASK_SUBSYSTEM_OPTIONS = REQUIRED_TASK_SUBSYSTEMS.map((subsystem) => ({
+  id: subsystem.id,
+  name: subsystem.name,
+}));
+
+function normalizeTaskSubsystems(currentSubsystems: Subsystem[]) {
+  const byId = new Map(currentSubsystems.map((subsystem) => [subsystem.id, subsystem]));
+  const required = REQUIRED_TASK_SUBSYSTEMS.map((subsystem) => ({
+    ...(byId.get(subsystem.id) ?? subsystem),
+    name: subsystem.name,
+  }));
+  const requiredIds = new Set(REQUIRED_TASK_SUBSYSTEMS.map((subsystem) => subsystem.id));
+  const remaining = currentSubsystems.filter((subsystem) => !requiredIds.has(subsystem.id));
+
+  return [...required, ...remaining];
+}
 
 function withSeededSubteamTasks(currentTasks: Task[]) {
   const currentTaskIds = new Set(currentTasks.map((task) => task.id));
@@ -309,7 +369,7 @@ export default function App() {
   const [activeSeasonId, setActiveSeasonId] = useState(INITIAL_SEASONS[0].id);
 
   const [members, setMembers] = useState(() => mecoSnapshot.members);
-  const [subsystems, setSubsystems] = useState(() => mecoSnapshot.subsystems);
+  const [subsystems, setSubsystems] = useState(() => normalizeTaskSubsystems(mecoSnapshot.subsystems));
   const [disciplines, setDisciplines] = useState(() => mecoSnapshot.disciplines);
   const [mechanisms, setMechanisms] = useState(() => mecoSnapshot.mechanisms);
   const [tasks, setTasks] = useState(() => withSeededSubteamTasks(mecoSnapshot.tasks));
@@ -474,7 +534,7 @@ export default function App() {
     );
 
     setMembers(ensureArray(payload.members));
-    setSubsystems(ensureArray(payload.subsystems));
+    setSubsystems(normalizeTaskSubsystems(ensureArray(payload.subsystems)));
     setDisciplines(ensureArray(payload.disciplines));
     setMechanisms(ensureArray(payload.mechanisms));
     setTasks(withSeededSubteamTasks(tasks));
@@ -1910,7 +1970,7 @@ export default function App() {
     setActiveTaskId(null);
     setTaskDraft(
       buildTaskDraft({
-        subsystemId: subsystems[0]?.id ?? "",
+        subsystemId: REQUIRED_TASK_SUBSYSTEM_OPTIONS[0]?.id ?? "",
         disciplineId:
           TASK_SUBTEAM_DISCIPLINE_IDS[activeTaskSubteam][0] ?? disciplines[0]?.id ?? "",
         ownerId: members[0]?.id ?? "",
@@ -3256,10 +3316,7 @@ export default function App() {
           <OptionChipRow
             allLabel="All subsystems"
             onChange={setTimelineSubsystemFilter}
-            options={subsystems.map((subsystem) => ({
-              id: subsystem.id,
-              name: subsystem.name,
-            }))}
+            options={REQUIRED_TASK_SUBSYSTEM_OPTIONS}
             value={timelineSubsystemFilter}
           />
           <OptionChipRow
@@ -3337,10 +3394,7 @@ export default function App() {
           <OptionChipRow
             allLabel="All subsystems"
             onChange={setTaskSubsystemFilter}
-            options={subsystems.map((subsystem) => ({
-              id: subsystem.id,
-              name: subsystem.name,
-            }))}
+            options={REQUIRED_TASK_SUBSYSTEM_OPTIONS}
             value={taskSubsystemFilter}
           />
 
@@ -4653,10 +4707,7 @@ export default function App() {
       id: subsystem.id,
       name: subsystem.name,
     }));
-    const taskSubsystemOptions = TASK_EDITOR_SUBSYSTEM_OPTIONS;
-    const taskSubsystemName =
-      taskSubsystemOptions.find((option) => option.id === taskDraft.subsystemId)?.name ??
-      subsystemsById[taskDraft.subsystemId]?.name;
+    const taskSubsystemOptions = REQUIRED_TASK_SUBSYSTEM_OPTIONS;
     const disciplineOptions = disciplines.map((discipline) => ({
       id: discipline.id,
       name: discipline.name,
@@ -4847,7 +4898,7 @@ export default function App() {
                 <View style={styles.modalField}>
                   <Text style={[styles.modalFieldLabel, { color: themeColors.subtleText }]}>Traceability</Text>
                   <Text style={[styles.modalFieldInput, { backgroundColor: themeColors.canvas, borderColor: themeColors.border, color: themeColors.ink }]}>
-                    {`${taskSubsystemName ?? "No subsystem"} / `}
+                    {`${subsystemsById[taskDraft.subsystemId]?.name ?? "No subsystem"} / `}
                     {`${disciplinesById[taskDraft.disciplineId]?.name ?? "No discipline"} / `}
                     {`${taskDraft.mechanismId ? mechanismsById[taskDraft.mechanismId]?.name : "No mechanism"} / `}
                     {`${taskDraft.partInstanceId ? partInstancesById[taskDraft.partInstanceId]?.name : "No part instance"} / `}
