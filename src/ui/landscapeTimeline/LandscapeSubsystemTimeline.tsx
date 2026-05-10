@@ -9,6 +9,7 @@ import { LandscapeTimelineBoard } from "./LandscapeTimelineBoard";
 import {
   buildLanes,
   expandLanesForViewport,
+  getMonthStartDate,
   getTimelineDays,
   parseDate,
 } from "./landscapeTimelineModel";
@@ -38,14 +39,16 @@ export function LandscapeSubsystemTimeline({
   subsystems,
   tasks,
 }: Props) {
-  const [selectedMonthStart, setSelectedMonthStart] = useState<Date | null>(null);
-  const [viewMode, setViewMode] = useState<LandscapeTaskViewMode>("timeline");
-  const { height } = useWindowDimensions();
   const locale = getAppLocale();
   const todayKey = localTodayDate();
   const today = parseDate(todayKey);
+  const [selectedMonthStart, setSelectedMonthStart] = useState(() =>
+    getMonthStartDate(today),
+  );
+  const [viewMode, setViewMode] = useState<LandscapeTaskViewMode>("timeline");
+  const { height } = useWindowDimensions();
   const timelineYear = today.getFullYear();
-  const timelineStart = selectedMonthStart ?? today;
+  const timelineStart = selectedMonthStart;
   const timelineDays = getTimelineDays(timelineStart);
   const packedLanes = buildLanes(tasks, subsystems, timelineStart, timelineDays.length);
   const lanes = expandLanesForViewport(packedLanes, height);
