@@ -144,6 +144,19 @@ type SeasonOption = {
   id: string;
   label: string;
 };
+type RiskPriority = "high" | "medium" | "low";
+
+const RISK_PRIORITY_RANK: Record<RiskPriority, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+};
+
+const RISK_PRIORITY_COLUMNS: { label: string; priority: RiskPriority }[] = [
+  { label: "High", priority: "high" },
+  { label: "Medium", priority: "medium" },
+  { label: "Low", priority: "low" },
+];
 
 const ATTENDANCE_STATUS_BY_MEMBER_ID: Record<string, AttendanceStatus> = {
   ava: "yes",
@@ -187,6 +200,14 @@ function parseClientError(error: unknown) {
 
 function ensureArray<T>(value: T[] | undefined | null): T[] {
   return Array.isArray(value) ? value : [];
+}
+
+function mapTaskPriorityToRiskPriority(priority: TaskPriority): RiskPriority {
+  if (priority === "critical" || priority === "high") {
+    return "high";
+  }
+
+  return priority === "low" ? "low" : "medium";
 }
 
 function mapMilestoneTypeToEventType(type: string | undefined): EventType {
@@ -1380,7 +1401,7 @@ export default function App() {
         detail: subsystem.description,
         subsystemId: subsystem.id,
         source: "Subsystem",
-        severity: "medium" as const,
+        priority: "medium" as const,
       })),
     );
     const blockerRisks = tasks
@@ -1391,7 +1412,7 @@ export default function App() {
         detail: task.blockers.join(" | "),
         subsystemId: task.subsystemId,
         source: "Task blocker",
-        severity: task.priority === "critical" || task.priority === "high" ? "high" as const : "medium" as const,
+        priority: mapTaskPriorityToRiskPriority(task.priority),
       }));
     const qaRisks = qaReviews
       .filter((review) => review.result === "iteration-worthy" || review.result === "minor-fix")
@@ -1401,10 +1422,22 @@ export default function App() {
         detail: review.notes,
         subsystemId: "",
         source: review.result === "iteration-worthy" ? "Iteration" : "QA finding",
-        severity: review.result === "iteration-worthy" ? "high" as const : "medium" as const,
+        priority: review.result === "iteration-worthy" ? "high" as const : "medium" as const,
       }));
 
-    return [...blockerRisks, ...qaRisks, ...subsystemRisks];
+    return [...blockerRisks, ...qaRisks, ...subsystemRisks].sort((left, right) => {
+      const priorityDelta = RISK_PRIORITY_RANK[left.priority] - RISK_PRIORITY_RANK[right.priority];
+      if (priorityDelta !== 0) {
+        return priorityDelta;
+      }
+
+      const sourceDelta = left.source.localeCompare(right.source);
+      if (sourceDelta !== 0) {
+        return sourceDelta;
+      }
+
+      return left.title.localeCompare(right.title);
+    });
   }, [qaReviews, subsystems, tasks]);
 
   const reportSummary = useMemo(() => {
@@ -1417,7 +1450,7 @@ export default function App() {
   }, [eventReports.length, qaReviews]);
 
   const riskSummary = useMemo(() => {
-    const highCount = riskRows.filter((risk) => risk.severity === "high").length;
+    const highCount = riskRows.filter((risk) => risk.priority === "high").length;
     return [
       { label: "Open risks", value: String(riskRows.length) },
       { label: "High", value: String(highCount) },
@@ -4455,6 +4488,59 @@ export default function App() {
   };
 
   const renderRisks = () => {
+    const renderRiskCard = (risk: (typeof riskRows)[number]) => {
+      const subsystemName = risk.subsystemId
+        ? (subsystemsById[risk.subsystemId]?.name ?? "Unknown subsystem")
+        : "Cross-system";
+      const priorityLabel = capitalize(risk.priority);
+
+      return (
+        <View
+          key={risk.id}
+          style={[
+            styles.queueRowCard,
+            appResponsiveStyles.rowCard,
+            isLandscapeCardLayout && styles.riskLandscapeItem,
+            risk.priority === "high"
+              ? styles.riskSeverityHigh
+              : risk.priority === "medium"
+                ? styles.riskSeverityMedium
+                : styles.riskSeverityLow,
+          ]}
+        >
+          <View style={styles.queueRowHeader}>
+            <View style={styles.queueRowPrimaryText}>
+              <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{risk.title}</Text>
+              <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                {risk.source} - {subsystemName}
+              </Text>
+            </View>
+            <StatusPill
+              label={priorityLabel}
+              value={
+                risk.priority === "high"
+                  ? "critical"
+                  : risk.priority === "medium"
+                    ? "high"
+                    : "low"
+              }
+            />
+          </View>
+          <Text
+            numberOfLines={isLandscapeCardLayout ? 4 : undefined}
+            style={[styles.queueRowBody, appResponsiveStyles.rowBody]}
+          >
+            {risk.detail}
+          </Text>
+        </View>
+      );
+    };
+
+    const riskPriorityColumns = RISK_PRIORITY_COLUMNS.map((column) => ({
+      ...column,
+      risks: riskRows.filter((risk) => risk.priority === column.priority),
+    }));
+
     return (
       <WorkspacePanel
         title="Risk management"
@@ -4462,33 +4548,57 @@ export default function App() {
       >
         <SummaryRow chips={riskSummary} />
 
-        {riskRows.map((risk) => {
-          const subsystemName = risk.subsystemId
-            ? (subsystemsById[risk.subsystemId]?.name ?? "Unknown subsystem")
-            : "Cross-system";
-
-          return (
-            <View
-              key={risk.id}
-              style={[
-                styles.queueRowCard,
-                appResponsiveStyles.rowCard,
-                risk.severity === "high" ? styles.riskSeverityHigh : styles.riskSeverityMedium,
-              ]}
-            >
-              <View style={styles.queueRowHeader}>
-                <View style={styles.queueRowPrimaryText}>
-                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{risk.title}</Text>
-                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                    {risk.source} - {subsystemName}
-                  </Text>
+        {isLandscapeCardLayout ? (
+          <View style={styles.riskLandscapeBoard}>
+            {riskPriorityColumns.map((column) => (
+              <View
+                key={column.priority}
+                style={[
+                  styles.riskLandscapeColumn,
+                  {
+                    backgroundColor: themeColors.canvas,
+                    borderColor: themeColors.border,
+                  },
+                ]}
+              >
+                <View style={styles.riskLandscapeColumnHeader}>
+                  <View
+                    style={[
+                      styles.riskPriorityBadge,
+                      column.priority === "high"
+                        ? styles.riskPriorityBadgeHigh
+                        : column.priority === "medium"
+                          ? styles.riskPriorityBadgeMedium
+                          : styles.riskPriorityBadgeLow,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.riskPriorityBadgeText,
+                        column.priority === "high"
+                          ? styles.riskPriorityBadgeTextHigh
+                          : column.priority === "medium"
+                            ? styles.riskPriorityBadgeTextMedium
+                            : styles.riskPriorityBadgeTextLow,
+                      ]}
+                    >
+                      {column.label}
+                    </Text>
+                  </View>
+                  <View style={[styles.riskColumnCount, { backgroundColor: themeColors.surface }]}>
+                    <Text style={[styles.riskColumnCountText, { color: themeColors.navyInk }]}>
+                      {column.risks.length}
+                    </Text>
+                  </View>
                 </View>
-                <StatusPill label={risk.severity} value={risk.severity === "high" ? "critical" : "high"} />
+
+                {column.risks.map(renderRiskCard)}
               </View>
-              <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{risk.detail}</Text>
-            </View>
-          );
-        })}
+            ))}
+          </View>
+        ) : (
+          riskRows.map(renderRiskCard)
+        )}
 
         {riskRows.length === 0 ? <EmptyState text="No active risks are currently visible." /> : null}
         <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.risks} />
