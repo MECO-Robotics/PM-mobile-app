@@ -10,6 +10,21 @@ import type { TimelineBoardProps } from "./types";
 const SUBSYSTEM_COLORS = ["#ea1c2d", "#f59e0b", "#8b5cf6", "#14b8a6", "#3b82f6"];
 const TASK_COLORS = ["#c05283", "#7657d6", "#cf7346", "#64748b", "#2563eb"];
 const LANE_HEIGHT = 74;
+const TASK_BAR_TOP = 10;
+const TASK_BAR_HEIGHT = 30;
+const TASK_BAR_GAP = 6;
+
+function getLaneHeight(taskCount: number) {
+  if (taskCount <= 2) {
+    return LANE_HEIGHT;
+  }
+
+  return TASK_BAR_TOP * 2 + taskCount * TASK_BAR_HEIGHT + (taskCount - 1) * TASK_BAR_GAP;
+}
+
+function getTaskBarTop(taskIndex: number) {
+  return TASK_BAR_TOP + taskIndex * (TASK_BAR_HEIGHT + TASK_BAR_GAP);
+}
 
 type CalendarBoardProps = {
   calendarDays: Date[];
@@ -116,6 +131,9 @@ export function TimelineBoard({
 
     return groups;
   }, []);
+  const laneHeightsById = Object.fromEntries(
+    lanes.map((lane) => [lane.id, getLaneHeight(lane.tasks.length)]),
+  );
 
   return (
     <View style={styles.contentRow}>
@@ -138,7 +156,10 @@ export function TimelineBoard({
                   {
                     backgroundColor: colors.canvas,
                     borderColor: colors.border,
-                    height: group.lanes.length * LANE_HEIGHT,
+                    height: group.lanes.reduce(
+                      (total, lane) => total + laneHeightsById[lane.id],
+                      0,
+                    ),
                   },
                 ]}
               >
@@ -167,7 +188,11 @@ export function TimelineBoard({
                   key={lane.id}
                   style={[
                     styles.laneLabel,
-                    { borderColor: colors.border, backgroundColor: colors.surface },
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.surface,
+                      height: laneHeightsById[lane.id],
+                    },
                   ]}
                 >
                   <View
@@ -227,7 +252,13 @@ export function TimelineBoard({
           </View>
 
           {lanes.map((lane) => (
-              <View key={lane.id} style={[styles.lane, { borderColor: colors.border }]}>
+              <View
+                key={lane.id}
+                style={[
+                  styles.lane,
+                  { borderColor: colors.border, height: laneHeightsById[lane.id] },
+                ]}
+              >
                 {timelineDays.map((day) => {
                   const isWeekend = day.getDay() === 0 || day.getDay() === 6;
 
@@ -255,7 +286,7 @@ export function TimelineBoard({
                         styles.taskBar,
                         {
                           left: range.left,
-                          top: 12 + (taskIndex % 2) * 28,
+                          top: getTaskBarTop(taskIndex),
                           width: range.width,
                           backgroundColor: TASK_COLORS[taskIndex % TASK_COLORS.length],
                         },
