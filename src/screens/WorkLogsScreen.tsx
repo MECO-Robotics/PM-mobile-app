@@ -106,7 +106,6 @@ const renderScreen = () => {
           value={workLogSortMode}
         />
       </FilterToolbar>
-
       <SummaryRow chips={workLogSummary} />
 
       {filteredWorkLogs.map((workLog) => {

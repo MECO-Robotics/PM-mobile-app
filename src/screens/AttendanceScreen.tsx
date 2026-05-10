@@ -112,7 +112,6 @@ const renderScreen = () => {
             <View style={styles.attendanceStatusControls}>
               {ATTENDANCE_STATUS_OPTIONS.map((option) => {
                 const isSelected = status === option.status;
-
                 return (
                   <Pressable
                     accessibilityRole="button"

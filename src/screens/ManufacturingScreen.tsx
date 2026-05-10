@@ -110,7 +110,6 @@ const renderScreen = () => {
             placeholder="Search queue"
             value={manufacturingSearch}
           />
-
           <OptionChipRow
             allLabel="All subsystems"
             onChange={setManufacturingSubsystemFilter}
