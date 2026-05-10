@@ -228,10 +228,12 @@ const REQUIRED_TASK_SUBSYSTEMS: Subsystem[] = [
     risks: ["Camera calibration", "Lighting variability"],
   },
 ];
-const REQUIRED_TASK_SUBSYSTEM_OPTIONS = REQUIRED_TASK_SUBSYSTEMS.map((subsystem) => ({
-  id: subsystem.id,
-  name: subsystem.name,
-}));
+function buildSubsystemOptions(subsystems: Subsystem[]) {
+  return subsystems.map((subsystem) => ({
+    id: subsystem.id,
+    name: subsystem.name,
+  }));
+}
 
 function normalizeTaskSubsystems(currentSubsystems: Subsystem[]) {
   const byId = new Map(currentSubsystems.map((subsystem) => [subsystem.id, subsystem]));
@@ -321,11 +323,16 @@ function mapEventTypeToMilestoneType(type: EventType) {
   return type === "drive-practice" ? "practice" : type;
 }
 
-function hasRequiredEmailDomain(email: string) {
+function normalizeRequiredEmailDomain(domain: string | null | undefined) {
+  return domain?.trim().toLowerCase().replace(/^@/, "") || REQUIRED_EMAIL_DOMAIN;
+}
+
+function hasRequiredEmailDomain(email: string, requiredDomain: string) {
   const [, domain = ""] = email.split("@");
+  const normalizedDomain = domain.toLowerCase();
   return (
-    domain === REQUIRED_EMAIL_DOMAIN ||
-    domain.endsWith(`.${REQUIRED_EMAIL_DOMAIN}`)
+    normalizedDomain === requiredDomain ||
+    normalizedDomain.endsWith(`.${requiredDomain}`)
   );
 }
 
@@ -384,12 +391,14 @@ export default function App() {
   const [syncError, setSyncError] = useState<string | null>(null);
   const envGoogleClientId =
     process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID?.trim() ?? "";
-  const googleClientId = authConfig?.googleClientId ?? envGoogleClientId;
-  const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim();
+  const googleClientId = authConfig?.googleClientId?.trim() || envGoogleClientId;
+  const googleIosClientId =
+    process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim() || googleClientId;
   const googleAndroidClientId =
-    process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID?.trim();
+    process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID?.trim() || googleClientId;
   const googleWebClientId =
     process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim() || googleClientId;
+  const requiredEmailDomain = normalizeRequiredEmailDomain(authConfig?.hostedDomain);
   const activeGoogleClientId =
     Platform.OS === "ios"
       ? googleIosClientId
@@ -681,9 +690,9 @@ export default function App() {
         if (!authConfig?.devBypassAvailable) {
           showAuthError(
             Platform.OS === "ios"
-              ? "Google sign-in needs EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID set to an iOS OAuth client ID, then Expo must be restarted."
+              ? "Google sign-in needs a configured Google client ID, then Expo must be restarted."
               : Platform.OS === "android"
-                ? "Google sign-in needs EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID set to an Android OAuth client ID, then Expo must be restarted."
+                ? "Google sign-in needs a configured Google client ID, then Expo must be restarted."
                 : "Google sign-in is not configured for this app yet.",
           );
           return;
@@ -793,8 +802,8 @@ export default function App() {
       return;
     }
 
-    if (!email || !hasRequiredEmailDomain(email)) {
-      setAuthError(`Use a ${REQUIRED_EMAIL_DOMAIN} email.`);
+    if (!email || !hasRequiredEmailDomain(email, requiredEmailDomain)) {
+      setAuthError(`Use an @${requiredEmailDomain} email.`);
       return;
     }
 
@@ -860,6 +869,7 @@ export default function App() {
     authEmail,
     finishSignIn,
     hasRequestedEmailCode,
+    requiredEmailDomain,
   ]);
 
   const syncFromBackend = useCallback(async () => {
@@ -960,6 +970,7 @@ export default function App() {
       subsystems.map((subsystem) => [subsystem.id, subsystem]),
     ) as Record<string, (typeof subsystems)[number]>;
   }, [subsystems]);
+  const taskSubsystemOptions = useMemo(() => buildSubsystemOptions(subsystems), [subsystems]);
 
   const disciplinesById = useMemo(() => {
     return Object.fromEntries(
@@ -2151,7 +2162,7 @@ export default function App() {
     setActiveTaskId(null);
     setTaskDraft(
       buildTaskDraft({
-        subsystemId: REQUIRED_TASK_SUBSYSTEM_OPTIONS[0]?.id ?? "",
+        subsystemId: taskSubsystemOptions[0]?.id ?? "",
         disciplineId:
           TASK_SUBTEAM_DISCIPLINE_IDS[activeTaskSubteam][0] ?? disciplines[0]?.id ?? "",
         ownerId: members[0]?.id ?? "",
@@ -3500,7 +3511,7 @@ export default function App() {
           <OptionChipRow
             allLabel="All subsystems"
             onChange={setTimelineSubsystemFilter}
-            options={REQUIRED_TASK_SUBSYSTEM_OPTIONS}
+            options={taskSubsystemOptions}
             value={timelineSubsystemFilter}
           />
           <OptionChipRow
@@ -3578,7 +3589,7 @@ export default function App() {
           <OptionChipRow
             allLabel="All subsystems"
             onChange={setTaskSubsystemFilter}
-            options={REQUIRED_TASK_SUBSYSTEM_OPTIONS}
+            options={taskSubsystemOptions}
             value={taskSubsystemFilter}
           />
 
@@ -4887,11 +4898,7 @@ export default function App() {
   const renderEditorModals = () => {
     const taskOptions = tasks.map((task) => ({ id: task.id, name: task.title }));
     const memberOptions = members.map((member) => ({ id: member.id, name: member.name }));
-    const subsystemOptions = subsystems.map((subsystem) => ({
-      id: subsystem.id,
-      name: subsystem.name,
-    }));
-    const taskSubsystemOptions = REQUIRED_TASK_SUBSYSTEM_OPTIONS;
+    const subsystemOptions = taskSubsystemOptions;
     const disciplineOptions = disciplines.map((discipline) => ({
       id: discipline.id,
       name: discipline.name,
