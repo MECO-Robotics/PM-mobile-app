@@ -133,6 +133,17 @@ import type {
   WorkLog,
 } from "./src/types/domain";
 import { appThemes, colors, type AppThemeName } from "./src/theme";
+import { AttendanceStatusMark } from "./src/screens/AttendanceStatusMark";
+import { AttendanceScreen } from "./src/screens/AttendanceScreen";
+import { HomeScreen } from "./src/screens/HomeScreen";
+import { InventoryScreen } from "./src/screens/InventoryScreen";
+import { ManufacturingScreen } from "./src/screens/ManufacturingScreen";
+import { ReportsScreen } from "./src/screens/ReportsScreen";
+import { RisksScreen } from "./src/screens/RisksScreen";
+import { RosterScreen } from "./src/screens/RosterScreen";
+import { SubsystemsScreen } from "./src/screens/SubsystemsScreen";
+import { TasksScreen } from "./src/screens/TasksScreen";
+import { WorkLogsScreen } from "./src/screens/WorkLogsScreen";
 
 const SWIPE_ACTIVATION_DISTANCE = 18;
 const SWIPE_COMMIT_DISTANCE = 52;
@@ -2921,1729 +2932,198 @@ export default function App() {
     closeEventReportEditor();
   };
 
-  const renderAttendanceStatusMark = (status: AttendanceStatus) => {
-    const color =
-      status === "yes"
-        ? "#166534"
-        : status === "maybe"
-          ? "#92400e"
-          : "#991b1b";
-    const label = status === "yes" ? "✓" : status === "maybe" ? "?" : "×";
-
-    return (
-      <View style={[styles.attendanceMark, { borderColor: color }]}>
-        <Text style={[styles.attendanceMarkLabel, { color }]}>{label}</Text>
-      </View>
-    );
+  const screenProps = {
+    activeTaskSubteam,
+    activeTaskSubteamLabel,
+    appResponsiveStyles,
+    attendancePreview,
+    attendanceSummary,
+    canMentorApprove,
+    clearTaskBlockers,
+    disciplinesById,
+    editTagStyle,
+    eventOptions,
+    eventReports,
+    events,
+    eventsById,
+    filteredManufacturing,
+    filteredMaterialRollups,
+    filteredMilestones,
+    filteredPartDefinitions,
+    filteredPartInstances,
+    filteredPurchases,
+    filteredSubsystems,
+    filteredTaskQueue,
+    filteredWorkLogs,
+    homeInventoryNeeds,
+    homePriorityTasks,
+    homeTaskSummary,
+    inventoryView,
+    isCompactLayout,
+    isLandscapeCardLayout,
+    isLandscapeTimelineLayout,
+    isSyncing,
+    manufacturingArchiveFilter,
+    manufacturingMaterialFilter,
+    manufacturingMaterialOptions,
+    manufacturingRequesterFilter,
+    manufacturingSearch,
+    manufacturingStatusFilter,
+    manufacturingSubsystemFilter,
+    manufacturingSummary,
+    manufacturingView,
+    materialsCategoryFilter,
+    materialsSearch,
+    materialsStockFilter,
+    mechanisms,
+    mechanismsById,
+    meetingAttendance,
+    members,
+    membersById,
+    milestoneSearch,
+    milestoneSortField,
+    milestoneSortOrder,
+    milestoneSummary,
+    milestoneTypeFilter,
+    openCreateEventReportEditor,
+    openCreateManufacturingEditor,
+    openCreateMemberEditor,
+    openCreateMilestoneEditor,
+    openCreatePartDefinitionEditor,
+    openCreatePurchaseEditor,
+    openCreateQaReportEditor,
+    openCreateSubsystemEditor,
+    openCreateTaskEditor,
+    openCreateWorkLogEditor,
+    openEditManufacturingEditor,
+    openEditMemberEditor,
+    openEditMilestoneEditor,
+    openEditPartDefinitionEditor,
+    openEditPurchaseEditor,
+    openEditSubsystemEditor,
+    openEditTaskEditor,
+    openEditWorkLogEditor,
+    openInventoryPurchases,
+    openMaterialRestockEditor,
+    openTaskQueueFromTask,
+    partDefinitions,
+    partDefinitionsById,
+    partInstancesById,
+    partInstancesWithStatus,
+    partsSearch,
+    partsStatusFilter,
+    partsSubsystemFilter,
+    patchManufacturingItem,
+    purchaseApprovalFilter,
+    purchaseArchiveFilter,
+    purchaseRequesterFilter,
+    purchaseSearch,
+    purchaseStatusFilter,
+    purchaseSubsystemFilter,
+    purchaseVendorFilter,
+    purchaseVendorOptions,
+    qaReviews,
+    reportSummary,
+    riskRows,
+    riskSummary,
+    rosterAdmins,
+    rosterMentors,
+    rosterStudents,
+    selectedMemberId,
+    selectedSubsystem,
+    setActiveTab,
+    setActiveTaskSubteam,
+    setAttendanceStatusByMemberId,
+    setManufacturingArchiveFilter,
+    setManufacturingMaterialFilter,
+    setManufacturingRequesterFilter,
+    setManufacturingSearch,
+    setManufacturingStatusFilter,
+    setManufacturingSubsystemFilter,
+    setMaterialsCategoryFilter,
+    setMaterialsSearch,
+    setMaterialsStockFilter,
+    setMilestoneSearch,
+    setMilestoneSortField,
+    setMilestoneSortOrder,
+    setMilestoneTypeFilter,
+    setPartsSearch,
+    setPartsStatusFilter,
+    setPartsSubsystemFilter,
+    setPurchaseApprovalFilter,
+    setPurchaseArchiveFilter,
+    setPurchaseRequesterFilter,
+    setPurchaseSearch,
+    setPurchaseStatusFilter,
+    setPurchaseSubsystemFilter,
+    setPurchaseVendorFilter,
+    setSelectedMemberId,
+    setSelectedSubsystemId,
+    setSubsystemSearch,
+    setTaskArchiveFilter,
+    setTaskBlockerFilter,
+    setTaskOwnerFilter,
+    setTaskPriorityFilter,
+    setTaskSearch,
+    setTaskStatusFilter,
+    setTaskSubsystemFilter,
+    setTaskView,
+    setTimelineMilestoneFilter,
+    setTimelineSubsystemFilter,
+    setWorkLogSearch,
+    setWorkLogSortMode,
+    setWorkLogSubsystemFilter,
+    subsystemCountsById,
+    subsystemSearch,
+    subsystems,
+    subsystemsById,
+    syncFromBackend,
+    taskArchiveFilter,
+    taskBlockerFilter,
+    taskById,
+    taskOwnerFilter,
+    taskPriorityFilter,
+    taskSearch,
+    taskStatusFilter,
+    taskSubsystemFilter,
+    taskSummary,
+    taskView,
+    tasks,
+    themeColors,
+    timelineMilestoneFilter,
+    timelineSubsystemFilter,
+    timelineTasks,
+    workLogSearch,
+    workLogSortMode,
+    workLogSubsystemFilter,
+    workLogSummary,
   };
 
-  const renderHome = () => {
-    return (
-      <WorkspacePanel
-        title="Home"
-        subtitle="Priority tasks and workspace status for the next execution window."
-        actions={
-          <Pressable onPress={syncFromBackend} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>
-              {isSyncing ? "Refreshing" : "Refresh"}
-            </Text>
-          </Pressable>
-        }
-      >
-        <View style={styles.homeSection}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={openInventoryPurchases}
-            style={styles.homeSectionHeader}
-          >
-            <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>
-              Inventory to buy
-            </Text>
-            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-              Top {homeInventoryNeeds.length} purchase items still waiting.
-            </Text>
-          </Pressable>
-          {homeInventoryNeeds.map((item) => {
-            const requesterName = item.requestedById
-              ? (membersById[item.requestedById]?.name ?? "Unassigned")
-              : "Unassigned";
 
-            return (
-              <Pressable
-                key={item.id}
-                onPress={() => openEditPurchaseEditor(item)}
-                style={[styles.inventoryAlertRow, appResponsiveStyles.rowCard]}
-              >
-                <View style={styles.queueRowHeader}>
-                  <View style={styles.queueRowPrimaryText}>
-                    <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
-                      {item.title}
-                    </Text>
-                    <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                      {item.vendor} - Qty {item.quantity} - requester {requesterName}
-                    </Text>
-                  </View>
-                  <StatusPill label={item.status} value={item.status} />
-                </View>
-                <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-                  Estimated ${item.estimatedCost.toFixed(0)}
-                </Text>
-              </Pressable>
-            );
-          })}
-          {homeInventoryNeeds.length === 0 ? (
-            <EmptyState text="No purchase items need buying right now." />
-          ) : null}
-        </View>
-
-        <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
-          <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
-            Tasks for this meeting
-          </Text>
-          <SummaryRow chips={homeTaskSummary} />
-        </View>
-
-        {homePriorityTasks.map((task) => {
-          const subsystemName = subsystemsById[task.subsystemId]?.name ?? "Unknown";
-          const ownerName = task.ownerId
-            ? (membersById[task.ownerId]?.name ?? "Unassigned")
-            : "Unassigned";
-
-          return (
-            <Pressable
-              key={task.id}
-              onPress={() => openTaskQueueFromTask(task)}
-              style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
-            >
-              <View style={styles.queueRowHeader}>
-                <View style={styles.queueRowPrimaryText}>
-                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
-                    {task.title}
-                  </Text>
-                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                    {subsystemName} - {ownerName} - due {formatDate(task.dueDate)}
-                  </Text>
-                </View>
-                <StatusPill label={task.priority} value={task.priority} />
-              </View>
-              <Text numberOfLines={2} style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
-                {task.summary}
-              </Text>
-              <View style={styles.queuePillRow}>
-                <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
-                {task.blockers.length > 0 ? (
-                  <StatusPill label="Blocked" value="critical" />
-                ) : null}
-              </View>
-            </Pressable>
-          );
-        })}
-
-        {homePriorityTasks.length === 0 ? (
-          <EmptyState text="No open tasks need attention right now." />
-        ) : null}
-
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setActiveTab("attendance")}
-          style={styles.homeSection}
-        >
-          <View style={styles.homeSectionHeader}>
-            <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>
-              Meeting attendance
-            </Text>
-            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-              Top {attendancePreview.length} coming to the meeting - tap for everyone.
-            </Text>
-          </View>
-          {attendancePreview.map(({ member, status }) => (
-            <View
-              key={member.id}
-              style={[styles.attendanceRow, appResponsiveStyles.rowCard]}
-            >
-              <View style={styles.queueRowPrimaryText}>
-                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
-                  {member.name}
-                </Text>
-                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                  {capitalize(member.role)}
-                </Text>
-              </View>
-              {renderAttendanceStatusMark(status)}
-            </View>
-          ))}
-          {attendancePreview.length === 0 ? (
-            <EmptyState text="No one is marked as coming yet." />
-          ) : null}
-        </Pressable>
-      </WorkspacePanel>
-    );
-  };
-
-  const renderAttendance = () => {
-    return (
-      <WorkspacePanel
-        title="Attendance"
-        subtitle={`${members.length} people loaded from the workspace server.`}
-        actions={
-          <Pressable onPress={syncFromBackend} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>
-              {isSyncing ? "Refreshing" : "Refresh"}
-            </Text>
-          </Pressable>
-        }
-      >
-        <SummaryRow chips={attendanceSummary} />
-
-        <View style={styles.homeSection}>
-          <View style={styles.homeSectionHeader}>
-            <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>
-              People
-            </Text>
-            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-              Synced from the server and sorted alphabetically.
-            </Text>
-          </View>
-          {meetingAttendance.map(({ member, status }) => (
-            <View
-              key={member.id}
-              style={[styles.attendanceRow, appResponsiveStyles.rowCard]}
-            >
-              <View style={[styles.memberAvatar, appResponsiveStyles.memberAvatar]}>
-                <Text style={[styles.memberAvatarLabel, { color: themeColors.navyInk }]}>
-                  {member.name.slice(0, 1).toUpperCase()}
-                </Text>
-              </View>
-              <View style={styles.queueRowPrimaryText}>
-                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
-                  {member.name}
-                </Text>
-                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                  {capitalize(member.role)}
-                  {member.email ? ` - ${member.email}` : ""}
-                </Text>
-              </View>
-              <View style={styles.attendanceStatusControls}>
-                {ATTENDANCE_STATUS_OPTIONS.map((option) => {
-                  const isSelected = status === option.status;
-
-                  return (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: isSelected }}
-                      key={option.status}
-                      onPress={() =>
-                        setAttendanceStatusByMemberId((current) => ({
-                          ...current,
-                          [member.id]: option.status,
-                        }))
-                      }
-                      style={[
-                        styles.attendanceStatusButton,
-                        isSelected && styles.attendanceStatusButtonActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.attendanceStatusButtonLabel,
-                          isSelected && styles.attendanceStatusButtonLabelActive,
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          ))}
-          {meetingAttendance.length === 0 ? (
-            <EmptyState text="No people were returned by the server." />
-          ) : null}
-        </View>
-      </WorkspacePanel>
-    );
-  };
-
-  const renderTaskTimeline = () => {
-    return (
-      <WorkspacePanel
-        title={`${activeTaskSubteamLabel} timeline`}
-        subtitle="Calendar-ordered milestones and ownership cues for the selected subteam."
-        actions={
-          <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add task</Text>
-          </Pressable>
-        }
-      >
-        <FilterToolbar>
-          <OptionChipRow
-            allLabel="All subsystems"
-            onChange={setTimelineSubsystemFilter}
-            options={subsystems.map((subsystem) => ({
-              id: subsystem.id,
-              name: subsystem.name,
-            }))}
-            value={timelineSubsystemFilter}
-          />
-          <OptionChipRow
-            allLabel="All milestones"
-            onChange={setTimelineMilestoneFilter}
-            options={eventOptions}
-            value={timelineMilestoneFilter}
-          />
-          <OptionChipRow
-            allLabel="Any archive"
-            onChange={(value) => setTaskArchiveFilter(value as ArchiveFilterMode)}
-            options={ARCHIVE_FILTER_OPTIONS}
-            value={taskArchiveFilter}
-          />
-        </FilterToolbar>
-        <SummaryRow chips={taskSummary} />
-
-        {timelineTasks.map((task) => {
-          const progress = timelineProgress(task.status);
-          const subsystemName = subsystemsById[task.subsystemId]?.name ?? "Unknown";
-          const ownerName = task.ownerId
-            ? (membersById[task.ownerId]?.name ?? "Unassigned")
-            : "Unassigned";
-          const targetEvent = task.targetEventId ? eventsById[task.targetEventId]?.title : null;
-
-          return (
-            <Pressable
-              key={task.id}
-              onPress={() => openEditTaskEditor(task)}
-              style={[styles.timelineRow, appResponsiveStyles.rowCard]}
-            >
-              <View style={styles.timelineRowHeader}>
-                <View style={styles.timelineRowText}>
-                  <Text style={[styles.timelineTitle, appResponsiveStyles.rowTitle]}>{task.title}</Text>
-                  <Text style={[styles.timelineMeta, appResponsiveStyles.metaLine]}>
-                    {subsystemName} - {ownerName} - due {formatDate(task.dueDate)}
-                    {targetEvent ? ` - ${targetEvent}` : ""}
-                  </Text>
-                </View>
-                <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
-              </View>
-
-              <View style={styles.timelineTrack}>
-                <View style={[styles.timelineFill, { width: `${Math.max(8, progress * 100)}%` }]} />
-              </View>
-            </Pressable>
-          );
-        })}
-
-        {timelineTasks.length === 0 ? <EmptyState text="No timeline tasks match the current filters." /> : null}
-
-        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.timeline} />
-      </WorkspacePanel>
-    );
-  };
-
-  const renderTaskQueue = () => {
-    return (
-      <WorkspacePanel
-        title={`${activeTaskSubteamLabel} task queue`}
-        subtitle="Search and filter queue cards for the selected subteam's work."
-        actions={
-          <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
-          </Pressable>
-        }
-      >
-        <FilterToolbar>
-          <SearchField
-            onChangeText={setTaskSearch}
-            placeholder="Search tasks"
-            value={taskSearch}
-          />
-
-          <OptionChipRow
-            allLabel="All subsystems"
-            onChange={setTaskSubsystemFilter}
-            options={subsystems.map((subsystem) => ({
-              id: subsystem.id,
-              name: subsystem.name,
-            }))}
-            value={taskSubsystemFilter}
-          />
-
-          <OptionChipRow
-            allLabel="All owners"
-            onChange={setTaskOwnerFilter}
-            options={members.map((member) => ({
-              id: member.id,
-              name: member.name,
-            }))}
-            value={taskOwnerFilter}
-          />
-
-          <OptionChipRow
-            allLabel="All statuses"
-            onChange={setTaskStatusFilter}
-            options={TASK_STATUS_OPTIONS}
-            value={taskStatusFilter}
-          />
-
-          <OptionChipRow
-            allLabel="All priorities"
-            onChange={setTaskPriorityFilter}
-            options={TASK_PRIORITY_OPTIONS}
-            value={taskPriorityFilter}
-          />
-
-          <OptionChipRow
-            allLabel="All blockers"
-            onChange={(value) => setTaskBlockerFilter(value as BlockerFilterMode)}
-            options={BLOCKER_FILTER_OPTIONS}
-            value={taskBlockerFilter}
-          />
-
-          <OptionChipRow
-            allLabel="Any archive"
-            onChange={(value) => setTaskArchiveFilter(value as ArchiveFilterMode)}
-            options={ARCHIVE_FILTER_OPTIONS}
-            value={taskArchiveFilter}
-          />
-        </FilterToolbar>
-
-        <SummaryRow chips={taskSummary} />
-
-        {!isCompactLayout ? (
-          <View style={styles.tableHeaderRow}>
-            <Text
-              style={[
-                styles.tableHeaderText,
-                styles.tableHeaderPrimary,
-                appResponsiveStyles.tableHeaderText,
-              ]}
-            >
-              Task
-            </Text>
-            <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>Owner</Text>
-            <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>Due</Text>
-            <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>Status</Text>
-          </View>
-        ) : null}
-
-        {filteredTaskQueue.map((task) => {
-          const subsystemName = subsystemsById[task.subsystemId]?.name ?? "Unknown";
-          const ownerName = task.ownerId
-            ? (membersById[task.ownerId]?.name ?? "Unassigned")
-            : "Unassigned";
-          const disciplineName = disciplinesById[task.disciplineId]?.name ?? "Unknown discipline";
-          const mechanismName = task.mechanismId
-            ? (mechanismsById[task.mechanismId]?.name ?? "Unknown mechanism")
-            : "No mechanism";
-          const linkedPart = task.partInstanceId
-            ? (partInstancesById[task.partInstanceId]?.name ?? "Unknown part")
-            : "No part";
-          const targetEvent = task.targetEventId
-            ? (eventsById[task.targetEventId]?.title ?? "Event")
-            : "No event";
-
-          return (
-            <Pressable
-              key={task.id}
-              onPress={() => openEditTaskEditor(task)}
-              style={[
-                styles.queueRowCard,
-                appResponsiveStyles.rowCard,
-                isLandscapeCardLayout && styles.queueRowCardLandscape,
-              ]}
-            >
-              <View style={isLandscapeCardLayout && styles.taskCardLandscapeContent}>
-                <View style={isLandscapeCardLayout && styles.taskCardLandscapeMain}>
-                  <View style={styles.queueRowHeader}>
-                    <View style={styles.queueRowPrimaryText}>
-                      <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{task.title}</Text>
-                      <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                        {subsystemName} - {disciplineName}
-                      </Text>
-                    </View>
-                    <Text style={editTagStyle}>EDIT</Text>
-                  </View>
-
-                  <Text numberOfLines={isLandscapeCardLayout ? 3 : 2} style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{task.summary}</Text>
-
-                  <View style={styles.queuePillRow}>
-                    <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
-                    <StatusPill label={`${task.priority} priority`} value={task.priority} />
-                    {task.linkedManufacturingIds.length > 0 ? (
-                      <StatusPill label="Needs fabrication" value="waiting" />
-                    ) : null}
-                    {task.linkedPurchaseIds.length > 0 ? (
-                      <StatusPill label="Needs purchase" value="requested" />
-                    ) : null}
-                  </View>
-                </View>
-
-                <View style={isLandscapeCardLayout && styles.taskCardLandscapeAside}>
-                  <View style={styles.compactMetaGrid}>
-                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Owner {ownerName}</Text>
-                    </View>
-                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Due {formatDate(task.dueDate)}</Text>
-                    </View>
-                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Milestone {targetEvent}</Text>
-                    </View>
-                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Mechanism {mechanismName}</Text>
-                    </View>
-                    <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-                      <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Part {linkedPart}</Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-
-              {task.blockers.length > 0 ? (
-                <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
-                  <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>Blockers</Text>
-                  <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>{task.blockers.join(" | ")}</Text>
-                  <View style={styles.quickActionRow}>
-                    <Pressable
-                      onPress={() => clearTaskBlockers(task)}
-                      style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-                    >
-                      <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                        Clear blockers
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => openCreateQaReportEditor(task.id)}
-                      style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-                    >
-                      <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                        QA report
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : null}
-            </Pressable>
-          );
-        })}
-
-        {filteredTaskQueue.length === 0 ? <EmptyState text="No tasks match the current filters." /> : null}
-
-        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.queue} />
-      </WorkspacePanel>
-    );
-  };
-
-  const renderTaskMilestones = () => {
-    const milestoneTypeOptions = EVENT_TYPE_OPTIONS.map((option) => ({
-      id: option.id,
-      name: option.name,
-    }));
-
-    const getMilestoneSortIcon = (field: MilestoneSortField) => {
-      if (milestoneSortField !== field) {
-        return "";
-      }
-
-      return milestoneSortOrder === "asc" ? " ^" : " v";
-    };
-
-    const toggleMilestoneSort = (field: MilestoneSortField) => {
-      if (milestoneSortField === field) {
-        setMilestoneSortOrder((current) => (current === "asc" ? "desc" : "asc"));
-        return;
-      }
-
-      setMilestoneSortField(field);
-      setMilestoneSortOrder("asc");
-    };
-
-    return (
-      <WorkspacePanel
-        title="Milestones"
-        subtitle="Search, filter, and edit timeline events with subsystem context and linked task impact."
-        actions={
-          <Pressable onPress={openCreateMilestoneEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
-          </Pressable>
-        }
-      >
-        <FilterToolbar>
-          <SearchField
-            onChangeText={setMilestoneSearch}
-            placeholder="Search milestones"
-            value={milestoneSearch}
-          />
-
-          <OptionChipRow
-            allLabel="All types"
-            onChange={setMilestoneTypeFilter}
-            options={milestoneTypeOptions}
-            value={milestoneTypeFilter}
-          />
-
-        </FilterToolbar>
-
-        <SummaryRow chips={milestoneSummary} />
-
-        {!isCompactLayout ? (
-          <View style={styles.tableHeaderRow}>
-            <Pressable
-              onPress={() => toggleMilestoneSort("title")}
-              style={styles.tableHeaderButtonPrimary}
-            >
-              <Text
-                style={[
-                  styles.tableHeaderText,
-                  styles.tableHeaderPrimary,
-                  appResponsiveStyles.tableHeaderText,
-                ]}
-              >
-                Milestone{getMilestoneSortIcon("title")}
-              </Text>
-            </Pressable>
-            <Pressable onPress={() => toggleMilestoneSort("type")} style={styles.tableHeaderButton}>
-              <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>Type{getMilestoneSortIcon("type")}</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => toggleMilestoneSort("startDateTime")}
-              style={styles.tableHeaderButton}
-            >
-              <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>
-                Start{getMilestoneSortIcon("startDateTime")}
-              </Text>
-            </Pressable>
-            <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>End</Text>
-            <Text style={[styles.tableHeaderText, appResponsiveStyles.tableHeaderText]}>Subsystems</Text>
-          </View>
-        ) : null}
-
-        {filteredMilestones.map((milestone) => {
-          const eventStyle = EVENT_TYPE_STYLES[milestone.type];
-          const subsystemNames = milestone.relatedSubsystemIds
-            .map((subsystemId) => subsystemsById[subsystemId]?.name ?? "Unknown subsystem")
-            .join(", ");
-
-          return (
-            <Pressable
-              key={milestone.id}
-              onPress={() => openEditMilestoneEditor(milestone)}
-              style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
-            >
-              <View style={styles.queueRowHeader}>
-                <View style={styles.queueRowPrimaryText}>
-                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{milestone.title}</Text>
-                  <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-                    {milestone.description || "No description provided."}
-                  </Text>
-                </View>
-                <View
-                  style={{
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: eventStyle.borderColor,
-                    backgroundColor: eventStyle.chipBackground,
-                    paddingHorizontal: 8,
-                    paddingVertical: 4,
-                  }}
-                >
-                  <Text style={{ color: eventStyle.chipText, fontSize: 11, fontWeight: "700" }}>
-                    {eventStyle.label}
-                  </Text>
-                </View>
-              </View>
-
-              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-                Start {formatDateTime(milestone.startDateTime)} | End{" "}
-                {milestone.endDateTime ? formatDateTime(milestone.endDateTime) : "No end"}
-              </Text>
-              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-                Subsystems {subsystemNames || "All subsystems"} | {milestone.isExternal ? "External" : "Internal"}
-              </Text>
-              <View style={styles.quickActionRow}>
-                <Pressable
-                  onPress={() => openCreateEventReportEditor(milestone.id)}
-                  style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-                >
-                  <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                    Event report
-                  </Text>
-                </Pressable>
-              </View>
-            </Pressable>
-          );
-        })}
-
-        {filteredMilestones.length === 0 ? (
-          <EmptyState text="No milestones match the current filters." />
-        ) : null}
-
-        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.milestones} />
-      </WorkspacePanel>
-    );
-  };
-
-  const renderTasks = () => {
-    if (isLandscapeTimelineLayout) {
-      return (
-        <LandscapeSubsystemTimeline
-          colors={themeColors}
-          events={events}
-          membersById={membersById}
-          onAddTask={openCreateTaskEditor}
-          onTaskPress={openEditTaskEditor}
-          subsystems={subsystems}
-          tasks={timelineTasks}
-        />
-      );
-    }
-
-    return (
-      <>
-        <SectionTabs
-          activeValue={activeTaskSubteam}
-          onChange={setActiveTaskSubteam}
-          options={TASK_SUBTEAM_OPTIONS}
-        />
-        {taskView === "timeline"
-          ? renderTaskTimeline()
-          : taskView === "queue"
-            ? renderTaskQueue()
-            : renderTaskMilestones()}
-      </>
-    );
-  };
-
-  const renderWorkLogs = () => {
-    return (
-      <WorkspacePanel
-        title="Work logs"
-        subtitle="Search by task or notes, then verify hours, participants, and linked subsystem impact."
-        actions={
-          <Pressable onPress={openCreateWorkLogEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
-          </Pressable>
-        }
-      >
-        <FilterToolbar>
-          <SearchField
-            onChangeText={setWorkLogSearch}
-            placeholder="Search work logs"
-            value={workLogSearch}
-          />
-
-          <OptionChipRow
-            allLabel="All subsystems"
-            onChange={setWorkLogSubsystemFilter}
-            options={subsystems.map((subsystem) => ({
-              id: subsystem.id,
-              name: subsystem.name,
-            }))}
-            value={workLogSubsystemFilter}
-          />
-
-          <OptionChipRow
-            allLabel="Sort"
-            onChange={(value) => setWorkLogSortMode(value as WorkLogSortMode)}
-            options={WORKLOG_SORT_OPTIONS.map((option) => ({
-              id: option.id,
-              name: option.name,
-            }))}
-            value={workLogSortMode}
-          />
-        </FilterToolbar>
-
-        <SummaryRow chips={workLogSummary} />
-
-        {filteredWorkLogs.map((workLog) => {
-          const task = taskById[workLog.taskId];
-          const subsystemName = task ? (subsystemsById[task.subsystemId]?.name ?? "Unknown") : "Unknown";
-          const people = workLog.participantIds
-            .map((participantId) => membersById[participantId]?.name)
-            .filter((name): name is string => Boolean(name));
-
-          return (
-            <Pressable
-              key={workLog.id}
-              onPress={() => openEditWorkLogEditor(workLog)}
-              style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
-            >
-              <View style={styles.queueRowHeader}>
-                <View style={styles.queueRowPrimaryText}>
-                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{formatDate(workLog.date)}</Text>
-                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>{workLog.hours.toFixed(1)}h logged</Text>
-                </View>
-                <Text style={editTagStyle}>OPEN</Text>
-              </View>
-
-              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>Task: {task?.title ?? "Missing task"}</Text>
-              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>Subsystem: {subsystemName}</Text>
-              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>People: {people.join(", ") || "Unassigned"}</Text>
-              <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{workLog.notes || "No notes recorded."}</Text>
-            </Pressable>
-          );
-        })}
-
-        {filteredWorkLogs.length === 0 ? <EmptyState text="No work logs match the current filters." /> : null}
-
-        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.worklogs} />
-      </WorkspacePanel>
-    );
-  };
-
-  const renderManufacturing = () => {
-    const title =
-      manufacturingView === "cnc"
-        ? "CNC"
-        : manufacturingView === "prints"
-          ? "3D print queue"
-          : "Fabrication queue";
-
-    const guidanceKey =
-      manufacturingView === "cnc"
-        ? "cnc"
-        : manufacturingView === "prints"
-          ? "prints"
-          : "fabrication";
-
-    return (
-      <>
-        <WorkspacePanel
-          title={title}
-          subtitle="Unified manufacturing rows for part, material, quantity, due date, status, and mentor review."
-          actions={
-            <Pressable onPress={openCreateManufacturingEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-              <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
-            </Pressable>
-          }
-        >
-          <FilterToolbar>
-            <SearchField
-              onChangeText={setManufacturingSearch}
-              placeholder="Search queue"
-              value={manufacturingSearch}
-            />
-
-            <OptionChipRow
-              allLabel="All subsystems"
-              onChange={setManufacturingSubsystemFilter}
-              options={subsystems.map((subsystem) => ({
-                id: subsystem.id,
-                name: subsystem.name,
-              }))}
-              value={manufacturingSubsystemFilter}
-            />
-
-            <OptionChipRow
-              allLabel="All requesters"
-              onChange={setManufacturingRequesterFilter}
-              options={members.map((member) => ({
-                id: member.id,
-                name: member.name,
-              }))}
-              value={manufacturingRequesterFilter}
-            />
-
-            <OptionChipRow
-              allLabel="All materials"
-              onChange={setManufacturingMaterialFilter}
-              options={manufacturingMaterialOptions}
-              value={manufacturingMaterialFilter}
-            />
-
-            <OptionChipRow
-              allLabel="All statuses"
-              onChange={setManufacturingStatusFilter}
-              options={MANUFACTURING_STATUS_OPTIONS}
-              value={manufacturingStatusFilter}
-            />
-
-            <OptionChipRow
-              allLabel="Any archive"
-              onChange={(value) => setManufacturingArchiveFilter(value as ArchiveFilterMode)}
-              options={ARCHIVE_FILTER_OPTIONS}
-              value={manufacturingArchiveFilter}
-            />
-          </FilterToolbar>
-
-          <SummaryRow chips={manufacturingSummary} />
-
-          {filteredManufacturing.map((item) => {
-            const subsystemName = subsystemsById[item.subsystemId]?.name ?? "Unknown";
-            const requesterName = item.requestedById
-              ? (membersById[item.requestedById]?.name ?? "Unassigned")
-              : "Unassigned";
-            const canApproveItem = canMentorApprove && !item.mentorReviewed;
-            const canStartItem =
-              item.mentorReviewed &&
-              (item.status === "requested" || item.status === "approved");
-            const canCompleteItem = item.status !== "complete";
-
-            return (
-              <Pressable
-                key={item.id}
-                onPress={() => openEditManufacturingEditor(item)}
-                style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
-              >
-                <View style={styles.queueRowHeader}>
-                  <View style={styles.queueRowPrimaryText}>
-                    <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{item.title}</Text>
-                    <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                      {subsystemName} - {requesterName}
-                    </Text>
-                  </View>
-                  <Text style={editTagStyle}>EDIT</Text>
-                </View>
-
-                <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-                  Material {item.material} | Qty {item.quantity} | Due {formatDate(item.dueDate)}
-                </Text>
-                <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-                  Batch {item.batchLabel ?? "Unbatched"} | Mentor {item.mentorReviewed ? "Reviewed" : "Pending"}
-                </Text>
-
-                <View style={styles.queuePillRow}>
-                  <StatusPill label={item.status.replace("-", " ")} value={item.status} />
-                  <StatusPill label={item.process === "3d-print" ? "3D print" : item.process} value="info" />
-                </View>
-
-                <View style={styles.quickActionRow}>
-                  {canApproveItem ? (
-                    <Pressable
-                      onPress={() =>
-                        patchManufacturingItem(item, {
-                          mentorReviewed: true,
-                          status: item.status === "requested" ? "approved" : item.status,
-                        })
-                      }
-                      style={[
-                        styles.quickActionButton,
-                        appResponsiveStyles.quickActionButton,
-                        styles.quickActionButtonPrimary,
-                      ]}
-                    >
-                      <Text style={styles.quickActionButtonPrimaryLabel}>Approve</Text>
-                    </Pressable>
-                  ) : null}
-
-                  {canStartItem ? (
-                    <Pressable
-                      onPress={() =>
-                        patchManufacturingItem(item, {
-                          status: item.status === "qa" ? "qa" : "in-progress",
-                        })
-                      }
-                      style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-                    >
-                      <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                        Start
-                      </Text>
-                    </Pressable>
-                  ) : null}
-
-                  {item.status === "in-progress" ? (
-                    <Pressable
-                      onPress={() => patchManufacturingItem(item, { status: "qa" })}
-                      style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-                    >
-                      <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                        QA
-                      </Text>
-                    </Pressable>
-                  ) : null}
-
-                  {canCompleteItem ? (
-                    <Pressable
-                      onPress={() =>
-                        patchManufacturingItem(item, {
-                          mentorReviewed: true,
-                          status: "complete",
-                        })
-                      }
-                      style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-                    >
-                      <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                        Complete
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-              </Pressable>
-            );
-          })}
-
-          {filteredManufacturing.length === 0 ? (
-            <EmptyState text="No manufacturing items match the current filters." />
-          ) : null}
-
-          <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE[guidanceKey]} />
-        </WorkspacePanel>
-      </>
-    );
-  };
-
-  const renderInventoryMaterials = () => {
-    return (
-      <WorkspacePanel
-        title="Materials manager"
-        subtitle="Rollup view for material demand, inferred on-hand stock, and reorder signals."
-        actions={
-          <Pressable onPress={openCreatePurchaseEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Restock</Text>
-          </Pressable>
-        }
-      >
-        <FilterToolbar>
-          <SearchField
-            onChangeText={setMaterialsSearch}
-            placeholder="Search materials"
-            value={materialsSearch}
-          />
-
-          <OptionChipRow
-            allLabel="All categories"
-            onChange={setMaterialsCategoryFilter}
-            options={MATERIAL_CATEGORY_OPTIONS}
-            value={materialsCategoryFilter}
-          />
-
-          <OptionChipRow
-            allLabel="All stock"
-            onChange={setMaterialsStockFilter}
-            options={[
-              { id: "ok", name: "Stock OK" },
-              { id: "low", name: "Low stock" },
-            ]}
-            value={materialsStockFilter}
-          />
-        </FilterToolbar>
-
-        {filteredMaterialRollups.map((row) => (
-          <View key={row.id} style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
-            <View style={styles.queueRowHeader}>
-              <View style={styles.queueRowPrimaryText}>
-                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{row.name}</Text>
-                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                  {capitalize(row.category)} - vendor {row.vendor}
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => openMaterialRestockEditor(row)}
-                style={[
-                  styles.quickActionButton,
-                  appResponsiveStyles.quickActionButton,
-                  styles.quickActionButtonPrimary,
-                ]}
-              >
-                <Text style={styles.quickActionButtonPrimaryLabel}>Restock</Text>
-              </Pressable>
-            </View>
-
-            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-              On hand {row.onHand} | Reorder {row.reorderPoint} | Open demand {row.openDemand}
-            </Text>
-
-            <View style={styles.queuePillRow}>
-              <StatusPill
-                label={row.stock === "low" ? "Low stock" : "Stock OK"}
-                value={row.stock === "low" ? "critical" : "complete"}
-              />
-            </View>
-          </View>
-        ))}
-
-        {filteredMaterialRollups.length === 0 ? (
-          <EmptyState text="No materials match the current filters." />
-        ) : null}
-
-        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.materials} />
-      </WorkspacePanel>
-    );
-  };
-
-  const renderInventoryParts = () => {
-    const partDefinitionStatsById = Object.fromEntries(
-      partDefinitions.map((partDefinition) => {
-        const matchingInstances = partInstancesWithStatus.filter(
-          ({ partInstance }) => partInstance.partDefinitionId === partDefinition.id,
-        );
-        const count = matchingInstances.reduce(
-          (sum, { partInstance }) => sum + partInstance.quantity,
-          0,
-        );
-        const spares = matchingInstances
-          .filter(({ status }) => status === "available")
-          .reduce((sum, { partInstance }) => sum + partInstance.quantity, 0);
-
-        return [partDefinition.id, { count, spares }];
-      }),
-    ) as Record<string, { count: number; spares: number }>;
-    const visibleInstanceCount = filteredPartInstances.reduce(
-      (sum, { partInstance }) => sum + partInstance.quantity,
-      0,
-    );
-    const visibleSpareCount = filteredPartInstances
-      .filter(({ status }) => status === "available")
-      .reduce((sum, { partInstance }) => sum + partInstance.quantity, 0);
-
-    return (
-      <WorkspacePanel
-        title="Part manager"
-        subtitle="Definition catalog on top with subsystem part instances and lifecycle state below."
-        actions={
-          <Pressable onPress={openCreatePartDefinitionEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
-          </Pressable>
-        }
-      >
-        <FilterToolbar>
-          <SearchField
-            onChangeText={setPartsSearch}
-            placeholder="Search parts"
-            value={partsSearch}
-          />
-
-          <OptionChipRow
-            allLabel="All subsystems"
-            onChange={setPartsSubsystemFilter}
-            options={subsystems.map((subsystem) => ({
-              id: subsystem.id,
-              name: subsystem.name,
-            }))}
-            value={partsSubsystemFilter}
-          />
-
-          <OptionChipRow
-            allLabel="All statuses"
-            onChange={setPartsStatusFilter}
-            options={PART_STATUS_OPTIONS}
-            value={partsStatusFilter}
-          />
-        </FilterToolbar>
-
-        <SummaryRow
-          chips={[
-            { label: "Definitions", value: String(filteredPartDefinitions.length) },
-            { label: "Instances", value: String(visibleInstanceCount) },
-            { label: "Spares", value: String(visibleSpareCount) },
-          ]}
-        />
-
-        <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>Part definitions</Text>
-        {filteredPartDefinitions.map((partDefinition) => {
-          const stats = partDefinitionStatsById[partDefinition.id] ?? {
-            count: 0,
-            spares: 0,
-          };
-
-          return (
-            <Pressable
-              key={partDefinition.id}
-              onPress={() => openEditPartDefinitionEditor(partDefinition.id)}
-              style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
-            >
-              <View style={styles.queueRowHeader}>
-                <View style={styles.queueRowPrimaryText}>
-                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{partDefinition.name}</Text>
-                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                    {partDefinition.partNumber} - rev {partDefinition.revision}
-                  </Text>
-                </View>
-                <Text style={editTagStyle}>EDIT</Text>
-              </View>
-
-              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-                Source {partDefinition.source} | Count {stats.count} | Spares {stats.spares}
-              </Text>
-            </Pressable>
-          );
-        })}
-
-        <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>Part instances</Text>
-        {filteredPartInstances.map(({ partInstance, status }) => {
-          const definition = partDefinitionsById[partInstance.partDefinitionId];
-          const mechanismName = partInstance.mechanismId
-            ? (mechanismsById[partInstance.mechanismId]?.name ?? "Unknown mechanism")
-            : "Unassigned";
-          const subsystemName = subsystemsById[partInstance.subsystemId]?.name ?? "Unknown";
-
-          return (
-            <View key={partInstance.id} style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
-              <View style={styles.queueRowHeader}>
-                <View style={styles.queueRowPrimaryText}>
-                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{partInstance.name}</Text>
-                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                    {definition?.name ?? "Unknown definition"} - {subsystemName}
-                  </Text>
-                </View>
-                <StatusPill label={status} value={status} />
-              </View>
-
-              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-                Mechanism {mechanismName} | Qty {partInstance.quantity}
-              </Text>
-              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-                Tracking {partInstance.trackIndividually ? "Individual" : "Bulk"}
-              </Text>
-            </View>
-          );
-        })}
-
-        {filteredPartDefinitions.length === 0 && filteredPartInstances.length === 0 ? (
-          <EmptyState text="No parts match the current filters." />
-        ) : null}
-
-        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.parts} />
-      </WorkspacePanel>
-    );
-  };
-
-  const renderInventoryPurchases = () => {
-    return (
-      <WorkspacePanel
-        title="Purchase list"
-        subtitle="Review request status, vendor, mentor approval, and cost deltas in one queue."
-        actions={
-          <Pressable onPress={openCreatePurchaseEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
-          </Pressable>
-        }
-      >
-        <FilterToolbar>
-          <SearchField
-            onChangeText={setPurchaseSearch}
-            placeholder="Search purchases"
-            value={purchaseSearch}
-          />
-
-          <OptionChipRow
-            allLabel="All subsystems"
-            onChange={setPurchaseSubsystemFilter}
-            options={subsystems.map((subsystem) => ({
-              id: subsystem.id,
-              name: subsystem.name,
-            }))}
-            value={purchaseSubsystemFilter}
-          />
-
-          <OptionChipRow
-            allLabel="All requesters"
-            onChange={setPurchaseRequesterFilter}
-            options={members.map((member) => ({
-              id: member.id,
-              name: member.name,
-            }))}
-            value={purchaseRequesterFilter}
-          />
-
-          <OptionChipRow
-            allLabel="All statuses"
-            onChange={setPurchaseStatusFilter}
-            options={PURCHASE_STATUS_OPTIONS}
-            value={purchaseStatusFilter}
-          />
-
-          <OptionChipRow
-            allLabel="All vendors"
-            onChange={setPurchaseVendorFilter}
-            options={purchaseVendorOptions}
-            value={purchaseVendorFilter}
-          />
-
-          <OptionChipRow
-            allLabel="All approvals"
-            onChange={setPurchaseApprovalFilter}
-            options={PURCHASE_APPROVAL_OPTIONS}
-            value={purchaseApprovalFilter}
-          />
-
-          <OptionChipRow
-            allLabel="Any archive"
-            onChange={(value) => setPurchaseArchiveFilter(value as ArchiveFilterMode)}
-            options={ARCHIVE_FILTER_OPTIONS}
-            value={purchaseArchiveFilter}
-          />
-        </FilterToolbar>
-
-        {filteredPurchases.map((item) => {
-          const subsystemName = subsystemsById[item.subsystemId]?.name ?? "Unknown";
-          const requesterName = item.requestedById
-            ? (membersById[item.requestedById]?.name ?? "Unassigned")
-            : "Unassigned";
-
-          return (
-            <Pressable
-              key={item.id}
-              onPress={() => openEditPurchaseEditor(item)}
-              style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
-            >
-              <View style={styles.queueRowHeader}>
-                <View style={styles.queueRowPrimaryText}>
-                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{item.title}</Text>
-                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                    {subsystemName} - requester {requesterName}
-                  </Text>
-                </View>
-                <Text style={editTagStyle}>EDIT</Text>
-              </View>
-
-              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-                Vendor {item.vendor} | Qty {item.quantity}
-              </Text>
-              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-                Est ${item.estimatedCost.toFixed(0)} | Final {item.finalCost ? `$${item.finalCost.toFixed(0)}` : "pending"}
-              </Text>
-
-              <View style={styles.queuePillRow}>
-                <StatusPill label={item.status} value={item.status} />
-                <StatusPill
-                  label={item.approvedByMentor ? "Mentor approved" : "Mentor waiting"}
-                  value={item.approvedByMentor ? "approved" : "waiting"}
-                />
-              </View>
-            </Pressable>
-          );
-        })}
-
-        {filteredPurchases.length === 0 ? (
-          <EmptyState text="No purchase items match the current filters." />
-        ) : null}
-
-        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.purchases} />
-      </WorkspacePanel>
-    );
-  };
-
-  const renderInventory = () => {
-    return (
-      <>
-        {inventoryView === "materials"
-          ? renderInventoryMaterials()
-          : inventoryView === "parts"
-            ? renderInventoryParts()
-            : renderInventoryPurchases()}
-      </>
-    );
-  };
-
-  const renderSubsystems = () => {
-    const visibleMechanismCount = mechanisms.filter((mechanism) => {
-      return filteredSubsystems.some((subsystem) => subsystem.id === mechanism.subsystemId);
-    }).length;
-
-    return (
-      <WorkspacePanel
-        title="Subsystem manager"
-        subtitle="Review ownership, risk, and mechanism coverage with expandable subsystem cards."
-        actions={
-          <Pressable onPress={openCreateSubsystemEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add subsystem</Text>
-          </Pressable>
-        }
-      >
-        <FilterToolbar>
-          <SearchField
-            onChangeText={setSubsystemSearch}
-            placeholder="Search subsystems"
-            value={subsystemSearch}
-          />
-        </FilterToolbar>
-
-        <SummaryRow
-          chips={[
-            { label: "Visible subsystems", value: String(filteredSubsystems.length) },
-            { label: "Visible mechanisms", value: String(visibleMechanismCount) },
-          ]}
-        />
-
-        {filteredSubsystems.map((subsystem) => {
-          const counts = subsystemCountsById[subsystem.id];
-          const isSelected = selectedSubsystem?.id === subsystem.id;
-          const mentorNames = subsystem.mentorIds
-            .map((mentorId) => membersById[mentorId]?.name ?? "Unknown")
-            .join(", ");
-          const subsystemMechanisms = mechanisms.filter(
-            (mechanism) => mechanism.subsystemId === subsystem.id,
-          );
-
-          return (
-            <View key={subsystem.id} style={[styles.subsystemCard, appResponsiveStyles.rowCard]}>
-              <Pressable
-                onPress={() => {
-                  setSelectedSubsystemId((current) =>
-                    current === subsystem.id ? "" : subsystem.id,
-                  );
-                }}
-                onLongPress={() => openEditSubsystemEditor(subsystem)}
-                style={styles.subsystemCardHeader}
-              >
-                <View style={styles.queueRowPrimaryText}>
-                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{subsystem.name}</Text>
-                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                    Lead{" "}
-                    {subsystem.responsibleEngineerId
-                      ? (membersById[subsystem.responsibleEngineerId]?.name ?? "Unassigned")
-                      : "Unassigned"}{" "}
-                    - Mentors {mentorNames || "None"}
-                  </Text>
-                </View>
-                <Text style={editTagStyle}>{isSelected ? "HIDE" : "OPEN"}</Text>
-              </Pressable>
-
-              <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{subsystem.description}</Text>
-              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-                Mechanisms {counts.mechanisms} | Open tasks {counts.openTasks}/{counts.tasks} | Risks {counts.risks}
-              </Text>
-
-              {subsystem.risks.length > 0 ? (
-                <View style={styles.queuePillRow}>
-                  {subsystem.risks.map((risk) => (
-                    <StatusPill key={risk} label={risk} value="warning" />
-                  ))}
-                </View>
-              ) : null}
-
-              {isSelected ? (
-                <View style={styles.subsystemExpansion}>
-                  {subsystemMechanisms.map((mechanism) => (
-                    <View key={mechanism.id} style={[styles.mechanismCard, appResponsiveStyles.rowCard]}>
-                      <View style={styles.queueRowHeader}>
-                        <View style={styles.queueRowPrimaryText}>
-                          <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{mechanism.name}</Text>
-                          <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{mechanism.description}</Text>
-                        </View>
-                        <Text style={editTagStyle}>EDIT</Text>
-                      </View>
-                    </View>
-                  ))}
-
-                  {subsystemMechanisms.length === 0 ? (
-                    <Text style={styles.emptyStateText}>No mechanisms yet.</Text>
-                  ) : null}
-                </View>
-              ) : null}
-            </View>
-          );
-        })}
-
-        {filteredSubsystems.length === 0 ? (
-          <EmptyState text="No subsystems match the current search." />
-        ) : null}
-
-        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.subsystems} />
-      </WorkspacePanel>
-    );
-  };
-
-  const renderRosterSection = (
-    title: string,
-    memberList: (typeof members)[number][],
-  ) => {
-    return (
-      <View style={[styles.rosterSection, appResponsiveStyles.rosterSection]}>
-        <View style={styles.rosterSectionHeader}>
-          <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>{title}</Text>
-          <View style={[styles.sidebarCountPill, appResponsiveStyles.navCount]}>
-            <Text style={[styles.sidebarCountLabel, { color: themeColors.ink }]}>{memberList.length}</Text>
-          </View>
-        </View>
-
-        {memberList.map((member) => {
-          const isSelected = selectedMemberId === member.id;
-
-          return (
-            <Pressable
-              key={member.id}
-              onPress={() => setSelectedMemberId(member.id)}
-              onLongPress={() => openEditMemberEditor(member.id)}
-              style={[
-                styles.memberRow,
-                appResponsiveStyles.memberRow,
-                isSelected && [styles.memberRowSelected, appResponsiveStyles.memberRowSelected],
-              ]}
-            >
-              <View style={[styles.memberAvatar, appResponsiveStyles.memberAvatar]}>
-                <Text style={[styles.memberAvatarLabel, { color: themeColors.navyInk }]}>{member.name.slice(0, 1).toUpperCase()}</Text>
-              </View>
-              <View style={styles.memberCopy}>
-                <Text style={[styles.memberName, { color: themeColors.ink }]}>{member.name}</Text>
-                <Text style={[styles.memberRole, { color: themeColors.subtleText }]}>{capitalize(member.role)}</Text>
-              </View>
-              <Pressable onPress={() => openEditMemberEditor(member.id)} style={styles.editTagButton}>
-                <Text style={editTagStyle}>EDIT</Text>
-              </Pressable>
-            </Pressable>
-          );
-        })}
-      </View>
-    );
-  };
-
-  const renderRoster = () => {
-    return (
-      <WorkspacePanel
-        title="Roster"
-        subtitle="Role-grouped people lists with quick selection for ownership and mentorship updates."
-        actions={
-          <Pressable onPress={openCreateMemberEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add person</Text>
-          </Pressable>
-        }
-      >
-        <SummaryRow
-          chips={[
-            { label: "Students", value: String(rosterStudents.length) },
-            { label: "Mentors", value: String(rosterMentors.length) },
-            { label: "Admins", value: String(rosterAdmins.length) },
-          ]}
-        />
-
-        {renderRosterSection("Students", rosterStudents)}
-        {renderRosterSection("Mentors", rosterMentors)}
-        {renderRosterSection("Admins", rosterAdmins)}
-
-        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.roster} />
-      </WorkspacePanel>
-    );
-  };
-
-  const renderReports = () => {
-    return (
-      <WorkspacePanel
-        title="QA and event reports"
-        subtitle="Capture task QA outcomes, event findings, and iteration-worthy follow-up in one place."
-        actions={
-          <View style={styles.quickActionRow}>
-            <Pressable onPress={() => openCreateQaReportEditor()} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-              <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>QA</Text>
-            </Pressable>
-            <Pressable onPress={() => openCreateEventReportEditor()} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-              <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Event</Text>
-            </Pressable>
-          </View>
-        }
-      >
-        <SummaryRow chips={reportSummary} />
-
-        <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>QA reports</Text>
-        <View style={styles.reportGrid}>
-          {qaReviews.map((review) => {
-            const people = review.participantIds
-              .map((participantId) => membersById[participantId]?.name)
-              .filter((name): name is string => Boolean(name))
-              .join(", ");
-
-            return (
-              <View key={review.id} style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
-                <View style={styles.queueRowHeader}>
-                  <View style={styles.queueRowPrimaryText}>
-                    <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{review.subjectTitle}</Text>
-                    <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                      {people || "No participants"} - mentor {review.mentorApproved ? "approved" : "pending"}
-                    </Text>
-                  </View>
-                  <StatusPill label={review.result.replace("-", " ")} value={review.result} />
-                </View>
-                <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{review.notes}</Text>
-                {review.result === "iteration-worthy" ? (
-                  <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
-                    <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>Iteration</Text>
-                    <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
-                      This finding should create or anchor a design iteration.
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            );
-          })}
-        </View>
-
-        <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>Event reports</Text>
-        {eventReports.map((report, index) => {
-          const event = eventsById[report.eventId];
-
-          return (
-            <View key={`${report.eventId}-${index}`} style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
-              <View style={styles.queueRowHeader}>
-                <View style={styles.queueRowPrimaryText}>
-                  <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{event?.title ?? "Event report"}</Text>
-                  <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                    Follow-up {report.followUpTaskTitle || "none"}
-                  </Text>
-                </View>
-                <StatusPill label="Report" value="info" />
-              </View>
-              <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{report.summary}</Text>
-              {report.findingText ? (
-                <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>Finding {report.findingText}</Text>
-              ) : null}
-            </View>
-          );
-        })}
-
-        {eventReports.length === 0 ? <EmptyState text="No event reports have been added yet." /> : null}
-        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.reports} />
-      </WorkspacePanel>
-    );
-  };
-
-  const renderRisks = () => {
-    const renderRiskCard = (risk: (typeof riskRows)[number]) => {
-      const subsystemName = risk.subsystemId
-        ? (subsystemsById[risk.subsystemId]?.name ?? "Unknown subsystem")
-        : "Cross-system";
-      const priorityLabel = capitalize(risk.priority);
-
-      return (
-        <View
-          key={risk.id}
-          style={[
-            styles.queueRowCard,
-            appResponsiveStyles.rowCard,
-            isLandscapeCardLayout && styles.riskLandscapeItem,
-            risk.priority === "high"
-              ? styles.riskSeverityHigh
-              : risk.priority === "medium"
-                ? styles.riskSeverityMedium
-                : styles.riskSeverityLow,
-          ]}
-        >
-          <View style={styles.queueRowHeader}>
-            <View style={styles.queueRowPrimaryText}>
-              <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{risk.title}</Text>
-              <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                {risk.source} - {subsystemName}
-              </Text>
-            </View>
-            <StatusPill
-              label={priorityLabel}
-              value={
-                risk.priority === "high"
-                  ? "critical"
-                  : risk.priority === "medium"
-                    ? "high"
-                    : "low"
-              }
-            />
-          </View>
-          <Text
-            numberOfLines={isLandscapeCardLayout ? 4 : undefined}
-            style={[styles.queueRowBody, appResponsiveStyles.rowBody]}
-          >
-            {risk.detail}
-          </Text>
-        </View>
-      );
-    };
-
-    const riskPriorityColumns = RISK_PRIORITY_COLUMNS.map((column) => ({
-      ...column,
-      risks: riskRows.filter((risk) => risk.priority === column.priority),
-    }));
-
-    return (
-      <WorkspacePanel
-        title="Risk management"
-        subtitle="Open blockers, subsystem risks, and iteration-worthy QA findings grouped into one risk register."
-      >
-        <SummaryRow chips={riskSummary} />
-
-        {isLandscapeCardLayout ? (
-          <View style={styles.riskLandscapeBoard}>
-            {riskPriorityColumns.map((column) => (
-              <View
-                key={column.priority}
-                style={[
-                  styles.riskLandscapeColumn,
-                  {
-                    backgroundColor: themeColors.canvas,
-                    borderColor: themeColors.border,
-                  },
-                ]}
-              >
-                <View style={styles.riskLandscapeColumnHeader}>
-                  <View
-                    style={[
-                      styles.riskPriorityBadge,
-                      column.priority === "high"
-                        ? styles.riskPriorityBadgeHigh
-                        : column.priority === "medium"
-                          ? styles.riskPriorityBadgeMedium
-                          : styles.riskPriorityBadgeLow,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.riskPriorityBadgeText,
-                        column.priority === "high"
-                          ? styles.riskPriorityBadgeTextHigh
-                          : column.priority === "medium"
-                            ? styles.riskPriorityBadgeTextMedium
-                            : styles.riskPriorityBadgeTextLow,
-                      ]}
-                    >
-                      {column.label}
-                    </Text>
-                  </View>
-                  <View style={[styles.riskColumnCount, { backgroundColor: themeColors.surface }]}>
-                    <Text style={[styles.riskColumnCountText, { color: themeColors.navyInk }]}>
-                      {column.risks.length}
-                    </Text>
-                  </View>
-                </View>
-
-                {column.risks.map(renderRiskCard)}
-              </View>
-            ))}
-          </View>
-        ) : (
-          riskRows.map(renderRiskCard)
-        )}
-
-        {riskRows.length === 0 ? <EmptyState text="No active risks are currently visible." /> : null}
-        <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.risks} />
-      </WorkspacePanel>
-    );
-  };
 
   const renderActiveTab = () => {
-    if (activeTab === "home") {
-      return renderHome();
+    switch (activeTab) {
+      case "home":
+        return <HomeScreen {...screenProps} />;
+      case "attendance":
+        return <AttendanceScreen {...screenProps} />;
+      case "tasks":
+        return <TasksScreen {...screenProps} />;
+      case "worklogs":
+        return <WorkLogsScreen {...screenProps} />;
+      case "manufacturing":
+        return <ManufacturingScreen {...screenProps} />;
+      case "inventory":
+        return <InventoryScreen {...screenProps} />;
+      case "subsystems":
+        return <SubsystemsScreen {...screenProps} />;
+      case "reports":
+        return <ReportsScreen {...screenProps} />;
+      case "risks":
+        return <RisksScreen {...screenProps} />;
+      default:
+        return <RosterScreen {...screenProps} />;
     }
-
-    if (activeTab === "attendance") {
-      return renderAttendance();
-    }
-
-    if (activeTab === "tasks") {
-      return renderTasks();
-    }
-
-    if (activeTab === "worklogs") {
-      return renderWorkLogs();
-    }
-
-    if (activeTab === "manufacturing") {
-      return renderManufacturing();
-    }
-
-    if (activeTab === "inventory") {
-      return renderInventory();
-    }
-
-    if (activeTab === "subsystems") {
-      return renderSubsystems();
-    }
-
-    if (activeTab === "reports") {
-      return renderReports();
-    }
-
-    if (activeTab === "risks") {
-      return renderRisks();
-    }
-
-    return renderRoster();
   };
 
   const renderEditorModals = () => {
@@ -5800,7 +4280,7 @@ export default function App() {
                     {capitalize(member.role)}
                   </Text>
                 </View>
-                {renderAttendanceStatusMark(status)}
+                <AttendanceStatusMark status={status} />
               </View>
             ))}
           </ScrollView>
