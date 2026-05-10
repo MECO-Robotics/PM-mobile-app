@@ -111,10 +111,11 @@ export function LandscapeSubsystemTimeline({
     startOfMonth(parseDate(toDateKey(new Date()))),
   );
   const nextDeadline = getNextDeadline(events, timelineStart);
+  const maxRangeEnd = addDays(timelineStart, VISIBLE_DAY_COUNT - 1);
   const rangeEnd =
-    rangeMode === "deadline" && nextDeadline
+    rangeMode === "deadline" && nextDeadline && nextDeadline < maxRangeEnd
       ? nextDeadline
-      : addDays(timelineStart, VISIBLE_DAY_COUNT - 1);
+      : maxRangeEnd;
   const timelineDayCount = Math.max(1, daysBetween(timelineStart, rangeEnd) + 1);
   const timelineDays = Array.from({ length: timelineDayCount }, (_value, index) =>
     addDays(timelineStart, index),

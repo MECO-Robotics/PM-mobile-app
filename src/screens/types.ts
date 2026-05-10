@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
+import type { StyleProp, TextStyle, ViewStyle } from "react-native";
 
 import type { AppThemeColors } from "../theme";
 import type {
@@ -23,6 +24,7 @@ import type {
   ManufacturingViewTab,
   MaterialRollup,
   MilestoneSortField,
+  Option,
   PartLifecycleStatus,
   SummaryChipData,
   TaskSubteamTab,
@@ -61,14 +63,40 @@ export type SubsystemCounts = {
 
 type StateSetter<T> = Dispatch<SetStateAction<T>>;
 type TextSetter = StateSetter<string>;
+type ResponsiveScreenStyles = {
+  calloutBody: StyleProp<TextStyle>;
+  calloutBox: StyleProp<ViewStyle>;
+  calloutTitle: StyleProp<TextStyle>;
+  editTag: StyleProp<TextStyle>;
+  memberAvatar: StyleProp<ViewStyle>;
+  memberRow: StyleProp<ViewStyle>;
+  memberRowSelected: StyleProp<ViewStyle>;
+  metaLine: StyleProp<TextStyle>;
+  navCount: StyleProp<ViewStyle>;
+  primaryAction: StyleProp<ViewStyle>;
+  primaryActionLabel: StyleProp<TextStyle>;
+  quickActionButton: StyleProp<ViewStyle>;
+  quickActionButtonLabel: StyleProp<TextStyle>;
+  rosterSection: StyleProp<ViewStyle>;
+  rowBody: StyleProp<TextStyle>;
+  rowCard: StyleProp<ViewStyle>;
+  rowSubtitle: StyleProp<TextStyle>;
+  rowTitle: StyleProp<TextStyle>;
+  subsectionLabel: StyleProp<TextStyle>;
+  tableHeaderText: StyleProp<TextStyle>;
+};
 
-export interface AppScreenProps extends Record<string, any> {
+export interface AppScreenProps {
   activeTaskSubteam: TaskSubteamTab;
   activeTaskSubteamLabel: string;
-  appResponsiveStyles: Record<string, any>;
+  appResponsiveStyles: ResponsiveScreenStyles;
   attendancePreview: AttendanceRow[];
   attendanceSummary: SummaryChipData[];
+  canMentorApprove: boolean;
+  clearTaskBlockers: (task: Task) => Promise<void>;
   disciplinesById: Record<string, Discipline>;
+  editTagStyle: StyleProp<TextStyle>;
+  eventOptions: Option[];
   eventReports: EventReportDraft[];
   events: Event[];
   eventsById: Record<string, Event>;
@@ -111,6 +139,27 @@ export interface AppScreenProps extends Record<string, any> {
   milestoneSortOrder: "asc" | "desc";
   milestoneSummary: SummaryChipData[];
   milestoneTypeFilter: string;
+  openCreateEventReportEditor: (eventId?: string) => void;
+  openCreateManufacturingEditor: () => void;
+  openCreateMemberEditor: () => void;
+  openCreateMilestoneEditor: () => void;
+  openCreatePartDefinitionEditor: () => void;
+  openCreatePurchaseEditor: () => void;
+  openCreateQaReportEditor: (taskId?: string) => void;
+  openCreateSubsystemEditor: () => void;
+  openCreateTaskEditor: () => void;
+  openCreateWorkLogEditor: () => void;
+  openEditManufacturingEditor: (item: ManufacturingItem) => void;
+  openEditMemberEditor: (memberId: string) => void;
+  openEditMilestoneEditor: (event: Event) => void;
+  openEditPartDefinitionEditor: (partDefinitionId: string) => void;
+  openEditPurchaseEditor: (item: PurchaseItem) => void;
+  openEditSubsystemEditor: (subsystem: Subsystem) => void;
+  openEditTaskEditor: (task: Task) => void;
+  openEditWorkLogEditor: (workLog: WorkLog) => void;
+  openInventoryPurchases: () => void;
+  openMaterialRestockEditor: (row: MaterialRollup) => void;
+  openTaskQueueFromTask: (task: Task) => void;
   partDefinitions: PartDefinition[];
   partDefinitionsById: Record<string, PartDefinition>;
   partInstancesById: Record<string, PartInstance>;
@@ -118,6 +167,10 @@ export interface AppScreenProps extends Record<string, any> {
   partsSearch: string;
   partsStatusFilter: string;
   partsSubsystemFilter: string;
+  patchManufacturingItem: (
+    item: ManufacturingItem,
+    patch: Partial<Pick<ManufacturingItem, "mentorReviewed" | "status">>,
+  ) => Promise<void>;
   purchaseApprovalFilter: string;
   purchaseArchiveFilter: ArchiveFilterMode;
   purchaseRequesterFilter: string;
@@ -181,6 +234,7 @@ export interface AppScreenProps extends Record<string, any> {
   subsystemSearch: string;
   subsystems: Subsystem[];
   subsystemsById: Record<string, Subsystem>;
+  syncFromBackend: () => Promise<void>;
   taskArchiveFilter: ArchiveFilterMode;
   taskBlockerFilter: BlockerFilterMode;
   taskById: Record<string, Task>;
