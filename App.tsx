@@ -1,7 +1,10 @@
 import { StatusBar } from "expo-status-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
+import * as Google from "expo-auth-session/providers/google";
+import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Image,
   Modal,
   PanResponder,
@@ -9,6 +12,7 @@ import {
   SafeAreaView,
   ScrollView,
   TextInput,
+  Platform,
   useColorScheme,
   useWindowDimensions,
   View,
@@ -135,10 +139,13 @@ import type {
 
 import { appThemes, colors, type AppThemeName } from "./src/theme";
 
+WebBrowser.maybeCompleteAuthSession();
+
 const SWIPE_ACTIVATION_DISTANCE = 18;
 const SWIPE_COMMIT_DISTANCE = 52;
 const SUBTAB_SWIPE_ACTIVATION_DISTANCE = 24;
 const SUBTAB_SWIPE_COMMIT_DISTANCE = 72;
+const GOOGLE_CLIENT_ID_PLACEHOLDER = "missing-google-client-id";
 
 type AttendanceStatus = "yes" | "maybe" | "no";
 type SeasonOption = {
@@ -166,6 +173,8 @@ const INITIAL_SEASONS: SeasonOption[] = [
   { id: "test", label: "Test Season" },
   { id: "new", label: "New Season" },
 ];
+
+const REQUIRED_EMAIL_DOMAIN = "mecorobotics.org";
 
 const REQUIRED_TASK_SUBSYSTEMS: Subsystem[] = [
   {
@@ -263,6 +272,11 @@ type ServerTask = Task & {
   targetMilestoneId?: string | null;
 };
 
+type EmailCodeStartResponse = {
+  sentTo?: string;
+  expiresInMinutes?: number;
+};
+
 function normalizeTaskFromServer(task: ServerTask): Task {
   return {
     ...task,
@@ -307,6 +321,24 @@ function mapEventTypeToMilestoneType(type: EventType) {
   return type === "drive-practice" ? "practice" : type;
 }
 
+function hasRequiredEmailDomain(email: string) {
+  const [, domain = ""] = email.split("@");
+  return (
+    domain === REQUIRED_EMAIL_DOMAIN ||
+    domain.endsWith(`.${REQUIRED_EMAIL_DOMAIN}`)
+  );
+}
+
+function getGoogleNativeRedirectUri(clientId?: string) {
+  const suffix = ".apps.googleusercontent.com";
+  if (!clientId?.endsWith(suffix)) {
+    return undefined;
+  }
+
+  const clientIdPrefix = clientId.slice(0, -suffix.length);
+  return `com.googleusercontent.apps.${clientIdPrefix}:/oauthredirect`;
+}
+
 function mapMilestonesToEvents(payload: PlatformBootstrapPayload): Event[] {
   const subsystems = ensureArray(payload.subsystems);
 
@@ -340,13 +372,48 @@ export default function App() {
   const [authConfig, setAuthConfig] = useState<PublicAuthConfig | null>(null);
   const [hasAuthenticated, setHasAuthenticated] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
+  const [authCode, setAuthCode] = useState("");
+  const [hasRequestedEmailCode, setHasRequestedEmailCode] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [backendStatus, setBackendStatus] = useState<
     "connecting" | "connected" | "offline"
   >("connecting");
   const [syncError, setSyncError] = useState<string | null>(null);
+  const envGoogleClientId =
+    process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID?.trim() ?? "";
+  const googleClientId = authConfig?.googleClientId ?? envGoogleClientId;
+  const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim();
+  const googleAndroidClientId =
+    process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID?.trim();
+  const googleWebClientId =
+    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim() || googleClientId;
+  const activeGoogleClientId =
+    Platform.OS === "ios"
+      ? googleIosClientId
+      : Platform.OS === "android"
+        ? googleAndroidClientId
+        : googleWebClientId;
+  const googleNativeRedirectUri = getGoogleNativeRedirectUri(activeGoogleClientId);
+
+  const [googleRequest, googleResponse, promptGoogleSignIn] =
+    Google.useIdTokenAuthRequest(
+      {
+        androidClientId: googleAndroidClientId || GOOGLE_CLIENT_ID_PLACEHOLDER,
+        clientId: googleClientId || GOOGLE_CLIENT_ID_PLACEHOLDER,
+        iosClientId: googleIosClientId || GOOGLE_CLIENT_ID_PLACEHOLDER,
+        selectAccount: true,
+        webClientId: googleWebClientId || GOOGLE_CLIENT_ID_PLACEHOLDER,
+      },
+      googleNativeRedirectUri ? { native: googleNativeRedirectUri } : undefined,
+    );
+
+  const showAuthError = useCallback((message: string) => {
+    setAuthError(message);
+    Alert.alert("Sign-in problem", message);
+  }, []);
 
   const [activeTab, setActiveTab] = useState<ViewTab>("home");
   const [taskView, setTaskView] = useState<TaskViewTab>("queue");
@@ -583,18 +650,6 @@ export default function App() {
     }
   }, [apiBaseUrl]);
 
-  const buildFallbackSessionUser = useCallback(
-    (authProvider: SessionUser["authProvider"], email: string): SessionUser => ({
-      accountId: email.split("@")[0] || "meco-user",
-      authProvider,
-      email,
-      hostedDomain: authConfig?.hostedDomain ?? "mecorobotics.org",
-      name: email.split("@")[0]?.replace(/[._-]+/g, " ") || "MECO Member",
-      picture: null,
-    }),
-    [authConfig?.hostedDomain],
-  );
-
   const finishSignIn = useCallback(
     async (token: string | null, user: SessionUser) => {
       setApiToken(token);
@@ -619,12 +674,21 @@ export default function App() {
   const signInWithGoogle = useCallback(async () => {
     setIsAuthenticating(true);
     setAuthError(null);
+    setAuthNotice(null);
 
     try {
-      let token = process.env.EXPO_PUBLIC_API_TOKEN?.trim() ?? "";
-      token = token.length > 0 ? token : "";
+      if (!activeGoogleClientId) {
+        if (!authConfig?.devBypassAvailable) {
+          showAuthError(
+            Platform.OS === "ios"
+              ? "Google sign-in needs EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID set to an iOS OAuth client ID, then Expo must be restarted."
+              : Platform.OS === "android"
+                ? "Google sign-in needs EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID set to an Android OAuth client ID, then Expo must be restarted."
+                : "Google sign-in is not configured for this app yet.",
+          );
+          return;
+        }
 
-      if (!token && authConfig?.devBypassAvailable) {
         const session = await requestJson<SessionResponse>(
           apiBaseUrl,
           "/api/auth/dev-bypass",
@@ -634,31 +698,128 @@ export default function App() {
         return;
       }
 
-      await finishSignIn(
-        token || null,
-        buildFallbackSessionUser("google", `you@${authConfig?.hostedDomain ?? "mecorobotics.org"}`),
-      );
+      if (!googleRequest) {
+        showAuthError("Google sign-in is still loading. Try again in a moment.");
+        return;
+      }
+
+      const result = await promptGoogleSignIn();
+      if (result.type === "cancel" || result.type === "dismiss") {
+        return;
+      }
+
+      if (result.type !== "success") {
+        showAuthError("Google sign-in did not complete.");
+      }
     } catch (error) {
-      setAuthError(parseClientError(error));
+      showAuthError(parseClientError(error));
     } finally {
       setIsAuthenticating(false);
     }
-  }, [apiBaseUrl, authConfig, buildFallbackSessionUser, finishSignIn]);
+  }, [
+    apiBaseUrl,
+    activeGoogleClientId,
+    authConfig?.devBypassAvailable,
+    finishSignIn,
+    googleRequest,
+    promptGoogleSignIn,
+    showAuthError,
+  ]);
 
-  const sendEmailCode = useCallback(async () => {
+  useEffect(() => {
+    if (hasAuthenticated || googleResponse?.type !== "success") {
+      return;
+    }
+
+    const credential =
+      googleResponse.params.id_token ?? googleResponse.authentication?.idToken;
+
+    if (!credential && googleResponse.params.code) {
+      return;
+    }
+
+    let isActive = true;
+
+    async function exchangeGoogleCredential() {
+      if (!credential) {
+        showAuthError("Google did not return an ID token.");
+        return;
+      }
+
+      setIsAuthenticating(true);
+      setAuthError(null);
+      setAuthNotice(null);
+
+      try {
+        const session = await requestJson<SessionResponse>(
+          apiBaseUrl,
+          "/api/auth/google",
+          {
+            method: "POST",
+            body: JSON.stringify({ credential }),
+          },
+        );
+
+        if (isActive) {
+          await finishSignIn(session.token, session.user);
+        }
+      } catch (error) {
+        if (isActive) {
+          showAuthError(parseClientError(error));
+        }
+      } finally {
+        if (isActive) {
+          setIsAuthenticating(false);
+        }
+      }
+    }
+
+    void exchangeGoogleCredential();
+
+    return () => {
+      isActive = false;
+    };
+  }, [apiBaseUrl, finishSignIn, googleResponse, hasAuthenticated, showAuthError]);
+
+  const signInWithEmail = useCallback(async () => {
     const email = authEmail.trim().toLowerCase();
-    const hostedDomain = authConfig?.hostedDomain ?? "mecorobotics.org";
+    const code = authCode.trim();
 
     setAuthError(null);
+    setAuthNotice(null);
 
-    if (!email || !email.endsWith(`@${hostedDomain}`)) {
-      setAuthError(`Use your @${hostedDomain} email.`);
+    if (authConfig?.emailEnabled === false) {
+      setAuthError("Email sign-in is not enabled for this workspace.");
+      return;
+    }
+
+    if (!email || !hasRequiredEmailDomain(email)) {
+      setAuthError(`Use a ${REQUIRED_EMAIL_DOMAIN} email.`);
+      return;
+    }
+
+    if (hasRequestedEmailCode && !code) {
+      setAuthError("Enter the code from your email.");
       return;
     }
 
     setIsAuthenticating(true);
 
     try {
+      if (hasRequestedEmailCode) {
+        const session = await requestJson<SessionResponse>(
+          apiBaseUrl,
+          "/api/auth/email/verify",
+          {
+            method: "POST",
+            body: JSON.stringify({ email, code }),
+          },
+        );
+        setAuthCode("");
+        await finishSignIn(session.token, session.user);
+        return;
+      }
+
       if (authConfig?.devBypassAvailable) {
         const session = await requestJson<SessionResponse>(
           apiBaseUrl,
@@ -673,13 +834,33 @@ export default function App() {
         return;
       }
 
-      await finishSignIn(null, buildFallbackSessionUser("email", email));
+      const response = await requestJson<EmailCodeStartResponse>(
+        apiBaseUrl,
+        "/api/auth/email/start",
+        {
+          method: "POST",
+          body: JSON.stringify({ email }),
+        },
+      );
+      setHasRequestedEmailCode(true);
+      setAuthNotice(
+        response.expiresInMinutes
+          ? `Code sent to ${response.sentTo ?? email}. It expires in ${response.expiresInMinutes} minutes.`
+          : `Code sent to ${response.sentTo ?? email}.`,
+      );
     } catch (error) {
       setAuthError(parseClientError(error));
     } finally {
       setIsAuthenticating(false);
     }
-  }, [apiBaseUrl, authConfig, authEmail, buildFallbackSessionUser, finishSignIn]);
+  }, [
+    apiBaseUrl,
+    authConfig,
+    authCode,
+    authEmail,
+    finishSignIn,
+    hasRequestedEmailCode,
+  ]);
 
   const syncFromBackend = useCallback(async () => {
     setIsSyncing(true);
@@ -3045,6 +3226,9 @@ export default function App() {
     setSelectedMemberId(null);
     setSyncError(null);
     setAuthError(null);
+    setAuthNotice(null);
+    setAuthCode("");
+    setHasRequestedEmailCode(false);
     closeTaskEditor();
     closeWorkLogEditor();
     closeMilestoneEditor();
@@ -5690,7 +5874,6 @@ export default function App() {
   );
 
   const renderLoginScreen = () => {
-    const hostedDomain = authConfig?.hostedDomain ?? "mecorobotics.org";
     const loginCardHeight = Math.min(height - 8, 722);
     const loginCardWidth = Math.min(width - 48, 334);
 
@@ -5730,34 +5913,74 @@ export default function App() {
 
             <Text style={styles.loginTitle}>Sign in with email</Text>
 
-            <View
-              style={[
-                styles.loginEmailRow,
-                isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
-              ]}
-            >
-              <TextInput
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
-                onChangeText={setAuthEmail}
-                placeholder={`you@${hostedDomain}`}
-                placeholderTextColor="#f1f5ff"
-                style={styles.loginEmailInput}
-                value={authEmail}
-              />
+            <View style={styles.loginFieldStack}>
+              <View
+                style={[
+                  styles.loginEmailRow,
+                  isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
+                ]}
+              >
+                <TextInput
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  autoCorrect={false}
+                  editable={!isAuthenticating}
+                  keyboardType="email-address"
+                  onChangeText={(value) => {
+                    setAuthEmail(value);
+                    setAuthCode("");
+                    setAuthNotice(null);
+                    setHasRequestedEmailCode(false);
+                  }}
+                  placeholder="you@mecorobotics.org"
+                  placeholderTextColor="#f1f5ff"
+                  returnKeyType="next"
+                  style={styles.loginEmailInput}
+                  textContentType="emailAddress"
+                  value={authEmail}
+                />
+              </View>
+              <View
+                style={[
+                  styles.loginEmailRow,
+                  isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
+                ]}
+              >
+                <TextInput
+                  autoCapitalize="none"
+                  autoComplete="one-time-code"
+                  autoCorrect={false}
+                  editable={!isAuthenticating && hasRequestedEmailCode}
+                  keyboardType="number-pad"
+                  onChangeText={setAuthCode}
+                  onSubmitEditing={signInWithEmail}
+                  placeholder="Email code"
+                  placeholderTextColor="#f1f5ff"
+                  returnKeyType="go"
+                  style={styles.loginEmailInput}
+                  textContentType="oneTimeCode"
+                  value={authCode}
+                />
+              </View>
               <Pressable
                 accessibilityRole="button"
                 disabled={isAuthenticating}
-                onPress={sendEmailCode}
+                onPress={signInWithEmail}
                 style={styles.loginSendButton}
               >
                 <Text style={styles.loginSendButtonText}>
-                  {isAuthenticating ? "Sending" : "Send Code"}
+                  {isAuthenticating
+                    ? hasRequestedEmailCode
+                      ? "Verifying"
+                      : "Sending"
+                    : hasRequestedEmailCode
+                      ? "Verify Code"
+                      : "Send Code"}
                 </Text>
               </Pressable>
             </View>
 
+            {authNotice ? <Text style={styles.loginNoticeText}>{authNotice}</Text> : null}
             {authError ? <Text style={styles.loginErrorText}>{authError}</Text> : null}
 
             <Pressable
