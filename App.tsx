@@ -2344,17 +2344,27 @@ export default function App() {
       return;
     }
 
-    const payload = {
+    const isEdit = milestoneEditorMode === "edit" && activeMilestoneId;
+    const payload: {
+      title: string;
+      type: ReturnType<typeof mapEventTypeToMilestoneType>;
+      startDateTime: string;
+      endDateTime: string | null;
+      isExternal: boolean;
+      description: string;
+      projectIds?: string[];
+    } = {
       title,
       type: mapEventTypeToMilestoneType(milestoneDraft.type),
       startDateTime,
       endDateTime,
       isExternal: milestoneDraft.isExternal,
       description: milestoneDraft.description.trim(),
-      projectIds,
     };
+    if (!isEdit || parsedSubsystemIds.length === 0 || projectIds.length > 0) {
+      payload.projectIds = projectIds;
+    }
 
-    const isEdit = milestoneEditorMode === "edit" && activeMilestoneId;
     const ok = await runMutation(
       isEdit ? `/api/milestones/${activeMilestoneId}` : "/api/milestones",
       {

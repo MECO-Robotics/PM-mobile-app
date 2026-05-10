@@ -73,29 +73,35 @@ export function LandscapeTimelineBoard({
                 <Text style={[sidebarStyles.headerEye, { color: colors.subtleText }]}>o</Text>
               </View>
             </View>
-            {lanes.map((lane) => (
-              <View
-                key={lane.id}
-                style={[
-                  sidebarStyles.laneLabel,
-                  { borderBottomColor: colors.border, borderLeftColor: lane.color, height: lane.height },
-                ]}
-              >
-                <View style={[sidebarStyles.projectCell, { borderColor: colors.border, backgroundColor: colors.canvas }]}>
-                  <Text style={[sidebarStyles.disclosure, { color: colors.subtleText }]}>v</Text>
-                  <Text numberOfLines={1} style={[sidebarStyles.projectLabel, { color: colors.ink }]}>
-                    {formatProjectLabel(lane)}
-                  </Text>
+            {lanes.map((lane) => {
+              const completeTasks = lane.tasks.filter(({ task }) => task.status === "complete").length;
+
+              return (
+                <View
+                  key={lane.id}
+                  style={[
+                    sidebarStyles.laneLabel,
+                    { borderBottomColor: colors.border, borderLeftColor: lane.color, height: lane.height },
+                  ]}
+                >
+                  <View style={[sidebarStyles.projectCell, { borderColor: colors.border, backgroundColor: colors.canvas }]}>
+                    <Text style={[sidebarStyles.disclosure, { color: colors.subtleText }]}>v</Text>
+                    <Text numberOfLines={1} style={[sidebarStyles.projectLabel, { color: colors.ink }]}>
+                      {formatProjectLabel(lane)}
+                    </Text>
+                  </View>
+                  <View style={sidebarStyles.subsystemCell}>
+                    <View style={[sidebarStyles.subsystemDot, { backgroundColor: lane.color }]} />
+                    <Text numberOfLines={1} style={[sidebarStyles.lanePrimary, { color: colors.ink }]}>
+                      {lane.subsystem?.name ?? t("Unknown")}
+                    </Text>
+                    <Text style={[sidebarStyles.laneSecondary, { color: colors.subtleText }]}>
+                      {completeTasks}/{lane.tasks.length}
+                    </Text>
+                  </View>
                 </View>
-                <View style={sidebarStyles.subsystemCell}>
-                  <View style={[sidebarStyles.subsystemDot, { backgroundColor: lane.color }]} />
-                  <Text numberOfLines={1} style={[sidebarStyles.lanePrimary, { color: colors.ink }]}>
-                    {lane.subsystem?.name ?? t("Unknown")}
-                  </Text>
-                  <Text style={[sidebarStyles.laneSecondary, { color: colors.subtleText }]}>0/{lane.tasks.length}</Text>
-                </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
