@@ -108,7 +108,6 @@ export function TasksScreen(props: AppScreenProps) {
     taskSubsystemFilter,
     taskSummary,
     taskView,
-    tasks,
     themeColors,
     timelineMilestoneFilter,
     timelineSubsystemFilter,
@@ -126,7 +125,7 @@ const renderScreen = () => {
         onAddTask={openCreateTaskEditor}
         onTaskPress={openEditTaskEditor}
         subsystems={subsystems}
-        tasks={tasks}
+        tasks={timelineTasks}
       />
     );
   }
