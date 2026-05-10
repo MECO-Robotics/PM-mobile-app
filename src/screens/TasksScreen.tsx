@@ -115,9 +115,6 @@ export function TasksScreen(props: AppScreenProps) {
     timelineTasks,
   } = props;
 
-
-
-
 const renderScreen = () => {
   if (isLandscapeTimelineLayout) {
     return (

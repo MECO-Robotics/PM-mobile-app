@@ -102,9 +102,6 @@ export function InventoryScreen(props: AppScreenProps) {
     subsystemsById,
   } = props;
 
-
-
-
 const renderScreen = () => {
   return (
     <>

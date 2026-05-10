@@ -3098,9 +3098,7 @@ export default function App() {
     workLogSubsystemFilter,
     workLogSummary,
   };
-
-
-
+  
   const renderActiveTab = () => {
     switch (activeTab) {
       case "home":
