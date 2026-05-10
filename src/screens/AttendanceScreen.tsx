@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Image, Pressable, ScrollView, View } from "react-native";
 
 import { Text } from "../i18n";
@@ -45,10 +44,10 @@ import {
   WorkspacePanel,
 } from "../ui/ui";
 
-import type { AppScreenProps } from "./types";
+import type { AppScreenProps, AttendanceStatus } from "./types";
 import { AttendanceStatusMark } from "./AttendanceStatusMark";
 
-const ATTENDANCE_STATUS_OPTIONS = [
+const ATTENDANCE_STATUS_OPTIONS: { status: AttendanceStatus; label: string }[] = [
   { status: "yes", label: "Present" },
   { status: "maybe", label: "Maybe" },
   { status: "no", label: "Out" },

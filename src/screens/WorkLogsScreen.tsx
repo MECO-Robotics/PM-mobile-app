@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Image, Pressable, ScrollView, View } from "react-native";
 
 import { Text } from "../i18n";
@@ -44,6 +43,7 @@ import {
   SummaryRow,
   WorkspacePanel,
 } from "../ui/ui";
+import type { WorkLogSortMode } from "../ui/types";
 
 import type { AppScreenProps } from "./types";
 import { AttendanceStatusMark } from "./AttendanceStatusMark";
