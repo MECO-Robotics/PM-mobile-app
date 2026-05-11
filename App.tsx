@@ -122,6 +122,7 @@ import { tasks as seededTasks } from "./src/data/tasks";
 import type {
   MemberRole,
   ManufacturingItem,
+  BootstrapMilestone,
   Event,
   EventType,
   PlatformBootstrapPayload,
@@ -336,16 +337,6 @@ function hasRequiredEmailDomain(email: string, requiredDomain: string) {
   );
 }
 
-function getGoogleNativeRedirectUri(clientId?: string) {
-  const suffix = ".apps.googleusercontent.com";
-  if (!clientId?.endsWith(suffix)) {
-    return undefined;
-  }
-
-  const clientIdPrefix = clientId.slice(0, -suffix.length);
-  return `com.googleusercontent.apps.${clientIdPrefix}:/oauthredirect`;
-}
-
 function mapMilestonesToEvents(payload: PlatformBootstrapPayload): Event[] {
   const subsystems = ensureArray(payload.subsystems);
 
@@ -363,6 +354,26 @@ function mapMilestonesToEvents(payload: PlatformBootstrapPayload): Event[] {
         .filter((subsystem) => ensureArray(milestone.projectIds).includes(subsystem.projectId ?? ""))
         .map((subsystem) => subsystem.id),
   }));
+}
+
+type MilestoneMutationResponse = {
+  item?: BootstrapMilestone;
+};
+
+function applyMilestoneSubsystemLinks(
+  currentEvents: Event[],
+  milestone: BootstrapMilestone | undefined,
+  fallbackMilestoneId: string | null,
+  relatedSubsystemIds: string[],
+) {
+  const milestoneId = milestone?.id ?? fallbackMilestoneId;
+  if (!milestoneId) {
+    return currentEvents;
+  }
+
+  return currentEvents.map((event) =>
+    event.id === milestoneId ? { ...event, relatedSubsystemIds } : event,
+  );
 }
 
 export default function App() {
@@ -405,19 +416,15 @@ export default function App() {
       : Platform.OS === "android"
         ? googleAndroidClientId
         : googleWebClientId;
-  const googleNativeRedirectUri = getGoogleNativeRedirectUri(activeGoogleClientId);
 
   const [googleRequest, googleResponse, promptGoogleSignIn] =
-    Google.useIdTokenAuthRequest(
-      {
-        androidClientId: googleAndroidClientId || GOOGLE_CLIENT_ID_PLACEHOLDER,
-        clientId: googleClientId || GOOGLE_CLIENT_ID_PLACEHOLDER,
-        iosClientId: googleIosClientId || GOOGLE_CLIENT_ID_PLACEHOLDER,
-        selectAccount: true,
-        webClientId: googleWebClientId || GOOGLE_CLIENT_ID_PLACEHOLDER,
-      },
-      googleNativeRedirectUri ? { native: googleNativeRedirectUri } : undefined,
-    );
+    Google.useIdTokenAuthRequest({
+      androidClientId: googleAndroidClientId || GOOGLE_CLIENT_ID_PLACEHOLDER,
+      clientId: googleClientId || GOOGLE_CLIENT_ID_PLACEHOLDER,
+      iosClientId: googleIosClientId || GOOGLE_CLIENT_ID_PLACEHOLDER,
+      selectAccount: true,
+      webClientId: googleWebClientId || GOOGLE_CLIENT_ID_PLACEHOLDER,
+    });
 
   const showAuthError = useCallback((message: string) => {
     setAuthError(message);
@@ -2352,6 +2359,7 @@ export default function App() {
       endDateTime: string | null;
       isExternal: boolean;
       description: string;
+      relatedSubsystemIds: string[];
       projectIds?: string[];
     } = {
       title,
@@ -2360,21 +2368,42 @@ export default function App() {
       endDateTime,
       isExternal: milestoneDraft.isExternal,
       description: milestoneDraft.description.trim(),
+      relatedSubsystemIds: parsedSubsystemIds,
     };
     if (!isEdit || parsedSubsystemIds.length === 0 || projectIds.length > 0) {
       payload.projectIds = projectIds;
     }
 
-    const ok = await runMutation(
-      isEdit ? `/api/milestones/${activeMilestoneId}` : "/api/milestones",
-      {
-        method: isEdit ? "PATCH" : "POST",
-        body: JSON.stringify(payload),
-      },
-    );
+    setIsSyncing(true);
+    setSyncError(null);
 
-    if (ok) {
+    try {
+      const response = await requestJson<MilestoneMutationResponse>(
+        apiBaseUrl,
+        isEdit ? `/api/milestones/${activeMilestoneId}` : "/api/milestones",
+        {
+          method: isEdit ? "PATCH" : "POST",
+          body: JSON.stringify(payload),
+        },
+        apiToken,
+      );
+
+      await refreshWorkspaceFromServer(apiToken);
+      setEvents((currentEvents) =>
+        applyMilestoneSubsystemLinks(
+          currentEvents,
+          response.item,
+          isEdit ? activeMilestoneId : null,
+          parsedSubsystemIds,
+        ),
+      );
+      setBackendStatus("connected");
       closeMilestoneEditor();
+    } catch (error) {
+      setBackendStatus("offline");
+      setSyncError(parseClientError(error));
+    } finally {
+      setIsSyncing(false);
     }
   };
 
