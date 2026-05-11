@@ -755,6 +755,75 @@ export const styles = StyleSheet.create({
     borderColor: "rgba(233, 131, 53, 0.45)",
     backgroundColor: "rgba(233, 131, 53, 0.12)",
   },
+  riskSeverityLow: {
+    borderColor: "rgba(22, 71, 142, 0.26)",
+    backgroundColor: "rgba(22, 71, 142, 0.08)",
+  },
+  riskLandscapeBoard: {
+    width: "100%",
+    flexDirection: "row",
+    gap: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  riskLandscapeColumn: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    padding: spacing.sm,
+    gap: spacing.sm,
+    ...shadows.card,
+  },
+  riskLandscapeColumnHeader: {
+    minHeight: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  riskPriorityBadge: {
+    minHeight: 32,
+    borderRadius: 8,
+    paddingHorizontal: spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  riskPriorityBadgeHigh: {
+    backgroundColor: "#fee2e2",
+  },
+  riskPriorityBadgeMedium: {
+    backgroundColor: "#fef3c7",
+  },
+  riskPriorityBadgeLow: {
+    backgroundColor: "#eef2f7",
+  },
+  riskPriorityBadgeText: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  riskPriorityBadgeTextHigh: {
+    color: "#991b1b",
+  },
+  riskPriorityBadgeTextMedium: {
+    color: "#92400e",
+  },
+  riskPriorityBadgeTextLow: {
+    color: "#475569",
+  },
+  riskColumnCount: {
+    minWidth: 36,
+    height: 36,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  riskColumnCountText: {
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  riskLandscapeItem: {
+    minHeight: 144,
+  },
   interactionNote: {
     borderRadius: radii.md,
     borderWidth: 1,

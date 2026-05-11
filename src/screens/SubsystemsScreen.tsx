@@ -1,0 +1,178 @@
+import { Image, Pressable, ScrollView, View } from "react-native";
+
+import { Text } from "../i18n";
+import {
+  ARCHIVE_FILTER_OPTIONS,
+  BLOCKER_FILTER_OPTIONS,
+  EVENT_TYPE_OPTIONS,
+  EVENT_TYPE_STYLES,
+  INVENTORY_VIEW_OPTIONS,
+  MANUFACTURING_STATUS_OPTIONS,
+  MANUFACTURING_VIEW_OPTIONS,
+  MATERIAL_CATEGORY_OPTIONS,
+  PART_STATUS_OPTIONS,
+  PURCHASE_APPROVAL_OPTIONS,
+  PURCHASE_STATUS_OPTIONS,
+  STATUS_LABELS,
+  SUBVIEW_INTERACTION_GUIDANCE,
+  TASK_PRIORITY_OPTIONS,
+  TASK_STATUS_OPTIONS,
+  TASK_SUBTEAM_OPTIONS,
+  TASK_VIEW_OPTIONS,
+  WORKLOG_SORT_OPTIONS,
+} from "../ui/constants";
+import {
+  capitalize,
+  datePortion,
+  formatDate,
+  formatDateTime,
+  splitList,
+  timePortion,
+  timelineProgress,
+} from "../ui/helpers";
+import { LandscapeSubsystemTimeline } from "../ui/LandscapeSubsystemTimeline";
+import { styles } from "../ui/styles";
+import {
+  EmptyState,
+  FilterToolbar,
+  InteractionNote,
+  OptionChipRow,
+  SearchField,
+  SectionTabs,
+  StatusPill,
+  SummaryRow,
+  WorkspacePanel,
+} from "../ui/ui";
+
+import type { AppScreenProps } from "./types";
+import { AttendanceStatusMark } from "./AttendanceStatusMark";
+
+export function SubsystemsScreen(props: AppScreenProps) {
+  const {
+    appResponsiveStyles,
+    editTagStyle,
+    filteredSubsystems,
+    mechanisms,
+    membersById,
+    openCreateSubsystemEditor,
+    openEditSubsystemEditor,
+    selectedSubsystem,
+    setSelectedSubsystemId,
+    setSubsystemSearch,
+    subsystemCountsById,
+    subsystemSearch,
+    subsystems,
+    tasks,
+  } = props;
+
+const renderScreen = () => {
+  const visibleMechanismCount = mechanisms.filter((mechanism) => {
+    return filteredSubsystems.some((subsystem) => subsystem.id === mechanism.subsystemId);
+  }).length;
+
+  return (
+    <WorkspacePanel
+      title="Subsystem manager"
+      subtitle="Review ownership, risk, and mechanism coverage with expandable subsystem cards."
+      actions={
+        <Pressable onPress={openCreateSubsystemEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+          <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add subsystem</Text>
+        </Pressable>
+      }
+    >
+      <FilterToolbar>
+        <SearchField
+          onChangeText={setSubsystemSearch}
+          placeholder="Search subsystems"
+          value={subsystemSearch}
+        />
+      </FilterToolbar>
+
+      <SummaryRow
+        chips={[
+          { label: "Visible subsystems", value: String(filteredSubsystems.length) },
+          { label: "Visible mechanisms", value: String(visibleMechanismCount) },
+        ]}
+      />
+
+      {filteredSubsystems.map((subsystem) => {
+        const counts = subsystemCountsById[subsystem.id];
+        const isSelected = selectedSubsystem?.id === subsystem.id;
+        const mentorNames = subsystem.mentorIds
+          .map((mentorId) => membersById[mentorId]?.name ?? "Unknown")
+          .join(", ");
+        const subsystemMechanisms = mechanisms.filter(
+          (mechanism) => mechanism.subsystemId === subsystem.id,
+        );
+
+        return (
+          <View key={subsystem.id} style={[styles.subsystemCard, appResponsiveStyles.rowCard]}>
+            <Pressable
+              onPress={() => {
+                setSelectedSubsystemId((current) =>
+                  current === subsystem.id ? "" : subsystem.id,
+                );
+              }}
+              onLongPress={() => openEditSubsystemEditor(subsystem)}
+              style={styles.subsystemCardHeader}
+            >
+              <View style={styles.queueRowPrimaryText}>
+                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{subsystem.name}</Text>
+                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                  Lead{" "}
+                  {subsystem.responsibleEngineerId
+                    ? (membersById[subsystem.responsibleEngineerId]?.name ?? "Unassigned")
+                    : "Unassigned"}{" "}
+                  - Mentors {mentorNames || "None"}
+                </Text>
+              </View>
+              <Text style={editTagStyle}>{isSelected ? "HIDE" : "OPEN"}</Text>
+            </Pressable>
+
+            <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{subsystem.description}</Text>
+            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
+              Mechanisms {counts.mechanisms} | Open tasks {counts.openTasks}/{counts.tasks} | Risks {counts.risks}
+            </Text>
+
+            {subsystem.risks.length > 0 ? (
+              <View style={styles.queuePillRow}>
+                {subsystem.risks.map((risk) => (
+                  <StatusPill key={risk} label={risk} value="warning" />
+                ))}
+              </View>
+            ) : null}
+
+            {isSelected ? (
+              <View style={styles.subsystemExpansion}>
+                {subsystemMechanisms.map((mechanism) => (
+                  <View key={mechanism.id} style={[styles.mechanismCard, appResponsiveStyles.rowCard]}>
+                    <View style={styles.queueRowHeader}>
+                      <View style={styles.queueRowPrimaryText}>
+                        <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>{mechanism.name}</Text>
+                        <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{mechanism.description}</Text>
+                      </View>
+                      <Text style={editTagStyle}>EDIT</Text>
+                    </View>
+                  </View>
+                ))}
+
+                {subsystemMechanisms.length === 0 ? (
+                  <Text style={styles.emptyStateText}>No mechanisms yet.</Text>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+        );
+      })}
+
+      {filteredSubsystems.length === 0 ? (
+        <EmptyState text="No subsystems match the current search." />
+      ) : null}
+
+      <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.subsystems} />
+    </WorkspacePanel>
+  );
+};
+
+  return renderScreen();
+}

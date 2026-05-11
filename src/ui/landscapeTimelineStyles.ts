@@ -8,6 +8,7 @@ export const landscapeTimelineStyles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
     gap: spacing.sm,
+    position: "relative",
   },
   header: {
     minHeight: 58,
@@ -49,6 +50,24 @@ export const landscapeTimelineStyles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "900",
   },
+  dropdownLayer: {
+    position: "absolute",
+    top: 54,
+    right: spacing.md,
+    alignItems: "flex-end",
+    zIndex: 20,
+  },
+  dropdownMenu: { width: 210, borderRadius: 10, borderWidth: 1, overflow: "hidden" },
+  dropdownItem: { minHeight: 44, justifyContent: "center", paddingHorizontal: spacing.md },
+  dropdownItemLabel: { fontSize: 15, fontWeight: "900" },
+  monthPickerMenu: { width: 430, maxWidth: "100%", borderRadius: 10, borderWidth: 1, padding: spacing.sm, gap: spacing.sm },
+  monthPickerHeader: { minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  yearButton: { minHeight: 34, borderRadius: 8, borderWidth: 1, justifyContent: "center", paddingHorizontal: spacing.sm },
+  yearButtonLabel: { fontSize: 13, fontWeight: "900" },
+  yearLabel: { fontSize: 17, fontWeight: "900" },
+  monthGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  monthOption: { width: 96, minHeight: 38, borderRadius: 8, borderWidth: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xs },
+  monthOptionLabel: { fontSize: 13, fontWeight: "800" },
   board: {
     minHeight: 268,
     borderRadius: 10,
@@ -59,7 +78,7 @@ export const landscapeTimelineStyles = StyleSheet.create({
     flexDirection: "row",
   },
   sidebar: {
-    width: 332,
+    width: 390,
     borderRightWidth: 1,
   },
   sidebarHeader: {
@@ -72,12 +91,46 @@ export const landscapeTimelineStyles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing.md,
   },
+  projectHeaderCell: {
+    width: 150,
+    justifyContent: "center",
+    paddingHorizontal: spacing.md,
+  },
+  subsystemHeaderCell: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: spacing.md,
+  },
   sidebarHeaderText: {
     fontSize: 17,
     fontWeight: "900",
   },
+  sidebarBody: {
+    flexDirection: "row",
+  },
+  projectColumn: {
+    width: 150,
+    borderRightWidth: 1,
+  },
+  subsystemColumn: {
+    flex: 1,
+  },
+  projectGroupCell: {
+    borderBottomWidth: 1,
+    justifyContent: "center",
+    paddingHorizontal: spacing.sm,
+    gap: 4,
+  },
+  projectGroupLabel: {
+    fontSize: 17,
+    fontWeight: "900",
+  },
+  projectGroupCount: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
   laneLabel: {
-    height: 58,
+    height: 74,
     flexDirection: "row",
     alignItems: "center",
     borderBottomWidth: 1,
@@ -95,8 +148,14 @@ export const landscapeTimelineStyles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "900",
   },
+  laneCount: {
+    width: 34,
+    fontSize: 11,
+    fontWeight: "800",
+    textAlign: "right",
+  },
   laneSecondary: {
-    width: 92,
+    width: 78,
     fontSize: 11,
     fontWeight: "700",
     textAlign: "right",
@@ -137,7 +196,7 @@ export const landscapeTimelineStyles = StyleSheet.create({
     fontWeight: "900",
   },
   lane: {
-    height: 58,
+    height: 74,
     position: "relative",
     flexDirection: "row",
     borderBottomWidth: 1,
@@ -146,6 +205,13 @@ export const landscapeTimelineStyles = StyleSheet.create({
     width: 56,
     borderRightWidth: 1,
   },
+  calendarWeekHeader: { height: 42, flexDirection: "row", borderBottomWidth: 1 },
+  calendarHeaderCell: { flex: 1, alignItems: "center", justifyContent: "center", borderRightWidth: 1 },
+  calendarGrid: { flexDirection: "row", flexWrap: "wrap" },
+  calendarDay: { width: "14.2857%", minHeight: 92, borderRightWidth: 1, borderBottomWidth: 1, padding: spacing.xs, gap: 4 },
+  calendarDayNumber: { fontSize: 12, fontWeight: "900" },
+  calendarTaskPill: { minHeight: 20, borderRadius: 5, justifyContent: "center", paddingHorizontal: spacing.xs },
+  calendarTaskText: { color: colors.white, fontSize: 10, fontWeight: "900" },
   taskBar: {
     position: "absolute",
     top: 12,
