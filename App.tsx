@@ -371,10 +371,11 @@ function hasRequiredEmailDomain(email: string, requiredDomain: string) {
 
 function buildLocalEmailSessionUser(email: string, hostedDomain: string): SessionUser {
   const [accountName] = email.split("@");
-  const name = accountName.replace(/[._-]+/g, " ").trim();
+  const accountId = accountName.trim().toLowerCase();
+  const name = accountId.replace(/[._-]+/g, " ").trim();
 
   return {
-    accountId: email,
+    accountId: accountId || email,
     authProvider: "email",
     email,
     hostedDomain,
@@ -3279,6 +3280,7 @@ export default function App() {
     closeTaskEditor();
     closeWorkLogEditor();
     closeMilestoneEditor();
+    closeDeadlineEditor();
     closeManufacturingEditor();
     closePurchaseEditor();
     closeMemberEditor();
