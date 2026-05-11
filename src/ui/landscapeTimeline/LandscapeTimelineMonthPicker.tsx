@@ -29,6 +29,10 @@ function getMonthOptions(year: number, locale: string) {
   });
 }
 
+function getYearShiftDate(anchor: Date, offset: number) {
+  return new Date(anchor.getFullYear() + offset, anchor.getMonth(), 1);
+}
+
 export function LandscapeTimelineMonthPicker({
   colors,
   locale,
@@ -60,27 +64,44 @@ export function LandscapeTimelineMonthPicker({
         </Pressable>
         {isMonthMenuOpen ? (
           <View style={[styles.monthMenu, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            {monthOptions.map((option) => {
-              const isSelected = option.monthIndex === timelineStart.getMonth();
+            <View style={styles.monthMenuYearRow}>
+              <Pressable
+                onPress={() => onSelectMonth(getYearShiftDate(timelineStart, -1))}
+                style={[styles.monthMenuYearButton, { borderColor: colors.border }]}
+              >
+                <Text style={[styles.monthMenuYearButtonText, { color: colors.ink }]}>Prev</Text>
+              </Pressable>
+              <Text style={[styles.monthMenuYearLabel, { color: colors.ink }]}>{timelineYear}</Text>
+              <Pressable
+                onPress={() => onSelectMonth(getYearShiftDate(timelineStart, 1))}
+                style={[styles.monthMenuYearButton, { borderColor: colors.border }]}
+              >
+                <Text style={[styles.monthMenuYearButtonText, { color: colors.ink }]}>Next</Text>
+              </Pressable>
+            </View>
+            <View style={styles.monthMenuGrid}>
+              {monthOptions.map((option) => {
+                const isSelected = option.monthIndex === timelineStart.getMonth();
 
-              return (
-                <Pressable
-                  key={option.monthIndex}
-                  onPress={() => {
-                    onSelectMonth(option.date);
-                    setIsMonthMenuOpen(false);
-                  }}
-                  style={[
-                    styles.monthMenuItem,
-                    isSelected ? { backgroundColor: colors.navySurface } : null,
-                  ]}
-                >
-                  <Text style={[styles.monthMenuItemText, { color: isSelected ? colors.navyInk : colors.ink }]}>
-                    {option.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                return (
+                  <Pressable
+                    key={option.monthIndex}
+                    onPress={() => {
+                      onSelectMonth(option.date);
+                      setIsMonthMenuOpen(false);
+                    }}
+                    style={[
+                      styles.monthMenuItem,
+                      isSelected ? { backgroundColor: colors.navySurface } : null,
+                    ]}
+                  >
+                    <Text style={[styles.monthMenuItemText, { color: isSelected ? colors.navyInk : colors.ink }]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         ) : null}
       </View>

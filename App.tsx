@@ -648,7 +648,7 @@ export default function App() {
     );
 
     setMembers(ensureArray(payload.members));
-    setSubsystems(normalizeTaskSubsystems(ensureArray(payload.subsystems)));
+    setSubsystems(ensureArray(payload.subsystems));
     setDisciplines(ensureArray(payload.disciplines));
     setMechanisms(ensureArray(payload.mechanisms));
     setTasks(tasks);
