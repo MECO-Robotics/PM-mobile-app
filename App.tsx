@@ -2210,6 +2210,8 @@ export default function App() {
   }, [selectedSubsystemId, subsystems]);
 
   const openCreateTaskEditor = () => {
+    const today = localTodayDate();
+
     setActiveTaskId(null);
     setTaskDraft(
       buildTaskDraft({
@@ -2221,8 +2223,8 @@ export default function App() {
           members.find((member) => member.role === "mentor" || member.role === "lead")?.id ??
           members[0]?.id ??
           "",
-        startDate: isoToday(),
-        dueDate: isoToday(),
+        startDate: today,
+        dueDate: today,
       }),
     );
     setTaskEditorMode("create");
