@@ -10,6 +10,16 @@ const TASK_BAR_TOP_PADDING = 10;
 const SUBSYSTEM_COLORS = ["#ef4b5c", "#ffae61", "#be5bd7", "#7c5cff", "#5f90ff"];
 const TASK_COLORS = ["#c65386", "#7b55df", "#cc7447", "#6d7d90", "#2d6be8"];
 
+function getStableColorIndex(value: string, colorCount: number) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+
+  return hash % colorCount;
+}
+
 export function parseDate(value: string) {
   const [year, month, day] = value.slice(0, 10).split("-").map(Number);
   return new Date(year, month - 1, day);
@@ -148,8 +158,9 @@ export function buildLanes(tasks: Task[], subsystems: Subsystem[], monthStart: D
       lanesBySubsystem.set(task.subsystemId, lane);
     });
 
-  return Array.from(lanesBySubsystem.entries()).map(([subsystemId, lane], laneIndex) => {
+  return Array.from(lanesBySubsystem.entries()).map(([subsystemId, lane]) => {
     const trackEndIndexes: number[] = [];
+    const taskColorOffset = getStableColorIndex(subsystemId, TASK_COLORS.length);
     const packedTasks = lane.tasks.map((task, taskIndex) => {
       const dateIndexes = getTaskDateIndexes(task, monthStart, dayCount);
       const trackIndex = trackEndIndexes.findIndex((endIndex) => endIndex < dateIndexes.firstIndex);
@@ -157,7 +168,7 @@ export function buildLanes(tasks: Task[], subsystems: Subsystem[], monthStart: D
       trackEndIndexes[nextTrackIndex] = dateIndexes.lastIndex;
 
       return {
-        color: TASK_COLORS[(laneIndex + taskIndex) % TASK_COLORS.length],
+        color: TASK_COLORS[(taskColorOffset + taskIndex) % TASK_COLORS.length],
         task,
         top: TASK_BAR_TOP_PADDING + nextTrackIndex * (TASK_BAR_HEIGHT + TASK_BAR_GAP),
       };
@@ -165,7 +176,7 @@ export function buildLanes(tasks: Task[], subsystems: Subsystem[], monthStart: D
 
     return {
       id: subsystemId,
-      color: SUBSYSTEM_COLORS[laneIndex % SUBSYSTEM_COLORS.length],
+      color: SUBSYSTEM_COLORS[getStableColorIndex(subsystemId, SUBSYSTEM_COLORS.length)],
       height: getLaneHeight(trackEndIndexes.length),
       subsystem: lane.subsystem,
       tasks: packedTasks,
