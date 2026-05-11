@@ -897,27 +897,28 @@ export default function App() {
         return;
       }
 
-      try {
-        const response = await requestJson<EmailCodeStartResponse>(
-          apiBaseUrl,
-          "/api/auth/email/start",
-          {
-            method: "POST",
-            body: JSON.stringify({ email }),
-          },
-        );
-        setHasRequestedEmailCode(true);
-        setAuthNotice(
-          response.expiresInMinutes
-            ? `Code sent to ${response.sentTo ?? email}. It expires in ${response.expiresInMinutes} minutes.`
-            : `Code sent to ${response.sentTo ?? email}.`,
-        );
-      } catch {
+      if (authConfig?.enabled === false) {
         await finishSignIn(null, buildLocalEmailSessionUser(email, requiredEmailDomain));
         setAuthNotice(
-          "Email code service is unavailable. Continuing with a local session.",
+          "Authentication service is unavailable. Continuing with a local session.",
         );
+        return;
       }
+
+      const response = await requestJson<EmailCodeStartResponse>(
+        apiBaseUrl,
+        "/api/auth/email/start",
+        {
+          method: "POST",
+          body: JSON.stringify({ email }),
+        },
+      );
+      setHasRequestedEmailCode(true);
+      setAuthNotice(
+        response.expiresInMinutes
+          ? `Code sent to ${response.sentTo ?? email}. It expires in ${response.expiresInMinutes} minutes.`
+          : `Code sent to ${response.sentTo ?? email}.`,
+      );
     } catch (error) {
       setAuthError(parseClientError(error));
     } finally {
