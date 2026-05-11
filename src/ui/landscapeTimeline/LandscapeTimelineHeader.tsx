@@ -42,9 +42,6 @@ export function LandscapeTimelineHeader({
     <View style={styles.header}>
       <Text style={[styles.title, { color: colors.ink }]}>Subsystem timeline</Text>
       <View style={styles.controls}>
-        <View style={[styles.controlButton, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-          <Text style={[styles.controlLabel, { color: colors.subtleText }]}>Filters</Text>
-        </View>
         <View style={[styles.viewSwitch, { borderColor: colors.border, backgroundColor: colors.surface }]}>
           {VIEW_OPTIONS.map((option) => {
             const isActive = viewMode === option.id;

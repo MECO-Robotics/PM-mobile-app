@@ -2382,6 +2382,8 @@ export default function App() {
 
   const closeDeadlineEditor = () => {
     setDeadlineEditorVisible(false);
+    setDeadlineTitle("");
+    setDeadlineDate("");
     setDeadlineError(null);
   };
 
@@ -3351,6 +3353,7 @@ export default function App() {
     closeTaskEditor();
     closeWorkLogEditor();
     closeMilestoneEditor();
+    closeDeadlineEditor();
     closeManufacturingEditor();
     closePurchaseEditor();
     closeMemberEditor();
