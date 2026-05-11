@@ -51,10 +51,11 @@ export function LandscapeTimelineBoard({
       dayIndex: daysBetween(timelineStart, parseDate(event.startDateTime)),
     }))
     .filter(({ dayIndex }) => dayIndex >= 0 && dayIndex < timelineDays.length);
+  const visibleTaskCount = lanes.reduce((count, lane) => count + lane.tasks.length, 0);
 
   return (
     <View style={[styles.board, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-      {lanes.length === 0 && markerEvents.length === 0 ? (
+      {visibleTaskCount === 0 && markerEvents.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={[styles.emptyText, { color: colors.subtleText }]}>
             No tasks in {timelineStart.toLocaleDateString(locale, { month: "long", year: "numeric" })}.

@@ -161,7 +161,8 @@ export function buildLanes(tasks: Task[], subsystems: Subsystem[], monthStart: D
   return Array.from(lanesBySubsystem.entries()).map(([subsystemId, lane]) => {
     const trackEndIndexes: number[] = [];
     const taskColorOffset = getStableColorIndex(subsystemId, TASK_COLORS.length);
-    const packedTasks = lane.tasks.map((task, taskIndex) => {
+    const visibleTasks = lane.tasks.filter((task) => getLaneTaskRange(task, monthStart, dayCount) !== null);
+    const packedTasks = visibleTasks.map((task, taskIndex) => {
       const dateIndexes = getTaskDateIndexes(task, monthStart, dayCount);
       const trackIndex = trackEndIndexes.findIndex((endIndex) => endIndex < dateIndexes.firstIndex);
       const nextTrackIndex = trackIndex >= 0 ? trackIndex : trackEndIndexes.length;
