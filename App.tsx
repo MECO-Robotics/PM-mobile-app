@@ -4084,8 +4084,13 @@ export default function App() {
 
   const renderLoginScreen = () => {
     const hostedDomain = authConfig?.hostedDomain ?? "mecorobotics.org";
-    const loginCardHeight = Math.min(height - 8, 722);
-    const loginCardWidth = Math.min(width - 48, 334);
+    const loginScale = Math.min(
+      1.45,
+      Math.max(1, Math.min(width / 390, height / 722)),
+    );
+    const scaleLogin = (value: number) => Math.round(value * loginScale);
+    const loginCardHeight = Math.min(height - 8, scaleLogin(722));
+    const loginCardWidth = Math.min(width - 48, scaleLogin(334));
 
     return (
       <View
@@ -4109,7 +4114,14 @@ export default function App() {
             style={[
               styles.loginCard,
               isDarkModeEnabled ? styles.loginCardDark : styles.loginCardLight,
-              { minHeight: loginCardHeight, width: loginCardWidth },
+              {
+                borderRadius: scaleLogin(29),
+                minHeight: loginCardHeight,
+                paddingBottom: scaleLogin(28),
+                paddingHorizontal: scaleLogin(28),
+                paddingTop: scaleLogin(28),
+                width: loginCardWidth,
+              },
             ]}
           >
             <View style={styles.loginBadgeShadow}>
@@ -4117,16 +4129,35 @@ export default function App() {
                 accessibilityLabel="Team MECO 8324 logo"
                 resizeMode="contain"
                 source={require("./assets/meco-shield.png")}
-                style={styles.loginLogoImage}
+                style={[
+                  styles.loginLogoImage,
+                  { height: scaleLogin(334), width: scaleLogin(304) },
+                ]}
               />
             </View>
 
-            <Text style={styles.loginTitle}>Sign in with email</Text>
+            <Text
+              style={[
+                styles.loginTitle,
+                {
+                  fontSize: scaleLogin(28),
+                  marginBottom: scaleLogin(16),
+                  marginTop: scaleLogin(14),
+                },
+              ]}
+            >
+              Sign in with email
+            </Text>
 
             <View
               style={[
                 styles.loginEmailRow,
                 isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
+                {
+                  minHeight: scaleLogin(50),
+                  paddingLeft: scaleLogin(18),
+                  paddingRight: scaleLogin(8),
+                },
               ]}
             >
               <TextInput
@@ -4136,16 +4167,22 @@ export default function App() {
                 onChangeText={setAuthEmail}
                 placeholder={`you@${hostedDomain}`}
                 placeholderTextColor="#f1f5ff"
-                style={styles.loginEmailInput}
+                style={[
+                  styles.loginEmailInput,
+                  { fontSize: scaleLogin(13), paddingVertical: scaleLogin(12) },
+                ]}
                 value={authEmail}
               />
               <Pressable
                 accessibilityRole="button"
                 disabled={isAuthenticating}
                 onPress={sendEmailCode}
-                style={styles.loginSendButton}
+                style={[
+                  styles.loginSendButton,
+                  { minHeight: scaleLogin(36), paddingHorizontal: scaleLogin(10) },
+                ]}
               >
-                <Text style={styles.loginSendButtonText}>
+                <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]}>
                   {isAuthenticating ? "Sending" : "Send Code"}
                 </Text>
               </Pressable>
@@ -4159,17 +4196,33 @@ export default function App() {
               onPress={signInWithGoogle}
               style={({ pressed }) => [
                 styles.loginGoogleButton,
+                {
+                  gap: scaleLogin(8),
+                  marginTop: scaleLogin(124),
+                  minHeight: scaleLogin(42),
+                  paddingHorizontal: scaleLogin(8),
+                },
                 pressed && styles.loginGoogleButtonPressed,
               ]}
             >
-              <View style={styles.loginAvatar}>
-                <Text style={styles.loginAvatarText}>A</Text>
+              <View
+                style={[
+                  styles.loginAvatar,
+                  { height: scaleLogin(22), width: scaleLogin(22) },
+                ]}
+              >
+                <Text style={[styles.loginAvatarText, { fontSize: scaleLogin(12) }]}>A</Text>
               </View>
-              <Text style={styles.loginGoogleText}>
+              <Text style={[styles.loginGoogleText, { fontSize: scaleLogin(13) }]}>
                 {isAuthenticating ? "Signing in" : "Sign in with Google"}
               </Text>
-              <View style={styles.loginGoogleMark}>
-                <Text style={styles.loginGoogleMarkText}>G</Text>
+              <View
+                style={[
+                  styles.loginGoogleMark,
+                  { height: scaleLogin(38), width: scaleLogin(38) },
+                ]}
+              >
+                <Text style={[styles.loginGoogleMarkText, { fontSize: scaleLogin(22) }]}>G</Text>
               </View>
             </Pressable>
           </View>
