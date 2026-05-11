@@ -47,8 +47,8 @@ export function LandscapeSubsystemTimeline({
   );
   const [viewMode, setViewMode] = useState<LandscapeTaskViewMode>("timeline");
   const { height } = useWindowDimensions();
-  const timelineYear = today.getFullYear();
   const timelineStart = selectedMonthStart;
+  const timelineYear = timelineStart.getFullYear();
   const timelineDays = getTimelineDays(timelineStart);
   const packedLanes = buildLanes(tasks, subsystems, timelineStart, timelineDays.length);
   const lanes = expandLanesForViewport(packedLanes, height);

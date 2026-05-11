@@ -780,16 +780,17 @@ export default function App() {
 
     const credential =
       googleResponse.params.id_token ?? googleResponse.authentication?.idToken;
-
-    if (!credential && googleResponse.params.code) {
-      return;
-    }
+    const hasAuthorizationCode = Boolean(googleResponse.params.code);
 
     let isActive = true;
 
     async function exchangeGoogleCredential() {
       if (!credential) {
-        showAuthError("Google did not return an ID token.");
+        showAuthError(
+          hasAuthorizationCode
+            ? "Google returned an authorization code instead of an ID token. This app needs an ID token to sign in."
+            : "Google did not return an ID token.",
+        );
         return;
       }
 
