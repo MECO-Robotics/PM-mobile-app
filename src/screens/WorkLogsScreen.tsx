@@ -1,12 +1,36 @@
-import { Modal, Pressable, View } from "react-native";
-import { useState } from "react";
+import { Image, Pressable, ScrollView, View } from "react-native";
 
 import { Text } from "../i18n";
 import {
+  ARCHIVE_FILTER_OPTIONS,
+  BLOCKER_FILTER_OPTIONS,
+  EVENT_TYPE_OPTIONS,
+  EVENT_TYPE_STYLES,
+  INVENTORY_VIEW_OPTIONS,
+  MANUFACTURING_STATUS_OPTIONS,
+  MANUFACTURING_VIEW_OPTIONS,
+  MATERIAL_CATEGORY_OPTIONS,
+  PART_STATUS_OPTIONS,
+  PURCHASE_APPROVAL_OPTIONS,
+  PURCHASE_STATUS_OPTIONS,
+  STATUS_LABELS,
   SUBVIEW_INTERACTION_GUIDANCE,
+  TASK_PRIORITY_OPTIONS,
+  TASK_STATUS_OPTIONS,
+  TASK_SUBTEAM_OPTIONS,
+  TASK_VIEW_OPTIONS,
   WORKLOG_SORT_OPTIONS,
 } from "../ui/constants";
-import { formatDate } from "../ui/helpers";
+import {
+  capitalize,
+  datePortion,
+  formatDate,
+  formatDateTime,
+  splitList,
+  timePortion,
+  timelineProgress,
+} from "../ui/helpers";
+import { LandscapeSubsystemTimeline } from "../ui/LandscapeSubsystemTimeline";
 import { styles } from "../ui/styles";
 import {
   EmptyState,
@@ -14,12 +38,15 @@ import {
   InteractionNote,
   OptionChipRow,
   SearchField,
+  SectionTabs,
+  StatusPill,
   SummaryRow,
   WorkspacePanel,
 } from "../ui/ui";
 import type { WorkLogSortMode } from "../ui/types";
 
 import type { AppScreenProps } from "./types";
+import { AttendanceStatusMark } from "./AttendanceStatusMark";
 
 export function WorkLogsScreen(props: AppScreenProps) {
   const {
@@ -28,13 +55,10 @@ export function WorkLogsScreen(props: AppScreenProps) {
     filteredWorkLogs,
     membersById,
     openCreateWorkLogEditor,
-    openWorkLogFromTimer,
     openEditWorkLogEditor,
-    pauseWorkLogTimer,
     setWorkLogSearch,
     setWorkLogSortMode,
     setWorkLogSubsystemFilter,
-    startWorkLogTimer,
     subsystems,
     subsystemsById,
     taskById,
@@ -42,21 +66,7 @@ export function WorkLogsScreen(props: AppScreenProps) {
     workLogSortMode,
     workLogSubsystemFilter,
     workLogSummary,
-    workTimerElapsedLabel,
-    workTimerIsActive,
-    workTimerIsPaused,
   } = props;
-  const [isAddMenuVisible, setIsAddMenuVisible] = useState(false);
-
-  const openAddWorkLog = () => {
-    setIsAddMenuVisible(false);
-    openCreateWorkLogEditor();
-  };
-
-  const startTimer = () => {
-    setIsAddMenuVisible(false);
-    startWorkLogTimer();
-  };
 
 const renderScreen = () => {
   return (
@@ -64,42 +74,11 @@ const renderScreen = () => {
       title="Work logs"
       subtitle="Search by task or notes, then verify hours, participants, and linked subsystem impact."
       actions={
-        <Pressable onPress={() => setIsAddMenuVisible(true)} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+        <Pressable onPress={openCreateWorkLogEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
           <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
         </Pressable>
       }
     >
-      {workTimerIsActive ? (
-        <View style={[styles.workTimerCard, appResponsiveStyles.rowCard]}>
-          <View style={styles.queueRowHeader}>
-            <View style={styles.queueRowPrimaryText}>
-              <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>Work timer</Text>
-              <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                {workTimerElapsedLabel}
-              </Text>
-            </View>
-            <Text style={editTagStyle}>{workTimerIsPaused ? "PAUSED" : "RUNNING"}</Text>
-          </View>
-
-          <View style={styles.quickActionRow}>
-            {workTimerIsPaused ? (
-              <Pressable
-                onPress={openWorkLogFromTimer}
-                style={[styles.quickActionButton, styles.quickActionButtonPrimary]}
-              >
-                <Text style={styles.quickActionButtonPrimaryLabel}>Log Time</Text>
-              </Pressable>
-            ) : (
-              <Pressable onPress={pauseWorkLogTimer} style={styles.quickActionButton}>
-                <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                  Pause
-                </Text>
-              </Pressable>
-            )}
-          </View>
-        </View>
-      ) : null}
-
       <FilterToolbar>
         <SearchField
           onChangeText={setWorkLogSearch}
@@ -161,32 +140,6 @@ const renderScreen = () => {
       {filteredWorkLogs.length === 0 ? <EmptyState text="No work logs match the current filters." /> : null}
 
       <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.worklogs} />
-
-      <Modal
-        animationType="fade"
-        onRequestClose={() => setIsAddMenuVisible(false)}
-        transparent
-        visible={isAddMenuVisible}
-      >
-        <Pressable style={styles.modalScrim} onPress={() => setIsAddMenuVisible(false)}>
-          <Pressable style={styles.workLogAddMenu}>
-            <Text style={styles.modalTitle}>Start work log</Text>
-            <View style={styles.quickActionRow}>
-              <Pressable
-                onPress={openAddWorkLog}
-                style={[styles.quickActionButton, styles.quickActionButtonPrimary]}
-              >
-                <Text style={styles.quickActionButtonPrimaryLabel}>Add Work Log</Text>
-              </Pressable>
-              <Pressable onPress={startTimer} style={styles.quickActionButton}>
-                <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                  Start Timer
-                </Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </WorkspacePanel>
   );
 };

@@ -11,7 +11,6 @@ import type {
   PartDefinition,
   PartInstance,
   PurchaseItem,
-  QaRequest,
   QaReview,
   Subsystem,
   Task,
@@ -55,25 +54,9 @@ export type RiskRow = {
   title: string;
 };
 
-export type HomeActionItem = {
-  detail: string;
-  id: string;
-  label: string;
-  onPressTargetId: string;
-  priority: "critical" | "high" | "medium";
-  source: "manufacturing" | "purchase" | "task";
-  title: string;
-};
-
 export type SubsystemCounts = {
-  blockedTasks: number;
-  health: "good" | "watch" | "risk";
   mechanisms: number;
   openTasks: number;
-  openPurchases: number;
-  overdueTasks: number;
-  qaFindings: number;
-  waitingQa: number;
   risks: number;
   tasks: number;
 };
@@ -110,7 +93,7 @@ export interface AppScreenProps {
   attendancePreview: AttendanceRow[];
   attendanceSummary: SummaryChipData[];
   canMentorApprove: boolean;
-  clearTaskBlockers: (task: Task, resolutionNote: string) => Promise<void>;
+  clearTaskBlockers: (task: Task) => Promise<void>;
   disciplinesById: Record<string, Discipline>;
   editTagStyle: StyleProp<TextStyle>;
   eventOptions: Option[];
@@ -127,8 +110,6 @@ export interface AppScreenProps {
   filteredTaskQueue: Task[];
   filteredWorkLogs: WorkLog[];
   homeInventoryNeeds: PurchaseItem[];
-  homeActionItems: HomeActionItem[];
-  homeMeetingExport: string;
   homePriorityTasks: Task[];
   homeTaskSummary: SummaryChipData[];
   inventoryView: InventoryViewTab;
@@ -136,7 +117,6 @@ export interface AppScreenProps {
   isLandscapeCardLayout: boolean;
   isLandscapeTimelineLayout: boolean;
   isSyncing: boolean;
-  manufacturingItems: ManufacturingItem[];
   manufacturingArchiveFilter: ArchiveFilterMode;
   manufacturingMaterialFilter: string;
   manufacturingMaterialOptions: { id: string; name: string }[];
@@ -159,19 +139,16 @@ export interface AppScreenProps {
   milestoneSortOrder: "asc" | "desc";
   milestoneSummary: SummaryChipData[];
   milestoneTypeFilter: string;
-  openCreateDeadlineEditor: () => void;
   openCreateEventReportEditor: (eventId?: string) => void;
   openCreateManufacturingEditor: () => void;
   openCreateMemberEditor: () => void;
   openCreateMilestoneEditor: () => void;
   openCreatePartDefinitionEditor: () => void;
   openCreatePurchaseEditor: () => void;
-  openCreateQaReportEditor: (taskId?: string, qaRequestId?: string) => void;
+  openCreateQaReportEditor: (taskId?: string) => void;
   openCreateSubsystemEditor: () => void;
   openCreateTaskEditor: () => void;
-  openCreateWorkLogEditor: (taskId?: string) => void;
-  openWorkLogFromTimer: () => void;
-  createQaRequest: (subject: string, mentorId: string, taskId?: string | null) => void;
+  openCreateWorkLogEditor: () => void;
   openEditManufacturingEditor: (item: ManufacturingItem) => void;
   openEditMemberEditor: (memberId: string) => void;
   openEditMilestoneEditor: (event: Event) => void;
@@ -180,12 +157,9 @@ export interface AppScreenProps {
   openEditSubsystemEditor: (subsystem: Subsystem) => void;
   openEditTaskEditor: (task: Task) => void;
   openEditWorkLogEditor: (workLog: WorkLog) => void;
-  openDuplicateTaskEditor: (task: Task) => void;
   openInventoryPurchases: () => void;
   openMaterialRestockEditor: (row: MaterialRollup) => void;
   openTaskQueueFromTask: (task: Task) => void;
-  requestTaskQa: (task: Task) => Promise<void>;
-  startTask: (task: Task) => Promise<void>;
   partDefinitions: PartDefinition[];
   partDefinitionsById: Record<string, PartDefinition>;
   partInstancesById: Record<string, PartInstance>;
@@ -198,7 +172,6 @@ export interface AppScreenProps {
     patch: Partial<Pick<ManufacturingItem, "mentorReviewed" | "status">>,
   ) => Promise<void>;
   purchaseApprovalFilter: string;
-  purchaseItems: PurchaseItem[];
   purchaseArchiveFilter: ArchiveFilterMode;
   purchaseRequesterFilter: string;
   purchaseSearch: string;
@@ -206,7 +179,6 @@ export interface AppScreenProps {
   purchaseSubsystemFilter: string;
   purchaseVendorFilter: string;
   purchaseVendorOptions: { id: string; name: string }[];
-  qaRequests: QaRequest[];
   qaReviews: QaReview[];
   reportSummary: SummaryChipData[];
   riskRows: RiskRow[];
@@ -258,7 +230,6 @@ export interface AppScreenProps {
   setWorkLogSearch: TextSetter;
   setWorkLogSortMode: StateSetter<WorkLogSortMode>;
   setWorkLogSubsystemFilter: TextSetter;
-  shiftTaskDueDates: (tasksToShift: Task[], dayDelta: number) => Promise<void>;
   subsystemCountsById: Record<string, SubsystemCounts>;
   subsystemSearch: string;
   subsystems: Subsystem[];
@@ -272,7 +243,6 @@ export interface AppScreenProps {
   taskSearch: string;
   taskStatusFilter: string;
   taskSubsystemFilter: string;
-  taskLoggedHoursById: Record<string, number>;
   taskSummary: SummaryChipData[];
   taskView: TaskViewTab;
   tasks: Task[];
@@ -284,9 +254,4 @@ export interface AppScreenProps {
   workLogSortMode: WorkLogSortMode;
   workLogSubsystemFilter: string;
   workLogSummary: SummaryChipData[];
-  workTimerElapsedLabel: string;
-  workTimerIsActive: boolean;
-  workTimerIsPaused: boolean;
-  startWorkLogTimer: () => void;
-  pauseWorkLogTimer: () => void;
 }
