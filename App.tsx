@@ -3388,6 +3388,7 @@ export default function App() {
     milestoneSortOrder,
     milestoneSummary,
     milestoneTypeFilter,
+    openCreateDeadlineEditor,
     openCreateEventReportEditor,
     openCreateManufacturingEditor,
     openCreateMemberEditor,

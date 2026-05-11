@@ -139,6 +139,7 @@ export interface AppScreenProps {
   milestoneSortOrder: "asc" | "desc";
   milestoneSummary: SummaryChipData[];
   milestoneTypeFilter: string;
+  openCreateDeadlineEditor: () => void;
   openCreateEventReportEditor: (eventId?: string) => void;
   openCreateManufacturingEditor: () => void;
   openCreateMemberEditor: () => void;
