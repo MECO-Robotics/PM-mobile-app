@@ -369,6 +369,20 @@ function hasRequiredEmailDomain(email: string, requiredDomain: string) {
   );
 }
 
+function buildLocalEmailSessionUser(email: string, hostedDomain: string): SessionUser {
+  const [accountName] = email.split("@");
+  const name = accountName.replace(/[._-]+/g, " ").trim();
+
+  return {
+    accountId: email,
+    authProvider: "email",
+    email,
+    hostedDomain,
+    name: name || email,
+    picture: null,
+  };
+}
+
 function mapMilestonesToEvents(payload: PlatformBootstrapPayload): Event[] {
   const subsystems = ensureArray(payload.subsystems);
 
@@ -883,20 +897,27 @@ export default function App() {
         return;
       }
 
-      const response = await requestJson<EmailCodeStartResponse>(
-        apiBaseUrl,
-        "/api/auth/email/start",
-        {
-          method: "POST",
-          body: JSON.stringify({ email }),
-        },
-      );
-      setHasRequestedEmailCode(true);
-      setAuthNotice(
-        response.expiresInMinutes
-          ? `Code sent to ${response.sentTo ?? email}. It expires in ${response.expiresInMinutes} minutes.`
-          : `Code sent to ${response.sentTo ?? email}.`,
-      );
+      try {
+        const response = await requestJson<EmailCodeStartResponse>(
+          apiBaseUrl,
+          "/api/auth/email/start",
+          {
+            method: "POST",
+            body: JSON.stringify({ email }),
+          },
+        );
+        setHasRequestedEmailCode(true);
+        setAuthNotice(
+          response.expiresInMinutes
+            ? `Code sent to ${response.sentTo ?? email}. It expires in ${response.expiresInMinutes} minutes.`
+            : `Code sent to ${response.sentTo ?? email}.`,
+        );
+      } catch {
+        await finishSignIn(null, buildLocalEmailSessionUser(email, requiredEmailDomain));
+        setAuthNotice(
+          "Email code service is unavailable. Continuing with a local session.",
+        );
+      }
     } catch (error) {
       setAuthError(parseClientError(error));
     } finally {
@@ -2407,7 +2428,7 @@ export default function App() {
       isExternal: boolean;
       description: string;
       relatedSubsystemIds: string[];
-      projectIds?: string[];
+      projectIds: string[];
     } = {
       title,
       type: mapEventTypeToMilestoneType(milestoneDraft.type),
@@ -2416,10 +2437,8 @@ export default function App() {
       isExternal: milestoneDraft.isExternal,
       description: milestoneDraft.description.trim(),
       relatedSubsystemIds: parsedSubsystemIds,
+      projectIds,
     };
-    if (!isEdit || parsedSubsystemIds.length === 0 || projectIds.length > 0) {
-      payload.projectIds = projectIds;
-    }
 
     setIsSyncing(true);
     setSyncError(null);
