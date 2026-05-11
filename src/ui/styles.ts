@@ -1538,6 +1538,15 @@ export const styles = StyleSheet.create({
   loginEmailRowDark: {
     backgroundColor: "#172746",
   },
+  loginCodeRow: {
+    width: "100%",
+    minHeight: 50,
+    borderRadius: 999,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 18,
+    paddingRight: 8,
+  },
   loginEmailInput: {
     flex: 1,
     minWidth: 0,
@@ -1557,8 +1566,18 @@ export const styles = StyleSheet.create({
   },
   loginErrorText: {
     alignSelf: "stretch",
-    color: "#ff9aa5",
-    fontSize: 12,
+    color: colors.black,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 20,
+    marginTop: 10,
+    textAlign: "center",
+  },
+  loginNoticeText: {
+    alignSelf: "stretch",
+    color: "#dbeafe",
+    fontSize: 14,
+    lineHeight: 20,
     marginTop: 10,
     textAlign: "center",
   },
@@ -1608,10 +1627,9 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  loginGoogleMarkText: {
-    color: "#4285f4",
-    fontSize: 22,
-    fontWeight: "900",
+  loginGoogleMarkImage: {
+    width: 26,
+    height: 26,
   },
   settingsRow: {
     borderRadius: radii.md,

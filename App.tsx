@@ -262,7 +262,10 @@ export default function App() {
   const [authConfig, setAuthConfig] = useState<PublicAuthConfig | null>(null);
   const [hasAuthenticated, setHasAuthenticated] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
+  const [authCode, setAuthCode] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
+  const [isEmailCodeSent, setIsEmailCodeSent] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [backendStatus, setBackendStatus] = useState<
@@ -498,18 +501,6 @@ export default function App() {
     }
   }, [apiBaseUrl]);
 
-  const buildFallbackSessionUser = useCallback(
-    (authProvider: SessionUser["authProvider"], email: string): SessionUser => ({
-      accountId: email.split("@")[0] || "meco-user",
-      authProvider,
-      email,
-      hostedDomain: authConfig?.hostedDomain ?? "mecorobotics.org",
-      name: email.split("@")[0]?.replace(/[._-]+/g, " ") || "MECO Member",
-      picture: null,
-    }),
-    [authConfig?.hostedDomain],
-  );
-
   const finishSignIn = useCallback(
     async (token: string | null, user: SessionUser) => {
       setApiToken(token);
@@ -532,39 +523,23 @@ export default function App() {
   );
 
   const signInWithGoogle = useCallback(async () => {
-    setIsAuthenticating(true);
     setAuthError(null);
+    setAuthNotice(null);
 
-    try {
-      let token = process.env.EXPO_PUBLIC_API_TOKEN?.trim() ?? "";
-      token = token.length > 0 ? token : "";
-
-      if (!token && authConfig?.devBypassAvailable) {
-        const session = await requestJson<SessionResponse>(
-          apiBaseUrl,
-          "/api/auth/dev-bypass",
-          { method: "POST" },
-        );
-        await finishSignIn(session.token, session.user);
-        return;
-      }
-
-      await finishSignIn(
-        token || null,
-        buildFallbackSessionUser("google", `you@${authConfig?.hostedDomain ?? "mecorobotics.org"}`),
-      );
-    } catch (error) {
-      setAuthError(parseClientError(error));
-    } finally {
-      setIsAuthenticating(false);
+    if (!authConfig?.googleClientId) {
+      setAuthError("Google sign-in is waiting on the OAuth client ID.");
+      return;
     }
-  }, [apiBaseUrl, authConfig, buildFallbackSessionUser, finishSignIn]);
 
-  const sendEmailCode = useCallback(async () => {
+    setAuthError("Google sign-in is configured, but the OAuth handoff is not connected yet.");
+  }, [authConfig?.googleClientId]);
+
+  const requestEmailCode = useCallback(async () => {
     const email = authEmail.trim().toLowerCase();
     const hostedDomain = authConfig?.hostedDomain ?? "mecorobotics.org";
 
     setAuthError(null);
+    setAuthNotice(null);
 
     if (!email || !email.endsWith(`@${hostedDomain}`)) {
       setAuthError(`Use your @${hostedDomain} email.`);
@@ -574,27 +549,80 @@ export default function App() {
     setIsAuthenticating(true);
 
     try {
-      if (authConfig?.devBypassAvailable) {
+      await requestJson(
+        apiBaseUrl,
+        "/api/auth/email/start",
+        {
+          method: "POST",
+          body: JSON.stringify({ email }),
+        },
+      );
+      setIsEmailCodeSent(true);
+      setAuthNotice(`Code sent to ${email}.`);
+    } catch (error) {
+      if (authConfig?.devBypassAvailable || !authConfig?.enabled) {
+        setIsEmailCodeSent(true);
+        setAuthNotice("Dev mode: enter 8324 to continue.");
+      } else {
+        setAuthError(parseClientError(error));
+      }
+    } finally {
+      setIsAuthenticating(false);
+    }
+  }, [apiBaseUrl, authConfig, authEmail]);
+
+  const verifyEmailCode = useCallback(async () => {
+    const email = authEmail.trim().toLowerCase();
+    const code = authCode.trim();
+
+    setAuthError(null);
+    setAuthNotice(null);
+
+    if (!code) {
+      setAuthError("Enter the code from your email.");
+      return;
+    }
+
+    setIsAuthenticating(true);
+
+    try {
+      if (authConfig?.devBypassAvailable || !authConfig?.enabled) {
+        if (code !== "8324") {
+          setAuthError("Use 8324 for the dev login code.");
+          return;
+        }
+
         const session = await requestJson<SessionResponse>(
           apiBaseUrl,
           "/api/auth/dev-bypass",
           { method: "POST" },
         );
-        await finishSignIn(session.token, {
-          ...session.user,
-          authProvider: "email",
-          email,
-        });
+        await finishSignIn(session.token, session.user);
         return;
       }
 
-      await finishSignIn(null, buildFallbackSessionUser("email", email));
+      const session = await requestJson<SessionResponse>(
+        apiBaseUrl,
+        "/api/auth/email/verify",
+        {
+          method: "POST",
+          body: JSON.stringify({ code, email }),
+        },
+      );
+      await finishSignIn(session.token, session.user);
     } catch (error) {
       setAuthError(parseClientError(error));
     } finally {
       setIsAuthenticating(false);
     }
-  }, [apiBaseUrl, authConfig, authEmail, buildFallbackSessionUser, finishSignIn]);
+  }, [apiBaseUrl, authCode, authConfig, authEmail, finishSignIn]);
+
+  const resetEmailCode = useCallback(() => {
+    setAuthCode("");
+    setAuthError(null);
+    setAuthNotice(null);
+    setIsEmailCodeSent(false);
+  }, []);
 
   const syncFromBackend = useCallback(async () => {
     setIsSyncing(true);
@@ -2912,6 +2940,12 @@ export default function App() {
     setApiToken(null);
     setSessionUser(null);
     setHasAuthenticated(false);
+    setAuthCode("");
+    setAuthEmail("");
+    setAuthError(null);
+    setAuthNotice(null);
+    setIsAuthenticating(false);
+    setIsEmailCodeSent(false);
     setIsPersonMenuVisible(false);
     setIsSeasonMenuVisible(false);
     setIsNavMenuVisible(false);
@@ -2919,7 +2953,6 @@ export default function App() {
     setActivePersonFilter("all");
     setSelectedMemberId(null);
     setSyncError(null);
-    setAuthError(null);
     closeTaskEditor();
     closeWorkLogEditor();
     closeMilestoneEditor();
@@ -4163,8 +4196,14 @@ export default function App() {
               <TextInput
                 autoCapitalize="none"
                 autoCorrect={false}
+                editable={!isEmailCodeSent}
                 keyboardType="email-address"
-                onChangeText={setAuthEmail}
+                onChangeText={(value) => {
+                  setAuthEmail(value);
+                  if (isEmailCodeSent) {
+                    resetEmailCode();
+                  }
+                }}
                 placeholder={`you@${hostedDomain}`}
                 placeholderTextColor="#f1f5ff"
                 style={[
@@ -4176,19 +4215,78 @@ export default function App() {
               <Pressable
                 accessibilityRole="button"
                 disabled={isAuthenticating}
-                onPress={sendEmailCode}
+                onPress={isEmailCodeSent ? resetEmailCode : requestEmailCode}
                 style={[
                   styles.loginSendButton,
                   { minHeight: scaleLogin(36), paddingHorizontal: scaleLogin(10) },
                 ]}
               >
                 <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]}>
-                  {isAuthenticating ? "Sending" : "Send Code"}
+                  {isEmailCodeSent ? "Change" : isAuthenticating ? "Sending" : "Send Code"}
                 </Text>
               </Pressable>
             </View>
 
-            {authError ? <Text style={styles.loginErrorText}>{authError}</Text> : null}
+            {isEmailCodeSent ? (
+              <View
+                style={[
+                  styles.loginCodeRow,
+                  isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
+                  {
+                    marginTop: scaleLogin(10),
+                    minHeight: scaleLogin(50),
+                    paddingLeft: scaleLogin(18),
+                    paddingRight: scaleLogin(8),
+                  },
+                ]}
+              >
+                <TextInput
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="number-pad"
+                  onChangeText={setAuthCode}
+                  placeholder="Code"
+                  placeholderTextColor="#f1f5ff"
+                  style={[
+                    styles.loginEmailInput,
+                    { fontSize: scaleLogin(13), paddingVertical: scaleLogin(12) },
+                  ]}
+                  value={authCode}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={isAuthenticating}
+                  onPress={verifyEmailCode}
+                  style={[
+                    styles.loginSendButton,
+                    { minHeight: scaleLogin(36), paddingHorizontal: scaleLogin(10) },
+                  ]}
+                >
+                  <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]}>
+                    {isAuthenticating ? "Checking" : "Verify"}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {authNotice ? (
+              <Text style={[styles.loginNoticeText, { fontSize: scaleLogin(14) }]}>
+                {authNotice}
+              </Text>
+            ) : null}
+            {authError ? (
+              <Text
+                style={[
+                  styles.loginErrorText,
+                  {
+                    color: isDarkModeEnabled ? "#fecdd3" : colors.black,
+                    fontSize: scaleLogin(14),
+                  },
+                ]}
+              >
+                {authError}
+              </Text>
+            ) : null}
 
             <Pressable
               accessibilityRole="button"
@@ -4222,7 +4320,15 @@ export default function App() {
                   { height: scaleLogin(38), width: scaleLogin(38) },
                 ]}
               >
-                <Text style={[styles.loginGoogleMarkText, { fontSize: scaleLogin(22) }]}>G</Text>
+                <Image
+                  accessibilityLabel="Google logo"
+                  resizeMode="contain"
+                  source={require("./assets/google-g.png")}
+                  style={[
+                    styles.loginGoogleMarkImage,
+                    { height: scaleLogin(26), width: scaleLogin(26) },
+                  ]}
+                />
               </View>
             </Pressable>
           </View>
