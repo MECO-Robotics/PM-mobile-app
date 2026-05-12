@@ -4541,6 +4541,7 @@ export default function App() {
   );
 
   const renderLoginScreen = () => {
+    const hostedDomain = authConfig?.hostedDomain ?? "mecorobotics.org";
     const loginCardHeight = Math.min(height - 8, 722);
     const loginCardWidth = Math.min(width - 48, 334);
 
@@ -4599,7 +4600,7 @@ export default function App() {
                     setAuthNotice(null);
                     setHasRequestedEmailCode(false);
                   }}
-                  placeholder="you@mecorobotics.org"
+                  placeholder={`you@${hostedDomain}`}
                   placeholderTextColor="#f1f5ff"
                   returnKeyType="next"
                   style={styles.loginEmailInput}
