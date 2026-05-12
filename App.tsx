@@ -593,6 +593,12 @@ export default function App() {
       return;
     }
 
+    if (!authConfig?.enabled) {
+      setIsEmailCodeSent(true);
+      setAuthNotice("Offline mode: enter 8324 to continue.");
+      return;
+    }
+
     setIsAuthenticating(true);
 
     try {
@@ -610,9 +616,6 @@ export default function App() {
       if (authConfig?.devBypassAvailable) {
         setIsEmailCodeSent(true);
         setAuthNotice("Dev mode: enter 8324 to continue.");
-      } else if (!authConfig?.enabled) {
-        setIsEmailCodeSent(true);
-        setAuthNotice("Offline mode: enter 8324 to continue.");
       } else {
         setAuthError(parseClientError(error));
       }
@@ -636,24 +639,6 @@ export default function App() {
     setIsAuthenticating(true);
 
     try {
-      if (authConfig?.devBypassAvailable) {
-        if (code !== "8324") {
-          setAuthError("Use 8324 for the dev login code.");
-          return;
-        }
-
-        const session = await requestJson<SessionResponse>(
-          apiBaseUrl,
-          "/api/auth/dev-bypass",
-          { method: "POST" },
-        );
-        await finishSignIn(session.token, {
-          ...session.user,
-          ...buildLocalEmailSessionUser(email),
-        });
-        return;
-      }
-
       if (!authConfig?.enabled) {
         if (code !== "8324") {
           setAuthError("Use 8324 for the offline login code.");
@@ -674,6 +659,23 @@ export default function App() {
       );
       await finishSignIn(session.token, session.user);
     } catch (error) {
+      if (authConfig?.devBypassAvailable && code === "8324") {
+        try {
+          const session = await requestJson<SessionResponse>(
+            apiBaseUrl,
+            "/api/auth/dev-bypass",
+            { method: "POST" },
+          );
+          await finishSignIn(session.token, {
+            ...session.user,
+            ...buildLocalEmailSessionUser(email),
+          });
+        } catch (devBypassError) {
+          setAuthError(parseClientError(devBypassError));
+        }
+        return;
+      }
+
       setAuthError(parseClientError(error));
     } finally {
       setIsAuthenticating(false);
