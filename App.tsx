@@ -539,17 +539,47 @@ export default function App() {
     [authConfig?.hostedDomain],
   );
 
+  const buildLocalGoogleSessionUser = useCallback((): SessionUser => {
+    const hostedDomain = authConfig?.hostedDomain ?? "mecorobotics.org";
+
+    return {
+      accountId: "meco-user",
+      authProvider: "google",
+      email: `you@${hostedDomain}`,
+      hostedDomain,
+      name: "MECO Member",
+      picture: null,
+    };
+  }, [authConfig?.hostedDomain]);
+
   const signInWithGoogle = useCallback(async () => {
     setAuthError(null);
     setAuthNotice(null);
+    setIsAuthenticating(true);
 
-    if (!authConfig?.googleClientId) {
-      setAuthError("Google sign-in is waiting on the OAuth client ID.");
-      return;
+    try {
+      const token = process.env.EXPO_PUBLIC_API_TOKEN?.trim() ?? "";
+
+      if (!token && authConfig?.devBypassAvailable) {
+        const session = await requestJson<SessionResponse>(
+          apiBaseUrl,
+          "/api/auth/dev-bypass",
+          { method: "POST" },
+        );
+        await finishSignIn(session.token, session.user);
+        return;
+      }
+
+      await finishSignIn(
+        token.length > 0 ? token : null,
+        buildLocalGoogleSessionUser(),
+      );
+    } catch (error) {
+      setAuthError(parseClientError(error));
+    } finally {
+      setIsAuthenticating(false);
     }
-
-    setAuthError("Google sign-in is configured, but the OAuth handoff is not connected yet.");
-  }, [authConfig?.googleClientId]);
+  }, [apiBaseUrl, authConfig?.devBypassAvailable, buildLocalGoogleSessionUser, finishSignIn]);
 
   const requestEmailCode = useCallback(async () => {
     const email = authEmail.trim().toLowerCase();
