@@ -535,6 +535,7 @@ export default function App() {
     setWorkLogs(ensureArray(payload.workLogs));
     setManufacturingItems(ensureArray(payload.manufacturingItems));
     setPurchaseItems(ensureArray(payload.purchaseItems));
+    setQaRequests(ensureArray(payload.qaRequests));
     setPartDefinitions(ensureArray(payload.partDefinitions));
     setPartInstances(ensureArray(payload.partInstances));
   }, []);
@@ -3854,20 +3855,17 @@ export default function App() {
     setQaReportError(null);
   };
 
-  const createQaRequest = (subject: string, mentorId: string, taskId?: string | null) => {
+  const createQaRequest = (subject: string, mentorId: string) => {
     const trimmedSubject = subject.trim();
-    const task = taskId ? taskById[taskId] : null;
-    const requestSubject = trimmedSubject || task?.title.trim() || "";
 
-    if (!requestSubject || !membersById[mentorId]) {
+    if (!trimmedSubject || !membersById[mentorId]) {
       return;
     }
 
     setQaRequests((current) => [
       {
         id: `qa-request-local-${Date.now()}`,
-        taskId: task?.id ?? null,
-        subject: requestSubject,
+        subject: trimmedSubject,
         mentorId,
         requestedById: signedInMember?.id ?? null,
         createdAt: new Date().toISOString(),
@@ -3877,7 +3875,7 @@ export default function App() {
     ]);
   };
 
-  const saveQaReportDraft = async () => {
+  const saveQaReportDraft = () => {
     const task = taskById[qaReportDraft.taskId];
     const participants = splitList(qaReportDraft.participantIdsText).filter(
       (participantId) => membersById[participantId],
@@ -4251,6 +4249,7 @@ export default function App() {
     milestoneSortOrder,
     milestoneSummary,
     milestoneTypeFilter,
+    createQaRequest,
     openCreateEventReportEditor,
     openCreateManufacturingEditor,
     openCreateMemberEditor,
@@ -4288,6 +4287,7 @@ export default function App() {
     purchaseSubsystemFilter,
     purchaseVendorFilter,
     purchaseVendorOptions,
+    qaRequests,
     qaReviews,
     reportSummary,
     riskRows,
