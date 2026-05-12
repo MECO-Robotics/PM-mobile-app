@@ -1206,13 +1206,17 @@ export const styles = StyleSheet.create({
     width: 28,
     zIndex: 20,
   },
-  navDrawerScrim: {
+  navDrawerSafeArea: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.34)",
+  },
+  navDrawerScrim: {
+    flex: 1,
     justifyContent: "flex-start",
     alignItems: "flex-start",
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.md,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.md,
   },
   navDrawer: {
     height: "100%",
@@ -1230,6 +1234,10 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.sm,
+  },
+  navDrawerHeaderText: {
+    flex: 1,
+    minWidth: 0,
   },
   navDrawerTitle: {
     color: colors.ink,

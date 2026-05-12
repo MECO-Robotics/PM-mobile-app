@@ -3986,99 +3986,101 @@ export default function App() {
       transparent
       visible={isNavMenuVisible}
     >
-      <Pressable onPress={closeNavigationMenu} style={styles.navDrawerScrim}>
-        <Pressable
-          accessibilityRole="menu"
-          onPress={() => undefined}
-          style={[styles.navDrawer, appResponsiveStyles.navDrawer]}
-          {...navigationCloseSwipeResponder.panHandlers}
-        >
-          <View style={styles.navDrawerHeader}>
-            <View>
-              <Text style={[styles.navDrawerTitle, { color: themeColors.ink }]}>
-                Workspace
-              </Text>
-              <Text style={[styles.navDrawerSubtitle, { color: themeColors.subtleText }]}>
-                {activeTabLabel}
-              </Text>
+      <SafeAreaView style={styles.navDrawerSafeArea}>
+        <Pressable onPress={closeNavigationMenu} style={styles.navDrawerScrim}>
+          <Pressable
+            accessibilityRole="menu"
+            onPress={() => undefined}
+            style={[styles.navDrawer, appResponsiveStyles.navDrawer]}
+            {...navigationCloseSwipeResponder.panHandlers}
+          >
+            <View style={styles.navDrawerHeader}>
+              <View style={styles.navDrawerHeaderText}>
+                <Text style={[styles.navDrawerTitle, { color: themeColors.ink }]}>
+                  Workspace
+                </Text>
+                <Text style={[styles.navDrawerSubtitle, { color: themeColors.subtleText }]}>
+                  {activeTabLabel}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityLabel="Close navigation"
+                accessibilityRole="button"
+                onPress={closeNavigationMenu}
+                style={[styles.navDrawerCloseButton, appResponsiveStyles.iconButton]}
+              >
+                <Text style={[styles.navDrawerCloseLabel, { color: themeColors.navyInk }]}>
+                  X
+                </Text>
+              </Pressable>
             </View>
-            <Pressable
-              accessibilityLabel="Close navigation"
-              accessibilityRole="button"
-              onPress={closeNavigationMenu}
-              style={[styles.navDrawerCloseButton, appResponsiveStyles.iconButton]}
-            >
-              <Text style={[styles.navDrawerCloseLabel, { color: themeColors.navyInk }]}>
-                X
-              </Text>
-            </Pressable>
-          </View>
 
-          <View style={styles.navDrawerList}>
-            {navigationItems.map((item) => {
-              const isActive = activeTab === item.key;
+            <View style={styles.navDrawerList}>
+              {navigationItems.map((item) => {
+                const isActive = activeTab === item.key;
 
-              return (
-                <Pressable
-                  accessibilityRole="menuitem"
-                  accessibilityState={{ selected: isActive }}
-                  key={item.key}
-                  onPress={() => selectNavigationTab(item.key)}
-                  style={[
-                    styles.navDrawerItem,
-                    appResponsiveStyles.navTab,
-                    isActive && [styles.navDrawerItemActive, appResponsiveStyles.navTabActive],
-                  ]}
-                >
-                  <View
+                return (
+                  <Pressable
+                    accessibilityRole="menuitem"
+                    accessibilityState={{ selected: isActive }}
+                    key={item.key}
+                    onPress={() => selectNavigationTab(item.key)}
                     style={[
-                      styles.sidebarIconBubble,
-                      appResponsiveStyles.navBubble,
-                      isActive && styles.sidebarIconBubbleActive,
+                      styles.navDrawerItem,
+                      appResponsiveStyles.navTab,
+                      isActive && [styles.navDrawerItemActive, appResponsiveStyles.navTabActive],
                     ]}
                   >
-                    <Text
+                    <View
                       style={[
-                        styles.sidebarIconLabel,
-                        { color: themeColors.navyInk },
-                        isActive && styles.sidebarIconLabelActive,
+                        styles.sidebarIconBubble,
+                        appResponsiveStyles.navBubble,
+                        isActive && styles.sidebarIconBubbleActive,
                       ]}
                     >
-                      {item.shortLabel}
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.navDrawerItemLabel,
-                      { color: themeColors.ink },
-                      isActive && { color: themeColors.navyInk },
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-                  <View
-                    style={[
-                      styles.sidebarCountPill,
-                      appResponsiveStyles.navCount,
-                      isActive && styles.sidebarCountPillActive,
-                    ]}
-                  >
+                      <Text
+                        style={[
+                          styles.sidebarIconLabel,
+                          { color: themeColors.navyInk },
+                          isActive && styles.sidebarIconLabelActive,
+                        ]}
+                      >
+                        {item.shortLabel}
+                      </Text>
+                    </View>
                     <Text
                       style={[
-                        styles.sidebarCountLabel,
+                        styles.navDrawerItemLabel,
                         { color: themeColors.ink },
-                        isActive && styles.sidebarCountLabelActive,
+                        isActive && { color: themeColors.navyInk },
                       ]}
                     >
-                      {item.count}
+                      {item.label}
                     </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
+                    <View
+                      style={[
+                        styles.sidebarCountPill,
+                        appResponsiveStyles.navCount,
+                        isActive && styles.sidebarCountPillActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.sidebarCountLabel,
+                          { color: themeColors.ink },
+                          isActive && styles.sidebarCountLabelActive,
+                        ]}
+                      >
+                        {item.count}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </SafeAreaView>
     </Modal>
   );
 
