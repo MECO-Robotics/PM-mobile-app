@@ -72,6 +72,13 @@ export function getMonthStartDate(anchor: Date) {
   return new Date(anchor.getFullYear(), anchor.getMonth(), 1);
 }
 
+export function getCalendarDays(monthStart: Date) {
+  const firstMonthDay = new Date(monthStart.getFullYear(), monthStart.getMonth(), 1);
+  const gridStart = addDays(firstMonthDay, -firstMonthDay.getDay());
+
+  return Array.from({ length: 42 }, (_value, index) => addDays(gridStart, index));
+}
+
 function getTaskDateIndexes(task: Task, monthStart: Date, dayCount: number) {
   const startIndex = daysBetween(monthStart, getTaskStartDate(task));
   const endIndex = daysBetween(monthStart, parseDate(task.dueDate));

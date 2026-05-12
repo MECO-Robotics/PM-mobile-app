@@ -9,6 +9,7 @@ import { LandscapeTimelineBoard } from "./LandscapeTimelineBoard";
 import {
   buildLanes,
   expandLanesForViewport,
+  getCalendarDays,
   getMonthStartDate,
   getTimelineDays,
   parseDate,
@@ -50,7 +51,10 @@ export function LandscapeSubsystemTimeline({
   const timelineStart = selectedMonthStart;
   const timelineYear = timelineStart.getFullYear();
   const timelineDays = getTimelineDays(timelineStart);
-  const packedLanes = buildLanes(tasks, subsystems, timelineStart, timelineDays.length);
+  const calendarDays = getCalendarDays(timelineStart);
+  const laneStart = viewMode === "calendar" ? calendarDays[0] : timelineStart;
+  const laneDayCount = viewMode === "calendar" ? calendarDays.length : timelineDays.length;
+  const packedLanes = buildLanes(tasks, subsystems, laneStart, laneDayCount);
   const lanes = expandLanesForViewport(packedLanes, height);
   const laneHeight = lanes.reduce((sum, lane) => sum + lane.height, 0);
 
@@ -82,6 +86,7 @@ export function LandscapeSubsystemTimeline({
       ) : (
         <LandscapeCalendarView
           colors={colors}
+          calendarDays={calendarDays}
           events={events}
           lanes={lanes}
           locale={locale}

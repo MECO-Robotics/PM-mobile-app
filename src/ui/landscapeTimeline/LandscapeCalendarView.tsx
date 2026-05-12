@@ -14,6 +14,7 @@ import { landscapeCalendarStyles as calendarStyles } from "./landscapeCalendarSt
 import { landscapeTimelineStyles as styles } from "./landscapeTimelineStyles";
 
 type Props = {
+  calendarDays: Date[];
   colors: AppThemeColors;
   events: Event[];
   lanes: PackedLane[];
@@ -25,20 +26,8 @@ type Props = {
 
 const MAX_ITEMS_PER_DAY = 3;
 
-function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function getCalendarDays(monthStart: Date) {
-  const firstMonthDay = new Date(monthStart.getFullYear(), monthStart.getMonth(), 1);
-  const gridStart = addDays(firstMonthDay, -firstMonthDay.getDay());
-
-  return Array.from({ length: 42 }, (_value, index) => addDays(gridStart, index));
-}
-
 export function LandscapeCalendarView({
+  calendarDays,
   colors,
   events,
   lanes,
@@ -47,7 +36,6 @@ export function LandscapeCalendarView({
   timelineStart,
   todayKey,
 }: Props) {
-  const calendarDays = getCalendarDays(timelineStart);
   const taskItems = lanes.flatMap((lane) => lane.tasks.map((packedTask) => ({ ...packedTask, laneColor: lane.color })));
 
   return (
