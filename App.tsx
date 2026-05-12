@@ -522,6 +522,23 @@ export default function App() {
     [refreshWorkspaceFromServer],
   );
 
+  const buildLocalEmailSessionUser = useCallback(
+    (email: string): SessionUser => {
+      const accountId = email.split("@")[0] || email;
+      const hostedDomain = authConfig?.hostedDomain ?? "mecorobotics.org";
+
+      return {
+        accountId,
+        authProvider: "email",
+        email,
+        name: accountId,
+        picture: null,
+        hostedDomain,
+      };
+    },
+    [authConfig?.hostedDomain],
+  );
+
   const signInWithGoogle = useCallback(async () => {
     setAuthError(null);
     setAuthNotice(null);
@@ -560,9 +577,12 @@ export default function App() {
       setIsEmailCodeSent(true);
       setAuthNotice(`Code sent to ${email}.`);
     } catch (error) {
-      if (authConfig?.devBypassAvailable || !authConfig?.enabled) {
+      if (authConfig?.devBypassAvailable) {
         setIsEmailCodeSent(true);
         setAuthNotice("Dev mode: enter 8324 to continue.");
+      } else if (!authConfig?.enabled) {
+        setIsEmailCodeSent(true);
+        setAuthNotice("Offline mode: enter 8324 to continue.");
       } else {
         setAuthError(parseClientError(error));
       }
@@ -586,7 +606,7 @@ export default function App() {
     setIsAuthenticating(true);
 
     try {
-      if (authConfig?.devBypassAvailable || !authConfig?.enabled) {
+      if (authConfig?.devBypassAvailable) {
         if (code !== "8324") {
           setAuthError("Use 8324 for the dev login code.");
           return;
@@ -598,6 +618,16 @@ export default function App() {
           { method: "POST" },
         );
         await finishSignIn(session.token, session.user);
+        return;
+      }
+
+      if (!authConfig?.enabled) {
+        if (code !== "8324") {
+          setAuthError("Use 8324 for the offline login code.");
+          return;
+        }
+
+        await finishSignIn(null, buildLocalEmailSessionUser(email));
         return;
       }
 
@@ -615,7 +645,7 @@ export default function App() {
     } finally {
       setIsAuthenticating(false);
     }
-  }, [apiBaseUrl, authCode, authConfig, authEmail, finishSignIn]);
+  }, [apiBaseUrl, authCode, authConfig, authEmail, buildLocalEmailSessionUser, finishSignIn]);
 
   const resetEmailCode = useCallback(() => {
     setAuthCode("");
