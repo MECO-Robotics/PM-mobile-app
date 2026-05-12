@@ -1,7 +1,7 @@
 const { execFileSync, spawnSync } = require("child_process");
 
 const METRO_PORT = "8081";
-const SIMULATOR_ID = "AE2F74A9-73B1-46A8-9EA6-F5D47CCA445B";
+const DEFAULT_SIMULATOR_NAME = "iPhone 17";
 const SIMULATOR_SETTLE_MS = 5000;
 
 function run(command, args, options = {}) {
@@ -32,36 +32,44 @@ function getSimulator() {
     encoding: "utf8",
   });
   const devicesByRuntime = JSON.parse(output).devices;
-  return Object.values(devicesByRuntime)
-    .flat()
-    .find((device) => device.udid === SIMULATOR_ID);
+  const devices = Object.entries(devicesByRuntime).flatMap(([runtime, devices]) =>
+    devices.map((device) => ({ ...device, runtime })),
+  );
+
+  if (process.env.SIMULATOR_ID) {
+    return devices.find((device) => device.udid === process.env.SIMULATOR_ID);
+  }
+
+  const simulatorName = process.env.SIMULATOR_NAME ?? DEFAULT_SIMULATOR_NAME;
+  return devices
+    .filter((device) => device.name === simulatorName && device.isAvailable !== false)
+    .sort((left, right) => getRuntimeVersion(right.runtime) - getRuntimeVersion(left.runtime))[0];
+}
+
+function getRuntimeVersion(runtime) {
+  const parts = runtime.match(/iOS-(\d+)-(\d+)/);
+  if (!parts) {
+    return 0;
+  }
+
+  return Number(parts[1]) * 1000 + Number(parts[2]);
 }
 
 function shutdownBootedSimulator() {
   const simulator = getSimulator();
 
   if (!simulator) {
-    throw new Error(`Simulator ${SIMULATOR_ID} was not found.`);
+    const target = process.env.SIMULATOR_ID
+      ? `with UDID ${process.env.SIMULATOR_ID}`
+      : `named ${process.env.SIMULATOR_NAME ?? DEFAULT_SIMULATOR_NAME}`;
+    throw new Error(`Simulator ${target} was not found.`);
   }
 
   if (simulator.state !== "Booted") {
-    return;
+    return simulator;
   }
 
-  const result = run("xcrun", ["simctl", "shutdown", SIMULATOR_ID], {
-    quiet: true,
-  });
-
-  if (result.status !== 0) {
-    process.stderr.write(result.stderr);
-    process.exit(result.status ?? 1);
-  }
-}
-
-function bootSimulator() {
-  shutdownBootedSimulator();
-
-  run("open", ["-a", "Simulator", "--args", "-CurrentDeviceUDID", SIMULATOR_ID], {
+  const result = run("xcrun", ["simctl", "shutdown", simulator.udid], {
     quiet: true,
   });
 
