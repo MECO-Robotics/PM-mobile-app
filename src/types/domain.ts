@@ -208,9 +208,20 @@ export interface QaReview {
   id: string;
   subjectTitle: string;
   participantIds: string[];
+  requestedById?: string | null;
+  mentorId?: string | null;
   result: QaResult;
   mentorApproved: boolean;
   notes: string;
+}
+
+export interface QaRequest {
+  id: string;
+  subject: string;
+  mentorId: string;
+  requestedById: string | null;
+  createdAt: string;
+  status: "requested";
 }
 
 export interface QAFinding {
@@ -267,6 +278,7 @@ export interface PlatformBootstrapPayload {
   workLogs?: WorkLog[];
   manufacturingItems?: ManufacturingItem[];
   purchaseItems?: PurchaseItem[];
+  qaRequests?: QaRequest[];
   qaFindings?: QAFinding[];
   testFindings?: TestFinding[];
   designIterations?: DesignIteration[];
