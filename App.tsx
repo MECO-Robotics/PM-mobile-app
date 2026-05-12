@@ -442,6 +442,7 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [isGoogleSignInPending, setIsGoogleSignInPending] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [backendStatus, setBackendStatus] = useState<
     "connecting" | "connected" | "offline"
@@ -766,15 +767,19 @@ export default function App() {
         return;
       }
 
+      setIsGoogleSignInPending(true);
       const result = await promptGoogleSignIn();
       if (result.type === "cancel" || result.type === "dismiss") {
+        setIsGoogleSignInPending(false);
         return;
       }
 
       if (result.type !== "success") {
+        setIsGoogleSignInPending(false);
         showAuthError("Google sign-in did not complete.");
       }
     } catch (error) {
+      setIsGoogleSignInPending(false);
       showAuthError(parseClientError(error));
     } finally {
       setIsAuthenticating(false);
@@ -790,7 +795,7 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    if (hasAuthenticated || googleResponse?.type !== "success") {
+    if (!isGoogleSignInPending || hasAuthenticated || googleResponse?.type !== "success") {
       return;
     }
 
@@ -802,6 +807,7 @@ export default function App() {
 
     async function exchangeGoogleCredential() {
       if (!credential) {
+        setIsGoogleSignInPending(false);
         showAuthError(
           hasAuthorizationCode
             ? "Google returned an authorization code instead of an ID token. This app needs an ID token to sign in."
@@ -833,6 +839,7 @@ export default function App() {
         }
       } finally {
         if (isActive) {
+          setIsGoogleSignInPending(false);
           setIsAuthenticating(false);
         }
       }
@@ -843,7 +850,7 @@ export default function App() {
     return () => {
       isActive = false;
     };
-  }, [apiBaseUrl, finishSignIn, googleResponse, hasAuthenticated, showAuthError]);
+  }, [apiBaseUrl, finishSignIn, googleResponse, hasAuthenticated, isGoogleSignInPending, showAuthError]);
 
   const signInWithEmail = useCallback(async () => {
     const email = authEmail.trim().toLowerCase();
@@ -3339,6 +3346,7 @@ export default function App() {
     setApiToken(null);
     setSessionUser(null);
     setHasAuthenticated(false);
+    setIsGoogleSignInPending(false);
     setIsPersonMenuVisible(false);
     setIsSeasonMenuVisible(false);
     setIsNavMenuVisible(false);
