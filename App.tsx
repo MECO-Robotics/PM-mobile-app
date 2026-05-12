@@ -122,6 +122,7 @@ import type {
   PlatformBootstrapPayload,
   PublicAuthConfig,
   PurchaseItem,
+  QaRequest,
   QaReview,
   SessionResponse,
   SessionUser,
@@ -305,6 +306,7 @@ export default function App() {
   );
   const [partInstances, setPartInstances] = useState(() => mecoSnapshot.partInstances);
   const [qaReviews, setQaReviews] = useState<QaReview[]>(() => mecoSnapshot.qaReviews);
+  const [qaRequests, setQaRequests] = useState<QaRequest[]>([]);
   const [eventReports, setEventReports] = useState<EventReportDraft[]>([]);
   const systemThemeMode: AppThemeName = systemColorScheme === "dark" ? "dark" : "light";
   const themeMode = themeOverride ?? systemThemeMode;
@@ -450,6 +452,7 @@ export default function App() {
     setWorkLogs(ensureArray(payload.workLogs));
     setManufacturingItems(ensureArray(payload.manufacturingItems));
     setPurchaseItems(ensureArray(payload.purchaseItems));
+    setQaRequests(ensureArray(payload.qaRequests));
     setPartDefinitions(ensureArray(payload.partDefinitions));
     setPartInstances(ensureArray(payload.partInstances));
   }, []);
@@ -772,7 +775,7 @@ export default function App() {
         key: "reports",
         label: "QA",
         shortLabel: "QA",
-        count: qaReviews.length + eventReports.length,
+        count: qaRequests.length + qaReviews.length + eventReports.length,
       },
       {
         key: "risks",
@@ -788,6 +791,7 @@ export default function App() {
     purchaseItems,
     subsystems,
     members,
+    qaRequests.length,
     qaReviews,
     eventReports,
   ]);
@@ -1449,11 +1453,12 @@ export default function App() {
   const reportSummary = useMemo(() => {
     const iterationCount = qaReviews.filter((review) => review.result === "iteration-worthy").length;
     return [
+      { label: "QA requests", value: String(qaRequests.length) },
       { label: "QA reports", value: String(qaReviews.length) },
       { label: "Event reports", value: String(eventReports.length) },
       { label: "Iterations", value: String(iterationCount) },
     ] satisfies SummaryChipData[];
-  }, [eventReports.length, qaReviews]);
+  }, [eventReports.length, qaRequests.length, qaReviews]);
 
   const riskSummary = useMemo(() => {
     const highCount = riskRows.filter((risk) => risk.priority === "high").length;
@@ -2738,6 +2743,26 @@ export default function App() {
     setQaReportEditorMode(null);
   };
 
+  const createQaRequest = (subject: string, mentorId: string) => {
+    const trimmedSubject = subject.trim();
+
+    if (!trimmedSubject || !membersById[mentorId]) {
+      return;
+    }
+
+    setQaRequests((current) => [
+      {
+        id: `qa-request-local-${Date.now()}`,
+        subject: trimmedSubject,
+        mentorId,
+        requestedById: signedInMember?.id ?? null,
+        createdAt: new Date().toISOString(),
+        status: "requested",
+      },
+      ...current,
+    ]);
+  };
+
   const saveQaReportDraft = () => {
     const task = taskById[qaReportDraft.taskId];
     const participants = splitList(qaReportDraft.participantIdsText).filter(
@@ -2991,6 +3016,7 @@ export default function App() {
     milestoneSortOrder,
     milestoneSummary,
     milestoneTypeFilter,
+    createQaRequest,
     openCreateEventReportEditor,
     openCreateManufacturingEditor,
     openCreateMemberEditor,
@@ -3028,6 +3054,7 @@ export default function App() {
     purchaseSubsystemFilter,
     purchaseVendorFilter,
     purchaseVendorOptions,
+    qaRequests,
     qaReviews,
     reportSummary,
     riskRows,
