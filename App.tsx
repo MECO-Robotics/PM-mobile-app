@@ -647,7 +647,10 @@ export default function App() {
           "/api/auth/dev-bypass",
           { method: "POST" },
         );
-        await finishSignIn(session.token, session.user);
+        await finishSignIn(session.token, {
+          ...session.user,
+          ...buildLocalEmailSessionUser(email),
+        });
         return;
       }
 
@@ -4179,7 +4182,7 @@ export default function App() {
     const hostedDomain = authConfig?.hostedDomain ?? "mecorobotics.org";
     const loginScale = Math.min(
       1.45,
-      Math.max(1, Math.min(width / 390, height / 722)),
+      Math.max(0.78, Math.min(width / 390, height / 722)),
     );
     const scaleLogin = (value: number) => Math.round(value * loginScale);
     const loginCardHeight = Math.min(height - 8, scaleLogin(722));
