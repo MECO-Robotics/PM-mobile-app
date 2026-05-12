@@ -1299,6 +1299,17 @@ export const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  overlayHeaderAction: {
+    minHeight: 36,
+    paddingHorizontal: spacing.xs,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  overlayHeaderActionLabel: {
+    color: colors.ink,
+    fontSize: 16,
+    fontWeight: "500",
+  },
   overlayTitle: {
     color: colors.ink,
     fontSize: 18,

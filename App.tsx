@@ -97,7 +97,6 @@ import {
   FilterToolbar,
   InteractionNote,
   ModalField,
-  OptionChipRow,
   SearchField,
   SectionTabs,
   StatusPill,
@@ -106,7 +105,7 @@ import {
   WorkspacePanel,
 } from "./src/ui/ui";
 import { AppThemeProvider } from "./src/ui/themeContext";
-import { languageNames, LocalizationProvider, Text, type LanguageCode } from "./src/i18n";
+import { LocalizationProvider, Text, type LanguageCode } from "./src/i18n";
 import { LandscapeSubsystemTimeline } from "./src/ui/LandscapeSubsystemTimeline";
 import {
   ApiRequestError,
@@ -123,6 +122,7 @@ import type {
   PlatformBootstrapPayload,
   PublicAuthConfig,
   PurchaseItem,
+  QaRequest,
   QaReview,
   SessionResponse,
   SessionUser,
@@ -288,7 +288,7 @@ export default function App() {
   const [attendanceStatusByMemberId, setAttendanceStatusByMemberId] =
     useState<Record<string, AttendanceStatus>>(ATTENDANCE_STATUS_BY_MEMBER_ID);
   const [themeOverride, setThemeOverride] = useState<AppThemeName | null>(null);
-  const [languageOverride, setLanguageOverride] = useState<LanguageCode | null>(null);
+  const [languageOverride] = useState<LanguageCode | null>(null);
   const [activePersonFilter, setActivePersonFilter] = useState("all");
   const [seasons, setSeasons] = useState<SeasonOption[]>(INITIAL_SEASONS);
   const [activeSeasonId, setActiveSeasonId] = useState(INITIAL_SEASONS[0].id);
@@ -309,17 +309,12 @@ export default function App() {
   );
   const [partInstances, setPartInstances] = useState(() => mecoSnapshot.partInstances);
   const [qaReviews, setQaReviews] = useState<QaReview[]>(() => mecoSnapshot.qaReviews);
+  const [qaRequests, setQaRequests] = useState<QaRequest[]>([]);
   const [eventReports, setEventReports] = useState<EventReportDraft[]>([]);
   const systemThemeMode: AppThemeName = systemColorScheme === "dark" ? "dark" : "light";
   const themeMode = themeOverride ?? systemThemeMode;
   const isDarkModeEnabled = themeMode === "dark";
   const themeColors = appThemes[themeMode];
-  const languageOptions = useMemo(
-    () =>
-      (Object.entries(languageNames) as [LanguageCode, string][])
-        .map(([code, name]) => ({ id: code, name })),
-    [],
-  );
   const seasonModeLabel =
     seasons.find((option) => option.id === activeSeasonId)?.label ?? "No Season";
 
@@ -460,6 +455,7 @@ export default function App() {
     setWorkLogs(ensureArray(payload.workLogs));
     setManufacturingItems(ensureArray(payload.manufacturingItems));
     setPurchaseItems(ensureArray(payload.purchaseItems));
+    setQaRequests(ensureArray(payload.qaRequests));
     setPartDefinitions(ensureArray(payload.partDefinitions));
     setPartInstances(ensureArray(payload.partInstances));
   }, []);
@@ -781,6 +777,8 @@ export default function App() {
     signedInMember?.role === "mentor" ||
     signedInMember?.role === "lead" ||
     signedInMember?.role === "admin";
+  const signedInEmailInitial =
+    sessionUser?.email.trim().charAt(0).toUpperCase() || "M";
 
   const subsystemsById = useMemo(() => {
     return Object.fromEntries(
@@ -870,7 +868,7 @@ export default function App() {
         key: "reports",
         label: "QA",
         shortLabel: "QA",
-        count: qaReviews.length + eventReports.length,
+        count: qaRequests.length + qaReviews.length + eventReports.length,
       },
       {
         key: "risks",
@@ -886,6 +884,7 @@ export default function App() {
     purchaseItems,
     subsystems,
     members,
+    qaRequests.length,
     qaReviews,
     eventReports,
   ]);
@@ -1547,11 +1546,12 @@ export default function App() {
   const reportSummary = useMemo(() => {
     const iterationCount = qaReviews.filter((review) => review.result === "iteration-worthy").length;
     return [
+      { label: "QA requests", value: String(qaRequests.length) },
       { label: "QA reports", value: String(qaReviews.length) },
       { label: "Event reports", value: String(eventReports.length) },
       { label: "Iterations", value: String(iterationCount) },
     ] satisfies SummaryChipData[];
-  }, [eventReports.length, qaReviews]);
+  }, [eventReports.length, qaRequests.length, qaReviews]);
 
   const riskSummary = useMemo(() => {
     const highCount = riskRows.filter((risk) => risk.priority === "high").length;
@@ -1795,6 +1795,17 @@ export default function App() {
       settingsRowActive: {
         backgroundColor: themeColors.navySurface,
         borderColor: themeColors.blue,
+      },
+      settingsSubmenu: {
+        backgroundColor: themeColors.surface,
+        borderColor: themeColors.border,
+      },
+      settingsSubmenuRowActive: {
+        backgroundColor: themeColors.navySurface,
+      },
+      settingsIconButton: {
+        backgroundColor: themeColors.canvas,
+        borderColor: themeColors.border,
       },
       tableHeaderText: {
         color: themeColors.subtleText,
@@ -2825,6 +2836,26 @@ export default function App() {
     setQaReportEditorMode(null);
   };
 
+  const createQaRequest = (subject: string, mentorId: string) => {
+    const trimmedSubject = subject.trim();
+
+    if (!trimmedSubject || !membersById[mentorId]) {
+      return;
+    }
+
+    setQaRequests((current) => [
+      {
+        id: `qa-request-local-${Date.now()}`,
+        subject: trimmedSubject,
+        mentorId,
+        requestedById: signedInMember?.id ?? null,
+        createdAt: new Date().toISOString(),
+        status: "requested",
+      },
+      ...current,
+    ]);
+  };
+
   const saveQaReportDraft = () => {
     const task = taskById[qaReportDraft.taskId];
     const participants = splitList(qaReportDraft.participantIdsText).filter(
@@ -3083,6 +3114,7 @@ export default function App() {
     milestoneSortOrder,
     milestoneSummary,
     milestoneTypeFilter,
+    createQaRequest,
     openCreateEventReportEditor,
     openCreateManufacturingEditor,
     openCreateMemberEditor,
@@ -3120,6 +3152,7 @@ export default function App() {
     purchaseSubsystemFilter,
     purchaseVendorFilter,
     purchaseVendorOptions,
+    qaRequests,
     qaReviews,
     reportSummary,
     riskRows,
@@ -4544,12 +4577,23 @@ export default function App() {
         <Pressable onPress={() => undefined} style={[styles.overlayCard, appResponsiveStyles.overlayCard]}>
           <View style={styles.overlayHeader}>
             <View style={[styles.personMark, { backgroundColor: themeColors.navySurface }]}>
-              <Text style={[styles.personMarkLabel, { color: themeColors.navyInk }]}>ME</Text>
+              <Text style={[styles.personMarkLabel, { color: themeColors.navyInk }]}>
+                {signedInEmailInitial}
+              </Text>
             </View>
             <View style={styles.overlayHeaderCopy}>
               <Text style={[styles.overlayTitle, { color: themeColors.ink }]}>Personal settings</Text>
               <Text style={[styles.overlaySubtitle, { color: themeColors.subtleText }]}>{syncStatusLabel}</Text>
             </View>
+            <Pressable
+              accessibilityRole="button"
+              onPress={signOut}
+              style={styles.overlayHeaderAction}
+            >
+              <Text style={[styles.overlayHeaderActionLabel, { color: themeColors.ink }]}>
+                Sign out
+              </Text>
+            </Pressable>
           </View>
 
           <Pressable
@@ -4587,7 +4631,7 @@ export default function App() {
                   event.stopPropagation();
                   createSeason();
                 }}
-                style={styles.settingsIconButton}
+                style={[styles.settingsIconButton, appResponsiveStyles.settingsIconButton]}
               >
                 <Text style={[styles.settingsIconButtonLabel, { color: themeColors.navyInk }]}>
                   +
@@ -4601,7 +4645,7 @@ export default function App() {
           </Pressable>
 
           {isSeasonMenuVisible ? (
-            <View style={styles.settingsSubmenu}>
+            <View style={[styles.settingsSubmenu, appResponsiveStyles.settingsSubmenu]}>
               {seasons.map((option) => {
                 const isSelected = activeSeasonId === option.id;
 
@@ -4616,7 +4660,10 @@ export default function App() {
                     }}
                     style={[
                       styles.settingsSubmenuRow,
-                      isSelected && styles.settingsSubmenuRowActive,
+                      isSelected && [
+                        styles.settingsSubmenuRowActive,
+                        appResponsiveStyles.settingsSubmenuRowActive,
+                      ],
                     ]}
                   >
                     <Text
@@ -4635,7 +4682,7 @@ export default function App() {
                         event.stopPropagation();
                         deleteSeason(option.id);
                       }}
-                      style={styles.settingsIconButton}
+                      style={[styles.settingsIconButton, appResponsiveStyles.settingsIconButton]}
                     >
                       <Text
                         style={[
@@ -4652,21 +4699,6 @@ export default function App() {
             </View>
           ) : null}
 
-          <View style={[styles.settingsRow, appResponsiveStyles.settingsRow]}>
-            <View style={styles.queueRowPrimaryText}>
-              <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>Language</Text>
-              <Text style={[styles.settingsRowSubtitle, { color: themeColors.subtleText }]}>
-                {languageOverride ? languageNames[languageOverride] : "Use phone language"}
-              </Text>
-            </View>
-          </View>
-          <OptionChipRow
-            allLabel="System language"
-            onChange={(value) => setLanguageOverride(value === "all" ? null : (value as LanguageCode))}
-            options={languageOptions}
-            value={languageOverride ?? "all"}
-          />
-
           <Pressable
             onPress={resetWorkspaceData}
             style={[styles.settingsRow, appResponsiveStyles.settingsRow]}
@@ -4677,15 +4709,6 @@ export default function App() {
             <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>Run</Text>
           </Pressable>
 
-          <Pressable
-            onPress={signOut}
-            style={[styles.settingsRow, appResponsiveStyles.settingsRow]}
-          >
-            <View>
-              <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>Sign out</Text>
-            </View>
-            <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>Exit</Text>
-          </Pressable>
         </Pressable>
       </Pressable>
     </Modal>
@@ -4761,6 +4784,7 @@ export default function App() {
 
           <View style={[styles.topbarRight, isCompactLayout && styles.topbarRightCompact]}>
             <Pressable
+              accessibilityLabel={`Open account menu for ${signedInEmailInitial}`}
               accessibilityRole="button"
               onPress={() => {
                 setIsSeasonMenuVisible(false);
@@ -4772,7 +4796,9 @@ export default function App() {
                 { backgroundColor: themeColors.navySurface, borderColor: themeColors.blue },
               ]}
             >
-              <Text style={[styles.personButtonLabel, { color: themeColors.navyInk }]}>ME</Text>
+              <Text style={[styles.personButtonLabel, { color: themeColors.navyInk }]}>
+                {signedInEmailInitial}
+              </Text>
             </Pressable>
           </View>
         </View>
