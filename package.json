@@ -19,6 +19,7 @@
   "dependencies": {
     "expo": "~54.0.33",
     "expo-localization": "~17.0.8",
+    "expo-notifications": "~0.32.17",
     "expo-screen-orientation": "~9.0.9",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",

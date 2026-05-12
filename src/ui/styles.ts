@@ -603,6 +603,14 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
+  workTimerCard: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
   statusPill: {
     borderRadius: 6,
     paddingHorizontal: 8,
@@ -1190,6 +1198,17 @@ export const styles = StyleSheet.create({
   modalSaveButtonLabel: {
     color: colors.white,
     fontWeight: "800",
+  },
+  workLogAddMenu: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    gap: spacing.sm,
+    ...shadows.card,
   },
   overlayScrim: {
     flex: 1,

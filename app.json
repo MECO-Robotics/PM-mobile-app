@@ -19,7 +19,8 @@
           "initialOrientation": "DEFAULT"
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      "expo-notifications"
     ],
     "splash": {
       "image": "./assets/splash-icon.png",

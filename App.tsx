@@ -144,17 +144,56 @@ import { RosterScreen } from "./src/screens/RosterScreen";
 import { SubsystemsScreen } from "./src/screens/SubsystemsScreen";
 import { TasksScreen } from "./src/screens/TasksScreen";
 import { WorkLogsScreen } from "./src/screens/WorkLogsScreen";
+import {
+  endWorkLogLiveActivity,
+  startWorkLogLiveActivity,
+  updateWorkLogLiveActivity,
+} from "./src/services/workLogLiveActivity";
+import {
+  cancelWorkLogTimerReminders,
+  scheduleWorkLogTimerReminders,
+} from "./src/services/workLogTimerNotifications";
 
 const SWIPE_ACTIVATION_DISTANCE = 18;
 const SWIPE_COMMIT_DISTANCE = 52;
 const SUBTAB_SWIPE_ACTIVATION_DISTANCE = 24;
 const SUBTAB_SWIPE_COMMIT_DISTANCE = 72;
+const TIMER_TICK_MS = 1000;
+const MS_PER_HOUR = 1000 * 60 * 60;
 
 type AttendanceStatus = "yes" | "maybe" | "no";
 type SeasonOption = {
   id: string;
   label: string;
 };
+type WorkLogTimerState = {
+  id: string;
+  elapsedMs: number;
+  isPaused: boolean;
+  reminderNotificationIds: string[];
+  startedAt: number | null;
+};
+
+function formatTimerElapsed(elapsedMs: number) {
+  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const paddedMinutes = String(minutes).padStart(2, "0");
+  const paddedSeconds = String(seconds).padStart(2, "0");
+
+  return hours > 0
+    ? `${hours}:${paddedMinutes}:${paddedSeconds}`
+    : `${minutes}:${paddedSeconds}`;
+}
+
+function formatHoursFromTimer(elapsedMs: number) {
+  const roundedHours = Math.round((elapsedMs / MS_PER_HOUR) * 100) / 100;
+
+  return Number.isInteger(roundedHours)
+    ? String(roundedHours)
+    : String(roundedHours).replace(/0$/, "");
+}
 type RiskPriority = "high" | "medium" | "low";
 
 const RISK_PRIORITY_RANK: Record<RiskPriority, number> = {
@@ -394,6 +433,8 @@ export default function App() {
   const [workLogDraft, setWorkLogDraft] = useState<WorkLogDraft>(
     buildWorkLogDraft(),
   );
+  const [workLogTimer, setWorkLogTimer] = useState<WorkLogTimerState | null>(null);
+  const [workLogTimerTick, setWorkLogTimerTick] = useState(Date.now());
 
   const [manufacturingEditorMode, setManufacturingEditorMode] = useState<EditorMode | null>(
     null,
@@ -1904,6 +1945,24 @@ export default function App() {
     }
   }, [selectedSubsystemId, subsystems]);
 
+  useEffect(() => {
+    if (!workLogTimer || workLogTimer.isPaused) {
+      return undefined;
+    }
+
+    const timerId = setInterval(() => setWorkLogTimerTick(Date.now()), TIMER_TICK_MS);
+
+    return () => clearInterval(timerId);
+  }, [workLogTimer]);
+
+  const workLogTimerElapsedMs = workLogTimer
+    ? workLogTimer.elapsedMs +
+      (workLogTimer.startedAt && !workLogTimer.isPaused
+        ? workLogTimerTick - workLogTimer.startedAt
+        : 0)
+    : 0;
+  const workTimerElapsedLabel = formatTimerElapsed(workLogTimerElapsedMs);
+
   const openCreateTaskEditor = () => {
     setActiveTaskId(null);
     setTaskDraft(
@@ -2160,6 +2219,85 @@ export default function App() {
       }),
     );
     setWorkLogEditorMode("create");
+  };
+
+  const startWorkLogTimer = () => {
+    const timerId = `work-log-timer-${Date.now()}`;
+    const nextTimer = {
+      id: timerId,
+      elapsedMs: 0,
+      isPaused: false,
+      reminderNotificationIds: [],
+      startedAt: Date.now(),
+    };
+
+    setWorkLogTimer(nextTimer);
+    setWorkLogTimerTick(nextTimer.startedAt);
+    void startWorkLogLiveActivity(nextTimer);
+    void scheduleWorkLogTimerReminders().then((notificationIds) => {
+      setWorkLogTimer((currentTimer) => {
+        if (!currentTimer || currentTimer.id !== timerId || currentTimer.isPaused) {
+          void cancelWorkLogTimerReminders(notificationIds);
+          return currentTimer;
+        }
+
+        return {
+          ...currentTimer,
+          reminderNotificationIds: notificationIds,
+        };
+      });
+    });
+  };
+
+  const pauseWorkLogTimer = () => {
+    if (!workLogTimer || workLogTimer.isPaused) {
+      return;
+    }
+
+    const nextTimer = {
+      id: workLogTimer.id,
+      elapsedMs: workLogTimerElapsedMs,
+      isPaused: true,
+      reminderNotificationIds: [],
+      startedAt: null,
+    };
+
+    setWorkLogTimer(nextTimer);
+    void cancelWorkLogTimerReminders(workLogTimer.reminderNotificationIds);
+    void updateWorkLogLiveActivity(nextTimer);
+  };
+
+  const openWorkLogFromTimer = () => {
+    if (!workLogTimer) {
+      return;
+    }
+
+    const elapsedMs = workLogTimerElapsedMs;
+
+    setActiveWorkLogId(null);
+    setWorkLogDraft(
+      buildWorkLogDraft({
+        taskId: tasks[0]?.id ?? "",
+        date: isoToday(),
+        hours: Number(formatHoursFromTimer(elapsedMs)),
+        participantIds: members[0]?.id ? [members[0].id] : [],
+      }),
+    );
+    setWorkLogTimer(null);
+    void cancelWorkLogTimerReminders(workLogTimer.reminderNotificationIds);
+    void endWorkLogLiveActivity();
+    setWorkLogEditorMode("create");
+  };
+
+  const clearWorkLogTimer = () => {
+    setWorkLogTimer((currentTimer) => {
+      if (currentTimer) {
+        void cancelWorkLogTimerReminders(currentTimer.reminderNotificationIds);
+      }
+
+      return null;
+    });
+    void endWorkLogLiveActivity();
   };
 
   const openEditWorkLogEditor = (workLog: WorkLog) => {
@@ -2894,6 +3032,7 @@ export default function App() {
     closePartDefinitionEditor();
     closeQaReportEditor();
     closeEventReportEditor();
+    clearWorkLogTimer();
     void syncFromBackend();
   };
 
@@ -2911,6 +3050,7 @@ export default function App() {
     setPartInstances([]);
     setQaReviews([]);
     setEventReports([]);
+    clearWorkLogTimer();
     setActiveTab("home");
     setActivePersonFilter("all");
     setSelectedMemberId(null);
@@ -2961,6 +3101,7 @@ export default function App() {
     closePartDefinitionEditor();
     closeQaReportEditor();
     closeEventReportEditor();
+    clearWorkLogTimer();
   };
 
   const screenProps = {
@@ -3027,6 +3168,7 @@ export default function App() {
     openCreateSubsystemEditor,
     openCreateTaskEditor,
     openCreateWorkLogEditor,
+    openWorkLogFromTimer,
     openEditManufacturingEditor,
     openEditMemberEditor,
     openEditMilestoneEditor,
@@ -3106,6 +3248,7 @@ export default function App() {
     setWorkLogSearch,
     setWorkLogSortMode,
     setWorkLogSubsystemFilter,
+    startWorkLogTimer,
     subsystemCountsById,
     subsystemSearch,
     subsystems,
@@ -3130,6 +3273,10 @@ export default function App() {
     workLogSortMode,
     workLogSubsystemFilter,
     workLogSummary,
+    workTimerElapsedLabel,
+    workTimerIsActive: Boolean(workLogTimer),
+    workTimerIsPaused: Boolean(workLogTimer?.isPaused),
+    pauseWorkLogTimer,
   };
   
   const renderActiveTab = () => {
