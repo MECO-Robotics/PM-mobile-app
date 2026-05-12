@@ -261,10 +261,10 @@ function buildSubsystemOptions(subsystems: Subsystem[]) {
 
 function normalizeTaskSubsystems(currentSubsystems: Subsystem[]) {
   const byId = new Map(currentSubsystems.map((subsystem) => [subsystem.id, subsystem]));
-  const required = REQUIRED_TASK_SUBSYSTEMS.flatMap((subsystem) => {
+  const required = REQUIRED_TASK_SUBSYSTEMS.map((subsystem) => {
     const existingSubsystem = byId.get(subsystem.id);
 
-    return existingSubsystem ? [{ ...existingSubsystem, name: subsystem.name }] : [];
+    return existingSubsystem ? { ...existingSubsystem, name: subsystem.name } : subsystem;
   });
   const requiredIds = new Set(REQUIRED_TASK_SUBSYSTEMS.map((subsystem) => subsystem.id));
   const remaining = currentSubsystems.filter((subsystem) => !requiredIds.has(subsystem.id));
