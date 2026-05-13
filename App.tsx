@@ -594,6 +594,12 @@ export default function App() {
     setAuthError(null);
     setAuthNotice(null);
 
+    if (authConfig?.emailEnabled === false) {
+      setIsEmailCodeSent(false);
+      setAuthError("Email sign-in is not enabled for this workspace.");
+      return;
+    }
+
     if (!email || !email.endsWith(`@${hostedDomain}`)) {
       setAuthError(`Use your @${hostedDomain} email.`);
       return;
@@ -636,6 +642,11 @@ export default function App() {
 
     setAuthError(null);
     setAuthNotice(null);
+
+    if (authConfig?.emailEnabled === false) {
+      setAuthError("Email sign-in is not enabled for this workspace.");
+      return;
+    }
 
     if (!code) {
       setAuthError("Enter the code from your email.");
@@ -4222,6 +4233,7 @@ export default function App() {
 
   const renderLoginScreen = () => {
     const hostedDomain = authConfig?.hostedDomain ?? "mecorobotics.org";
+    const isEmailCodeFlowAvailable = authConfig?.emailEnabled !== false;
     const loginScale = Math.min(
       1.45,
       Math.max(0.78, Math.min(width / 390, height / 722)),
@@ -4274,104 +4286,108 @@ export default function App() {
               />
             </View>
 
-            <Text
-              style={[
-                styles.loginTitle,
-                {
-                  fontSize: scaleLogin(28),
-                  marginBottom: scaleLogin(16),
-                  marginTop: scaleLogin(14),
-                },
-              ]}
-            >
-              Sign in with email
-            </Text>
-
-            <View
-              style={[
-                styles.loginEmailRow,
-                isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
-                {
-                  minHeight: scaleLogin(50),
-                  paddingLeft: scaleLogin(18),
-                  paddingRight: scaleLogin(8),
-                },
-              ]}
-            >
-              <TextInput
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!isEmailCodeSent}
-                keyboardType="email-address"
-                onChangeText={(value) => {
-                  setAuthEmail(value);
-                  if (isEmailCodeSent) {
-                    resetEmailCode();
-                  }
-                }}
-                placeholder={`you@${hostedDomain}`}
-                placeholderTextColor="#f1f5ff"
-                style={[
-                  styles.loginEmailInput,
-                  { fontSize: scaleLogin(13), paddingVertical: scaleLogin(12) },
-                ]}
-                value={authEmail}
-              />
-              <Pressable
-                accessibilityRole="button"
-                disabled={isAuthenticating}
-                onPress={isEmailCodeSent ? resetEmailCode : requestEmailCode}
-                style={[
-                  styles.loginSendButton,
-                  { minHeight: scaleLogin(36), paddingHorizontal: scaleLogin(10) },
-                ]}
-              >
-                <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]}>
-                  {isEmailCodeSent ? "Change" : isAuthenticating ? "Sending" : "Send Code"}
-                </Text>
-              </Pressable>
-            </View>
-
-            {isEmailCodeSent ? (
-              <View
-                style={[
-                  styles.loginCodeRow,
-                  isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
-                  {
-                    marginTop: scaleLogin(10),
-                    minHeight: scaleLogin(50),
-                    paddingLeft: scaleLogin(18),
-                    paddingRight: scaleLogin(8),
-                  },
-                ]}
-              >
-                <TextInput
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="number-pad"
-                  onChangeText={setAuthCode}
-                  placeholder="Code"
-                  placeholderTextColor="#f1f5ff"
+            {isEmailCodeFlowAvailable ? (
+              <>
+                <Text
                   style={[
-                    styles.loginEmailInput,
-                    { fontSize: scaleLogin(13), paddingVertical: scaleLogin(12) },
-                  ]}
-                  value={authCode}
-                />
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={isAuthenticating}
-                  onPress={verifyEmailCode}
-                  style={[
-                    styles.loginSendButton,
-                    { minHeight: scaleLogin(36), paddingHorizontal: scaleLogin(10) },
+                    styles.loginTitle,
+                    {
+                      fontSize: scaleLogin(28),
+                      marginBottom: scaleLogin(16),
+                      marginTop: scaleLogin(14),
+                    },
                   ]}
                 >
-                  <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]}>
-                    {isAuthenticating ? "Checking" : "Verify"}
-                  </Text>
-                </Pressable>
-              </View>
+                  Sign in with email
+                </Text>
+
+                <View
+                  style={[
+                    styles.loginEmailRow,
+                    isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
+                    {
+                      minHeight: scaleLogin(50),
+                      paddingLeft: scaleLogin(18),
+                      paddingRight: scaleLogin(8),
+                    },
+                  ]}
+                >
+                  <TextInput
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={!isEmailCodeSent}
+                    keyboardType="email-address"
+                    onChangeText={(value) => {
+                      setAuthEmail(value);
+                      if (isEmailCodeSent) {
+                        resetEmailCode();
+                      }
+                    }}
+                    placeholder={`you@${hostedDomain}`}
+                    placeholderTextColor="#f1f5ff"
+                    style={[
+                      styles.loginEmailInput,
+                      { fontSize: scaleLogin(13), paddingVertical: scaleLogin(12) },
+                    ]}
+                    value={authEmail}
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={isAuthenticating}
+                    onPress={isEmailCodeSent ? resetEmailCode : requestEmailCode}
+                    style={[
+                      styles.loginSendButton,
+                      { minHeight: scaleLogin(36), paddingHorizontal: scaleLogin(10) },
+                    ]}
+                  >
+                    <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]}>
+                      {isEmailCodeSent ? "Change" : isAuthenticating ? "Sending" : "Send Code"}
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {isEmailCodeSent ? (
+                  <View
+                    style={[
+                      styles.loginCodeRow,
+                      isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
+                      {
+                        marginTop: scaleLogin(10),
+                        minHeight: scaleLogin(50),
+                        paddingLeft: scaleLogin(18),
+                        paddingRight: scaleLogin(8),
+                      },
+                    ]}
+                  >
+                    <TextInput
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardType="number-pad"
+                      onChangeText={setAuthCode}
+                      placeholder="Code"
+                      placeholderTextColor="#f1f5ff"
+                      style={[
+                        styles.loginEmailInput,
+                        { fontSize: scaleLogin(13), paddingVertical: scaleLogin(12) },
+                      ]}
+                      value={authCode}
+                    />
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={isAuthenticating}
+                      onPress={verifyEmailCode}
+                      style={[
+                        styles.loginSendButton,
+                        { minHeight: scaleLogin(36), paddingHorizontal: scaleLogin(10) },
+                      ]}
+                    >
+                      <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]}>
+                        {isAuthenticating ? "Checking" : "Verify"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+              </>
             ) : null}
 
             {authNotice ? (
@@ -4401,7 +4417,7 @@ export default function App() {
                 styles.loginGoogleButton,
                 {
                   gap: scaleLogin(8),
-                  marginTop: scaleLogin(124),
+                  marginTop: "auto",
                   minHeight: scaleLogin(42),
                   paddingHorizontal: scaleLogin(8),
                 },
