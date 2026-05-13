@@ -4023,7 +4023,7 @@ export default function App() {
         onPress={closeNavigationMenu}
         style={[styles.navDrawerSafeArea, styles.navDrawerScrim]}
       >
-        <SafeAreaView style={styles.navDrawerSafeArea}>
+        <SafeAreaView style={{ flex: 1 }}>
           <Pressable
             accessibilityRole="menu"
             onPress={() => undefined}
