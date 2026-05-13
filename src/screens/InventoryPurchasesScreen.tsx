@@ -2,7 +2,6 @@ import { Image, Pressable, ScrollView, View } from "react-native";
 
 import { Text } from "../i18n";
 import {
-  ARCHIVE_FILTER_OPTIONS,
   BLOCKER_FILTER_OPTIONS,
   EVENT_TYPE_OPTIONS,
   EVENT_TYPE_STYLES,
@@ -42,7 +41,6 @@ import {
   SummaryRow,
   WorkspacePanel,
 } from "../ui/ui";
-import type { ArchiveFilterMode } from "../ui/types";
 
 import type { AppScreenProps } from "./types";
 import { AttendanceStatusMark } from "./AttendanceStatusMark";
@@ -60,7 +58,6 @@ export function InventoryPurchasesScreen(props: AppScreenProps) {
     materialsSearch,
     materialsStockFilter,
     mechanismsById,
-    members,
     membersById,
     openCreatePartDefinitionEditor,
     openCreatePurchaseEditor,
@@ -74,8 +71,6 @@ export function InventoryPurchasesScreen(props: AppScreenProps) {
     partsStatusFilter,
     partsSubsystemFilter,
     purchaseApprovalFilter,
-    purchaseArchiveFilter,
-    purchaseRequesterFilter,
     purchaseSearch,
     purchaseStatusFilter,
     purchaseSubsystemFilter,
@@ -88,8 +83,6 @@ export function InventoryPurchasesScreen(props: AppScreenProps) {
     setPartsStatusFilter,
     setPartsSubsystemFilter,
     setPurchaseApprovalFilter,
-    setPurchaseArchiveFilter,
-    setPurchaseRequesterFilter,
     setPurchaseSearch,
     setPurchaseStatusFilter,
     setPurchaseSubsystemFilter,
@@ -127,16 +120,6 @@ const renderScreen = () => {
         />
 
         <OptionChipRow
-          allLabel="All requesters"
-          onChange={setPurchaseRequesterFilter}
-          options={members.map((member) => ({
-            id: member.id,
-            name: member.name,
-          }))}
-          value={purchaseRequesterFilter}
-        />
-
-        <OptionChipRow
           allLabel="All statuses"
           onChange={setPurchaseStatusFilter}
           options={PURCHASE_STATUS_OPTIONS}
@@ -155,13 +138,6 @@ const renderScreen = () => {
           onChange={setPurchaseApprovalFilter}
           options={PURCHASE_APPROVAL_OPTIONS}
           value={purchaseApprovalFilter}
-        />
-
-        <OptionChipRow
-          allLabel="Any archive"
-          onChange={(value) => setPurchaseArchiveFilter(value as ArchiveFilterMode)}
-          options={ARCHIVE_FILTER_OPTIONS}
-          value={purchaseArchiveFilter}
         />
       </FilterToolbar>
 

@@ -11,6 +11,7 @@ import type {
   PartDefinition,
   PartInstance,
   PurchaseItem,
+  QaRequest,
   QaReview,
   Subsystem,
   Task,
@@ -150,6 +151,7 @@ export interface AppScreenProps {
   openCreateSubsystemEditor: () => void;
   openCreateTaskEditor: () => void;
   openCreateWorkLogEditor: () => void;
+  createQaRequest: (subject: string, mentorId: string) => void;
   openEditManufacturingEditor: (item: ManufacturingItem) => void;
   openEditMemberEditor: (memberId: string) => void;
   openEditMilestoneEditor: (event: Event) => void;
@@ -180,6 +182,7 @@ export interface AppScreenProps {
   purchaseSubsystemFilter: string;
   purchaseVendorFilter: string;
   purchaseVendorOptions: { id: string; name: string }[];
+  qaRequests: QaRequest[];
   qaReviews: QaReview[];
   reportSummary: SummaryChipData[];
   riskRows: RiskRow[];
