@@ -4019,8 +4019,11 @@ export default function App() {
       transparent
       visible={isNavMenuVisible}
     >
-      <SafeAreaView style={styles.navDrawerSafeArea}>
-        <Pressable onPress={closeNavigationMenu} style={styles.navDrawerScrim}>
+      <Pressable
+        onPress={closeNavigationMenu}
+        style={[styles.navDrawerSafeArea, styles.navDrawerScrim]}
+      >
+        <SafeAreaView style={styles.navDrawerSafeArea}>
           <Pressable
             accessibilityRole="menu"
             onPress={() => undefined}
@@ -4112,8 +4115,8 @@ export default function App() {
               })}
             </View>
           </Pressable>
-        </Pressable>
-      </SafeAreaView>
+        </SafeAreaView>
+      </Pressable>
     </Modal>
   );
 
