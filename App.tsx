@@ -2222,6 +2222,10 @@ export default function App() {
   };
 
   const startWorkLogTimer = () => {
+    if (workLogTimer) {
+      return;
+    }
+
     const timerId = `work-log-timer-${Date.now()}`;
     const nextTimer = {
       id: timerId,

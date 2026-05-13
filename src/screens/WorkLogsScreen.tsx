@@ -162,7 +162,12 @@ const renderScreen = () => {
 
       <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.worklogs} />
 
-      <Modal animationType="fade" transparent visible={isAddMenuVisible}>
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setIsAddMenuVisible(false)}
+        transparent
+        visible={isAddMenuVisible}
+      >
         <Pressable style={styles.modalScrim} onPress={() => setIsAddMenuVisible(false)}>
           <Pressable style={styles.workLogAddMenu}>
             <Text style={styles.modalTitle}>Start work log</Text>
