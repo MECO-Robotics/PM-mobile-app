@@ -4,6 +4,16 @@ import * as Notifications from "expo-notifications";
 const WORK_LOG_TIMER_CHANNEL_ID = "work-log-timer";
 const WORK_LOG_TIMER_REMINDER_MINUTES = [30, 60, 90];
 
+function allowsNotificationDelivery(
+  permissions: Notifications.NotificationPermissionsStatus,
+) {
+  return (
+    permissions.granted ||
+    permissions.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL ||
+    permissions.ios?.status === Notifications.IosAuthorizationStatus.EPHEMERAL
+  );
+}
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
@@ -23,13 +33,13 @@ async function ensureNotificationSetup() {
 
   const currentPermissions = await Notifications.getPermissionsAsync();
 
-  if (currentPermissions.granted) {
+  if (allowsNotificationDelivery(currentPermissions)) {
     return true;
   }
 
   const requestedPermissions = await Notifications.requestPermissionsAsync();
 
-  return requestedPermissions.granted;
+  return allowsNotificationDelivery(requestedPermissions);
 }
 
 export async function scheduleWorkLogTimerReminders() {
