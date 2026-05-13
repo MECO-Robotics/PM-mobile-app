@@ -264,7 +264,7 @@ function normalizeTaskSubsystems(currentSubsystems: Subsystem[]) {
   const required = REQUIRED_TASK_SUBSYSTEMS.map((subsystem) => {
     const existingSubsystem = byId.get(subsystem.id);
 
-    return existingSubsystem ? { ...existingSubsystem, name: subsystem.name } : subsystem;
+    return existingSubsystem ?? subsystem;
   });
   const requiredIds = new Set(REQUIRED_TASK_SUBSYSTEMS.map((subsystem) => subsystem.id));
   const remaining = currentSubsystems.filter((subsystem) => !requiredIds.has(subsystem.id));
@@ -2559,6 +2559,7 @@ export default function App() {
         targetEventId: task.targetEventId,
         ownerId: task.ownerId,
         mentorId: task.mentorId,
+        startDate: task.startDate || undefined,
         dueDate: task.dueDate,
         priority: task.priority,
         status: task.status,
@@ -4627,7 +4628,7 @@ export default function App() {
                   autoComplete="one-time-code"
                   autoCorrect={false}
                   editable={!isAuthenticating && hasRequestedEmailCode}
-                  keyboardType="number-pad"
+                  keyboardType="default"
                   onChangeText={setAuthCode}
                   onSubmitEditing={signInWithEmail}
                   placeholder="Email code"
