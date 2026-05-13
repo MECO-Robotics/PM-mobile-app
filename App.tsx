@@ -535,6 +535,16 @@ export default function App() {
     [authConfig?.hostedDomain],
   );
 
+  const buildEmailSessionUser = useCallback(
+    (email: string, backendUser?: SessionUser): SessionUser => ({
+      ...buildLocalEmailSessionUser(email),
+      ...backendUser,
+      authProvider: "email",
+      email,
+    }),
+    [buildLocalEmailSessionUser],
+  );
+
   const buildLocalGoogleSessionUser = useCallback((): SessionUser => {
     const hostedDomain = authConfig?.hostedDomain ?? "mecorobotics.org";
 
@@ -641,7 +651,7 @@ export default function App() {
           return;
         }
 
-        await finishSignIn(null, buildLocalEmailSessionUser(email));
+        await finishSignIn(null, buildEmailSessionUser(email));
         return;
       }
 
@@ -653,7 +663,7 @@ export default function App() {
           body: JSON.stringify({ code, email }),
         },
       );
-      await finishSignIn(session.token, session.user);
+      await finishSignIn(session.token, buildEmailSessionUser(email, session.user));
     } catch (error) {
       if (authConfig?.devBypassAvailable && code === "8324") {
         try {
@@ -662,10 +672,7 @@ export default function App() {
             "/api/auth/dev-bypass",
             { method: "POST" },
           );
-          await finishSignIn(session.token, {
-            ...session.user,
-            ...buildLocalEmailSessionUser(email),
-          });
+          await finishSignIn(session.token, buildEmailSessionUser(email, session.user));
         } catch (devBypassError) {
           setAuthError(parseClientError(devBypassError));
         }
@@ -676,7 +683,7 @@ export default function App() {
     } finally {
       setIsAuthenticating(false);
     }
-  }, [apiBaseUrl, authCode, authConfig, authEmail, buildLocalEmailSessionUser, finishSignIn]);
+  }, [apiBaseUrl, authCode, authConfig, authEmail, buildEmailSessionUser, finishSignIn]);
 
   const resetEmailCode = useCallback(() => {
     setAuthCode("");
