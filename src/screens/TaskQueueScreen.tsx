@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Image, Pressable, ScrollView, View } from "react-native";
 
 import { Text } from "../i18n";
@@ -26,6 +27,7 @@ import {
   datePortion,
   formatDate,
   formatDateTime,
+  localTodayDate,
   splitList,
   timePortion,
   timelineProgress,
@@ -34,8 +36,10 @@ import { LandscapeSubsystemTimeline } from "../ui/LandscapeSubsystemTimeline";
 import { styles } from "../ui/styles";
 import {
   EmptyState,
+  EditorModal,
   FilterToolbar,
   InteractionNote,
+  ModalField,
   OptionChipRow,
   SearchField,
   SectionTabs,
@@ -44,6 +48,7 @@ import {
   WorkspacePanel,
 } from "../ui/ui";
 import type { ArchiveFilterMode, BlockerFilterMode } from "../ui/types";
+import type { Task } from "../types/domain";
 
 import type { AppScreenProps } from "./types";
 import { AttendanceStatusMark } from "./AttendanceStatusMark";
@@ -76,9 +81,12 @@ export function TaskQueueScreen(props: AppScreenProps) {
     openCreateMilestoneEditor,
     openCreateQaReportEditor,
     openCreateTaskEditor,
+    openCreateWorkLogEditor,
     openEditMilestoneEditor,
+    openDuplicateTaskEditor,
     openEditTaskEditor,
     partInstancesById,
+    requestTaskQa,
     setActiveTaskSubteam,
     setMilestoneSearch,
     setMilestoneSortField,
@@ -93,15 +101,19 @@ export function TaskQueueScreen(props: AppScreenProps) {
     setTaskSubsystemFilter,
     setTimelineMilestoneFilter,
     setTimelineSubsystemFilter,
+    shiftTaskDueDates,
+    startTask,
     subsystems,
     subsystemsById,
     taskArchiveFilter,
     taskBlockerFilter,
+    taskById,
     taskOwnerFilter,
     taskPriorityFilter,
     taskSearch,
     taskStatusFilter,
     taskSubsystemFilter,
+    taskLoggedHoursById,
     taskSummary,
     taskView,
     tasks,
@@ -110,6 +122,71 @@ export function TaskQueueScreen(props: AppScreenProps) {
     timelineSubsystemFilter,
     timelineTasks,
   } = props;
+  const [blockerResolutionTask, setBlockerResolutionTask] = useState<Task | null>(null);
+  const [blockerResolutionNote, setBlockerResolutionNote] = useState("");
+  const [blockerResolutionError, setBlockerResolutionError] = useState<string | null>(null);
+  const [isShiftDueDatesOpen, setIsShiftDueDatesOpen] = useState(false);
+  const [shiftDayDelta, setShiftDayDelta] = useState("7");
+  const [shiftDueDateError, setShiftDueDateError] = useState<string | null>(null);
+  const shiftableTasks = filteredTaskQueue.filter((task) => task.status !== "complete");
+
+  const openBlockerResolution = (task: Task) => {
+    setBlockerResolutionTask(task);
+    setBlockerResolutionNote("");
+    setBlockerResolutionError(null);
+  };
+
+  const closeBlockerResolution = () => {
+    setBlockerResolutionTask(null);
+    setBlockerResolutionNote("");
+    setBlockerResolutionError(null);
+  };
+
+  const saveBlockerResolution = async () => {
+    if (!blockerResolutionTask) {
+      return;
+    }
+
+    if (!blockerResolutionNote.trim()) {
+      setBlockerResolutionError("Add a short note explaining what changed.");
+      return;
+    }
+
+    await clearTaskBlockers(blockerResolutionTask, blockerResolutionNote);
+    closeBlockerResolution();
+  };
+
+  const closeShiftDueDates = () => {
+    setIsShiftDueDatesOpen(false);
+    setShiftDueDateError(null);
+  };
+
+  const saveShiftDueDates = async () => {
+    const dayDelta = Number(shiftDayDelta);
+
+    if (!Number.isInteger(dayDelta) || dayDelta === 0) {
+      setShiftDueDateError("Enter a whole number of days, like 7 or -3.");
+      return;
+    }
+
+    if (shiftableTasks.length === 0) {
+      setShiftDueDateError("No visible open tasks can be shifted.");
+      return;
+    }
+
+    await shiftTaskDueDates(shiftableTasks, dayDelta);
+    closeShiftDueDates();
+  };
+
+  const resetTaskQueueFilters = () => {
+    setTaskSearch("");
+    setTaskSubsystemFilter("all");
+    setTaskOwnerFilter("all");
+    setTaskStatusFilter("all");
+    setTaskPriorityFilter("all");
+    setTaskBlockerFilter("all");
+    setTaskArchiveFilter("active");
+  };
 
 const renderScreen = () => {
   return (
@@ -117,9 +194,19 @@ const renderScreen = () => {
       title={`${activeTaskSubteamLabel} task queue`}
       subtitle="Search and filter queue cards for the selected subteam's work."
       actions={
-        <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-          <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
-        </Pressable>
+        <View style={styles.quickActionRow}>
+          <Pressable
+            onPress={() => setIsShiftDueDatesOpen(true)}
+            style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+          >
+            <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+              Shift due
+            </Text>
+          </Pressable>
+          <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
+          </Pressable>
+        </View>
       }
     >
       <FilterToolbar>
@@ -164,7 +251,7 @@ const renderScreen = () => {
         />
 
         <OptionChipRow
-          allLabel="All blockers"
+          allLabel="All flags"
           onChange={(value) => setTaskBlockerFilter(value as BlockerFilterMode)}
           options={BLOCKER_FILTER_OPTIONS}
           value={taskBlockerFilter}
@@ -212,6 +299,29 @@ const renderScreen = () => {
         const targetEvent = task.targetEventId
           ? (eventsById[task.targetEventId]?.title ?? "Event")
           : "No event";
+        const openDependencies = task.dependencyIds
+          .map((dependencyId) => taskById[dependencyId])
+          .filter((dependency): dependency is Task => Boolean(dependency))
+          .filter((dependency) => dependency.status !== "complete");
+        const loggedHours = taskLoggedHoursById[task.id] ?? task.actualHours;
+        const isOverEstimate = task.estimatedHours > 0 && loggedHours > task.estimatedHours;
+        const today = localTodayDate();
+        const soon = new Date(`${today}T00:00:00`);
+        soon.setDate(soon.getDate() + 7);
+        const soonDate = soon.toISOString().slice(0, 10);
+        const isOverdue = task.status !== "complete" && task.dueDate < today;
+        const isDueSoon =
+          task.status !== "complete" && task.dueDate >= today && task.dueDate <= soonDate;
+        const canStartTask =
+          task.status === "not-started" &&
+          task.blockers.length === 0 &&
+          openDependencies.length === 0 &&
+          Boolean(task.ownerId);
+        const canRequestQa =
+          task.status === "in-progress" &&
+          task.blockers.length === 0 &&
+          openDependencies.length === 0;
+        const checklistItems = task.checklistItems ?? [];
 
         return (
           <Pressable
@@ -246,6 +356,18 @@ const renderScreen = () => {
                   {task.linkedPurchaseIds.length > 0 ? (
                     <StatusPill label="Needs purchase" value="requested" />
                   ) : null}
+                  {!task.ownerId ? <StatusPill label="Unassigned" value="warning" /> : null}
+                  {openDependencies.length > 0 ? (
+                    <StatusPill
+                      label={`${openDependencies.length} dependency${openDependencies.length === 1 ? "" : "ies"} open`}
+                      value="waiting"
+                    />
+                  ) : null}
+                  {isOverEstimate ? (
+                    <StatusPill label="Over estimate" value="critical" />
+                  ) : null}
+                  {isOverdue ? <StatusPill label="Overdue" value="critical" /> : null}
+                  {isDueSoon ? <StatusPill label="Due soon" value="waiting" /> : null}
                 </View>
               </View>
 
@@ -266,6 +388,11 @@ const renderScreen = () => {
                   <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
                     <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>Part {linkedPart}</Text>
                   </View>
+                  <View style={[styles.compactMetaItem, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+                    <Text style={[styles.compactMetaText, { color: themeColors.subtleText }]}>
+                      Logged {loggedHours.toFixed(1)}h / Est {task.estimatedHours.toFixed(1)}h
+                    </Text>
+                  </View>
                 </View>
               </View>
             </View>
@@ -276,31 +403,242 @@ const renderScreen = () => {
                 <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>{task.blockers.join(" | ")}</Text>
                 <View style={styles.quickActionRow}>
                   <Pressable
-                    onPress={() => clearTaskBlockers(task)}
+                    onPress={() => openBlockerResolution(task)}
                     style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
                   >
                     <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                      Clear blockers
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => openCreateQaReportEditor(task.id)}
-                    style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-                  >
-                    <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                      QA report
+                      Resolve blockers
                     </Text>
                   </Pressable>
                 </View>
               </View>
             ) : null}
+
+            {checklistItems.length > 0 ? (
+              <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+                <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+                  Checklist
+                </Text>
+                {checklistItems.map((item) => (
+                  <Text
+                    key={item}
+                    style={[styles.calloutBody, appResponsiveStyles.calloutBody]}
+                  >
+                    - {item}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            {openDependencies.length > 0 ? (
+              <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+                <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+                  Waiting on dependencies
+                </Text>
+                <View style={styles.quickActionRow}>
+                  {openDependencies.map((dependency) => {
+                      const dependencyOwner = dependency.ownerId
+                        ? (membersById[dependency.ownerId]?.name ?? "Unassigned")
+                        : "Unassigned";
+                      const dependencySubsystem =
+                        subsystemsById[dependency.subsystemId]?.name ?? "Unknown subsystem";
+
+                      return (
+                        <Pressable
+                          key={dependency.id}
+                          onPress={() => openEditTaskEditor(dependency)}
+                          style={[
+                            styles.quickActionButton,
+                            appResponsiveStyles.quickActionButton,
+                            {
+                              alignItems: "flex-start",
+                              gap: 2,
+                              maxWidth: "100%",
+                            },
+                          ]}
+                        >
+                          <Text
+                            numberOfLines={2}
+                            style={[
+                              styles.quickActionButtonLabel,
+                              appResponsiveStyles.quickActionButtonLabel,
+                            ]}
+                          >
+                            {dependency.title}
+                          </Text>
+                          <Text
+                            numberOfLines={2}
+                            style={[styles.calloutBody, appResponsiveStyles.calloutBody]}
+                          >
+                            {`${STATUS_LABELS[dependency.status]} - due ${formatDate(dependency.dueDate)} - ${dependencySubsystem} - ${dependencyOwner}`}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                </View>
+              </View>
+            ) : null}
+
+            <View style={styles.quickActionRow}>
+              {canStartTask ? (
+                <Pressable
+                  onPress={() => {
+                    void startTask(task);
+                  }}
+                  style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                >
+                  <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                    Start task
+                  </Text>
+                </Pressable>
+              ) : null}
+              <Pressable
+                onPress={() => openCreateWorkLogEditor(task.id)}
+                style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+              >
+                <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                  Log work
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => openDuplicateTaskEditor(task)}
+                style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+              >
+                <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                  Copy task
+                </Text>
+              </Pressable>
+              {canRequestQa ? (
+                <Pressable
+                  onPress={() => {
+                    void requestTaskQa(task);
+                  }}
+                  style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                >
+                  <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                    Request QA
+                  </Text>
+                </Pressable>
+              ) : null}
+              <Pressable
+                onPress={() => openCreateQaReportEditor(task.id)}
+                style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+              >
+                <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                  QA report
+                </Text>
+              </Pressable>
+            </View>
           </Pressable>
         );
       })}
 
-      {filteredTaskQueue.length === 0 ? <EmptyState text="No tasks match the current filters." /> : null}
+      {filteredTaskQueue.length === 0 ? (
+        <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+          <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+            No matching tasks
+          </Text>
+          <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
+            Try clearing search, owner, status, priority, flag, subsystem, and archive filters.
+          </Text>
+          <View style={styles.quickActionRow}>
+            <Pressable
+              onPress={resetTaskQueueFilters}
+              style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+            >
+              <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                Reset filters
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={openCreateTaskEditor}
+              style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+            >
+              <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                Add task
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
 
       <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.queue} />
+      <EditorModal
+        onCancel={closeShiftDueDates}
+        onSave={saveShiftDueDates}
+        saveLabel="Shift due dates"
+        title="Shift visible due dates"
+        visible={isShiftDueDatesOpen}
+      >
+        {shiftDueDateError ? (
+          <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+            <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+              Check shift amount
+            </Text>
+            <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
+              {shiftDueDateError}
+            </Text>
+          </View>
+        ) : null}
+        <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+          <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+            Visible open tasks
+          </Text>
+          <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
+            {shiftableTasks.length} task{shiftableTasks.length === 1 ? "" : "s"} will move by this many days.
+          </Text>
+        </View>
+        <ModalField
+          label="Days to shift"
+          keyboardType="numeric"
+          onChangeText={(value) => {
+            setShiftDueDateError(null);
+            setShiftDayDelta(value);
+          }}
+          placeholder="7"
+          value={shiftDayDelta}
+        />
+      </EditorModal>
+      <EditorModal
+        onCancel={closeBlockerResolution}
+        onSave={saveBlockerResolution}
+        saveLabel="Resolve"
+        title="Resolve blockers"
+        visible={Boolean(blockerResolutionTask)}
+      >
+        {blockerResolutionTask ? (
+          <>
+            <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+              <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+                Current blockers
+              </Text>
+              <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
+                {blockerResolutionTask.blockers.join(" | ")}
+              </Text>
+            </View>
+            {blockerResolutionError ? (
+              <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+                <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+                  Resolution note required
+                </Text>
+                <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
+                  {blockerResolutionError}
+                </Text>
+              </View>
+            ) : null}
+            <ModalField
+              label="Resolution note"
+              multiline
+              onChangeText={(value) => {
+                setBlockerResolutionNote(value);
+                setBlockerResolutionError(null);
+              }}
+              placeholder="What changed so this is no longer blocked?"
+              value={blockerResolutionNote}
+            />
+          </>
+        ) : null}
+      </EditorModal>
     </WorkspacePanel>
   );
 };

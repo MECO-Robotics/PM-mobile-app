@@ -126,6 +126,7 @@ export interface Task {
   priority: TaskPriority;
   status: TaskStatus;
   dependencyIds: string[];
+  checklistItems?: string[];
   blockers: string[];
   isBlocked: boolean;
   linkedManufacturingIds: string[];
@@ -213,10 +214,12 @@ export interface QaReview {
   result: QaResult;
   mentorApproved: boolean;
   notes: string;
+  evidenceNotes?: string;
 }
 
 export interface QaRequest {
   id: string;
+  taskId?: string | null;
   subject: string;
   mentorId: string;
   requestedById: string | null;

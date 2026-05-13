@@ -74,7 +74,7 @@ const renderScreen = () => {
       title="Work logs"
       subtitle="Search by task or notes, then verify hours, participants, and linked subsystem impact."
       actions={
-        <Pressable onPress={openCreateWorkLogEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+        <Pressable onPress={() => openCreateWorkLogEditor()} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
           <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
         </Pressable>
       }
