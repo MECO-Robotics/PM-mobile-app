@@ -52,6 +52,9 @@ export function LandscapeSubsystemTimeline({
   const timelineYear = timelineStart.getFullYear();
   const timelineDays = getTimelineDays(timelineStart);
   const calendarDays = getCalendarDays(timelineStart);
+  const subsystemsById = Object.fromEntries(
+    subsystems.map((subsystem) => [subsystem.id, subsystem]),
+  ) as Record<string, Subsystem>;
   const laneStart = viewMode === "calendar" ? calendarDays[0] : timelineStart;
   const laneDayCount = viewMode === "calendar" ? calendarDays.length : timelineDays.length;
   const packedLanes = buildLanes(tasks, subsystems, laneStart, laneDayCount);
@@ -79,6 +82,7 @@ export function LandscapeSubsystemTimeline({
           lanes={lanes}
           locale={locale}
           onTaskPress={onTaskPress}
+          subsystemsById={subsystemsById}
           timelineDays={timelineDays}
           timelineStart={timelineStart}
           todayKey={todayKey}

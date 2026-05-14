@@ -2,7 +2,7 @@ import { Pressable, ScrollView, View } from "react-native";
 
 import { Text, useTranslation } from "../../i18n";
 import type { AppThemeColors } from "../../theme";
-import type { Event, Task } from "../../types/domain";
+import type { Event, Subsystem, Task } from "../../types/domain";
 import {
   buildLanes,
   DAY_WIDTH,
@@ -23,13 +23,24 @@ type Props = {
   lanes: PackedLane[];
   locale: string;
   onTaskPress: (task: Task) => void;
+  subsystemsById: Record<string, Subsystem>;
   timelineDays: Date[];
   timelineStart: Date;
   todayKey: string;
 };
 
-function formatProjectLabel(lane: ReturnType<typeof buildLanes>[number]) {
-  return lane.subsystem?.projectId ?? lane.tasks[0]?.task.projectId ?? "Operations";
+function formatProjectLabel(lane: ReturnType<typeof buildLanes>[number], subsystemsById: Record<string, Subsystem>) {
+  const parentSubsystem = lane.subsystem?.parentSubsystemId
+    ? subsystemsById[lane.subsystem.parentSubsystemId]
+    : null;
+
+  return (
+    parentSubsystem?.name ??
+    lane.subsystem?.name ??
+    lane.subsystem?.projectId ??
+    lane.tasks[0]?.task.projectId ??
+    "Operations"
+  );
 }
 
 export function LandscapeTimelineBoard({
@@ -39,6 +50,7 @@ export function LandscapeTimelineBoard({
   lanes,
   locale,
   onTaskPress,
+  subsystemsById,
   timelineDays,
   timelineStart,
   todayKey,
@@ -88,7 +100,7 @@ export function LandscapeTimelineBoard({
                   <View style={[sidebarStyles.projectCell, { borderColor: colors.border, backgroundColor: colors.canvas }]}>
                     <Text style={[sidebarStyles.disclosure, { color: colors.subtleText }]}>v</Text>
                     <Text numberOfLines={1} style={[sidebarStyles.projectLabel, { color: colors.ink }]}>
-                      {formatProjectLabel(lane)}
+                      {formatProjectLabel(lane, subsystemsById)}
                     </Text>
                   </View>
                   <View style={sidebarStyles.subsystemCell}>
