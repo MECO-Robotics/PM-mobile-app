@@ -2980,6 +2980,14 @@ export default function App() {
         },
         ...current,
       ]);
+    } else {
+      setTasks((current) =>
+        current.map((candidate) =>
+          candidate.id === task.id && candidate.status === "waiting-for-qa"
+            ? { ...candidate, status: task.status }
+            : candidate,
+        ),
+      );
     }
   };
 

@@ -195,9 +195,7 @@ const renderScreen = () => {
             ? membersById[request.requestedById]?.name
             : null;
           const requesterLabel = requester ?? "Unknown student";
-          const linkedTask =
-            (request.taskId ? taskById[request.taskId] : null) ??
-            tasks.find((task) => task.title.trim() === request.subject.trim());
+          const linkedTask = request.taskId ? taskById[request.taskId] : null;
 
           return (
             <View key={request.id} style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
@@ -224,8 +222,17 @@ const renderScreen = () => {
               </Text>
               <View style={styles.quickActionRow}>
                 <Pressable
-                  onPress={() => openCreateQaReportEditor(linkedTask?.id, request.id)}
-                  style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                  disabled={!linkedTask}
+                  onPress={() => {
+                    if (linkedTask) {
+                      openCreateQaReportEditor(linkedTask.id, request.id);
+                    }
+                  }}
+                  style={[
+                    styles.quickActionButton,
+                    !linkedTask ? { opacity: 0.45 } : null,
+                    appResponsiveStyles.quickActionButton,
+                  ]}
                 >
                   <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
                     Write report
