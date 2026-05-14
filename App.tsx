@@ -589,10 +589,15 @@ export default function App() {
 
   const requestEmailCode = useCallback(async () => {
     const email = authEmail.trim().toLowerCase();
-    const hostedDomain = authConfig?.hostedDomain ?? "mecorobotics.org";
 
     setAuthError(null);
     setAuthNotice(null);
+
+    if (!authConfig) {
+      setIsEmailCodeSent(false);
+      setAuthError("Sign-in is still loading. Try again in a moment.");
+      return;
+    }
 
     if (authConfig?.emailEnabled === false) {
       setIsEmailCodeSent(false);
@@ -600,12 +605,14 @@ export default function App() {
       return;
     }
 
+    const hostedDomain = authConfig.hostedDomain ?? "mecorobotics.org";
+
     if (!email || !email.endsWith(`@${hostedDomain}`)) {
       setAuthError(`Use your @${hostedDomain} email.`);
       return;
     }
 
-    if (!authConfig?.enabled) {
+    if (authConfig.enabled === false) {
       setIsEmailCodeSent(true);
       setAuthNotice("Offline mode: enter 8324 to continue.");
       return;
@@ -643,6 +650,11 @@ export default function App() {
     setAuthError(null);
     setAuthNotice(null);
 
+    if (!authConfig) {
+      setAuthError("Sign-in is still loading. Try again in a moment.");
+      return;
+    }
+
     if (authConfig?.emailEnabled === false) {
       setAuthError("Email sign-in is not enabled for this workspace.");
       return;
@@ -656,7 +668,7 @@ export default function App() {
     setIsAuthenticating(true);
 
     try {
-      if (!authConfig?.enabled) {
+      if (authConfig.enabled === false) {
         if (code !== "8324") {
           setAuthError("Use 8324 for the offline login code.");
           return;
