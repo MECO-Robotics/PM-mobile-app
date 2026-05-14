@@ -207,6 +207,9 @@ export interface PurchaseItem {
 
 export interface QaReview {
   id: string;
+  taskId?: string | null;
+  subjectId?: string | null;
+  subjectType?: "task" | "manufacturing" | string;
   subjectTitle: string;
   participantIds: string[];
   requestedById?: string | null;

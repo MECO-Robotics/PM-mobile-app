@@ -241,6 +241,31 @@ function getAutoTaskStatus(
   return task.status;
 }
 
+function hasOpenTaskDependency(
+  task: Pick<Task, "dependencyIds">,
+  taskById: Record<string, Task>,
+) {
+  return task.dependencyIds
+    .map((dependencyId) => taskById[dependencyId])
+    .some((dependency) => dependency && dependency.status !== "complete");
+}
+
+function isTaskReadyForQaPass(task: Task, taskById: Record<string, Task>) {
+  return (
+    task.status === "waiting-for-qa" &&
+    task.blockers.length === 0 &&
+    !hasOpenTaskDependency(task, taskById)
+  );
+}
+
+function getQaReviewTaskId(review: QaReview) {
+  if (review.taskId) {
+    return review.taskId;
+  }
+
+  return review.subjectType === "task" && review.subjectId ? review.subjectId : null;
+}
+
 function shiftDateByDays(value: string, dayDelta: number) {
   const date = new Date(`${value}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + dayDelta);
@@ -1693,7 +1718,8 @@ export default function App() {
         continue;
       }
 
-      const task = tasks.find((candidate) => candidate.title === review.subjectTitle);
+      const taskId = getQaReviewTaskId(review);
+      const task = taskId ? taskById[taskId] : null;
       const bucket = task ? counts[task.subsystemId] : null;
       if (bucket) {
         bucket.qaFindings += 1;
@@ -1714,7 +1740,7 @@ export default function App() {
     }
 
     return counts;
-  }, [mechanisms, purchaseItems, qaReviews, subsystems, tasks]);
+  }, [mechanisms, purchaseItems, qaReviews, subsystems, taskById, tasks]);
 
   const filteredSubsystems = useMemo(() => {
     const search = subsystemSearch.trim().toLowerCase();
@@ -1767,14 +1793,19 @@ export default function App() {
       }));
     const qaRisks = qaReviews
       .filter((review) => review.result === "iteration-worthy" || review.result === "minor-fix")
-      .map((review) => ({
-        id: `qa-${review.id}`,
-        title: review.subjectTitle,
-        detail: review.notes,
-        subsystemId: "",
-        source: review.result === "iteration-worthy" ? "Iteration" : "QA finding",
-        priority: review.result === "iteration-worthy" ? "high" as const : "medium" as const,
-      }));
+      .map((review) => {
+        const taskId = getQaReviewTaskId(review);
+        const task = taskId ? taskById[taskId] : null;
+
+        return {
+          id: `qa-${review.id}`,
+          title: review.subjectTitle,
+          detail: review.notes,
+          subsystemId: task?.subsystemId ?? "",
+          source: review.result === "iteration-worthy" ? "Iteration" : "QA finding",
+          priority: review.result === "iteration-worthy" ? "high" as const : "medium" as const,
+        };
+      });
 
     return [...blockerRisks, ...qaRisks, ...subsystemRisks].sort((left, right) => {
       const priorityDelta = RISK_PRIORITY_RANK[left.priority] - RISK_PRIORITY_RANK[right.priority];
@@ -1789,7 +1820,7 @@ export default function App() {
 
       return left.title.localeCompare(right.title);
     });
-  }, [qaReviews, subsystems, tasks]);
+  }, [qaReviews, subsystems, taskById, tasks]);
 
   const reportSummary = useMemo(() => {
     const iterationCount = qaReviews.filter((review) => review.result === "iteration-worthy").length;
@@ -3661,6 +3692,13 @@ export default function App() {
       return;
     }
 
+    if (task && qaReportDraft.result === "pass" && !isTaskReadyForQaPass(task, taskById)) {
+      setQaReportError(
+        "A pass report can only complete a task that is waiting for QA with no blockers or unfinished dependencies.",
+      );
+      return;
+    }
+
     setQaReportError(null);
     const linkedQaRequest =
       (activeQaRequestId
@@ -3671,6 +3709,9 @@ export default function App() {
       );
     const nextQaReview: QaReview = {
       id: `qa-local-${Date.now()}`,
+      taskId: task.id,
+      subjectId: task.id,
+      subjectType: "task",
       subjectTitle: task.title,
       participantIds: participants,
       requestedById: linkedQaRequest?.requestedById ?? null,
