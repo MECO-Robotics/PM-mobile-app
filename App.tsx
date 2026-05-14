@@ -194,6 +194,22 @@ function formatHoursFromTimer(elapsedMs: number) {
     ? String(roundedHours)
     : String(roundedHours).replace(/0$/, "");
 }
+
+function getWorkLogTimerElapsedMs(
+  timer: WorkLogTimerState | null,
+  now = Date.now(),
+) {
+  if (!timer) {
+    return 0;
+  }
+
+  return (
+    timer.elapsedMs +
+    (timer.startedAt && !timer.isPaused
+      ? Math.max(0, now - timer.startedAt)
+      : 0)
+  );
+}
 type RiskPriority = "high" | "medium" | "low";
 
 const RISK_PRIORITY_RANK: Record<RiskPriority, number> = {
@@ -1916,6 +1932,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    void cancelWorkLogTimerReminders();
+  }, []);
+
+  useEffect(() => {
     if (activePersonFilter === "all") {
       return;
     }
@@ -1955,12 +1975,10 @@ export default function App() {
     return () => clearInterval(timerId);
   }, [workLogTimer]);
 
-  const workLogTimerElapsedMs = workLogTimer
-    ? workLogTimer.elapsedMs +
-      (workLogTimer.startedAt && !workLogTimer.isPaused
-        ? workLogTimerTick - workLogTimer.startedAt
-        : 0)
-    : 0;
+  const workLogTimerElapsedMs = getWorkLogTimerElapsedMs(
+    workLogTimer,
+    workLogTimerTick,
+  );
   const workTimerElapsedLabel = formatTimerElapsed(workLogTimerElapsedMs);
 
   const openCreateTaskEditor = () => {
@@ -2238,19 +2256,21 @@ export default function App() {
     setWorkLogTimer(nextTimer);
     setWorkLogTimerTick(nextTimer.startedAt);
     void startWorkLogLiveActivity(nextTimer);
-    void scheduleWorkLogTimerReminders().then((notificationIds) => {
-      setWorkLogTimer((currentTimer) => {
-        if (!currentTimer || currentTimer.id !== timerId || currentTimer.isPaused) {
-          void cancelWorkLogTimerReminders(notificationIds);
-          return currentTimer;
-        }
+    void cancelWorkLogTimerReminders()
+      .then(() => scheduleWorkLogTimerReminders())
+      .then((notificationIds) => {
+        setWorkLogTimer((currentTimer) => {
+          if (!currentTimer || currentTimer.id !== timerId || currentTimer.isPaused) {
+            void cancelWorkLogTimerReminders(notificationIds);
+            return currentTimer;
+          }
 
-        return {
-          ...currentTimer,
-          reminderNotificationIds: notificationIds,
-        };
+          return {
+            ...currentTimer,
+            reminderNotificationIds: notificationIds,
+          };
+        });
       });
-    });
   };
 
   const pauseWorkLogTimer = () => {
@@ -2258,9 +2278,10 @@ export default function App() {
       return;
     }
 
+    const elapsedMs = getWorkLogTimerElapsedMs(workLogTimer);
     const nextTimer = {
       id: workLogTimer.id,
-      elapsedMs: workLogTimerElapsedMs,
+      elapsedMs,
       isPaused: true,
       reminderNotificationIds: [],
       startedAt: null,
@@ -2276,7 +2297,7 @@ export default function App() {
       return;
     }
 
-    const elapsedMs = workLogTimerElapsedMs;
+    const elapsedMs = getWorkLogTimerElapsedMs(workLogTimer);
 
     setActiveWorkLogId(null);
     setWorkLogDraft(

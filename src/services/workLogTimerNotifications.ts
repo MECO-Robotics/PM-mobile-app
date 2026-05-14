@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 
 const WORK_LOG_TIMER_CHANNEL_ID = "work-log-timer";
+const WORK_LOG_TIMER_REMINDER_KIND = "work-log-timer-reminder";
 const WORK_LOG_TIMER_REMINDER_MINUTES = [30, 60, 90];
 
 function allowsNotificationDelivery(
@@ -12,6 +13,21 @@ function allowsNotificationDelivery(
     permissions.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL ||
     permissions.ios?.status === Notifications.IosAuthorizationStatus.EPHEMERAL
   );
+}
+
+function isWorkLogTimerReminder(
+  notification: Notifications.NotificationRequest,
+) {
+  return notification.content.data?.kind === WORK_LOG_TIMER_REMINDER_KIND;
+}
+
+async function getScheduledWorkLogTimerReminderIds() {
+  const scheduledNotifications =
+    await Notifications.getAllScheduledNotificationsAsync();
+
+  return scheduledNotifications
+    .filter(isWorkLogTimerReminder)
+    .map((notification) => notification.identifier);
 }
 
 Notifications.setNotificationHandler({
@@ -56,7 +72,7 @@ export async function scheduleWorkLogTimerReminders() {
           title: "Work timer still running",
           body: `${minutes} minutes logged. Pause when you are ready to turn this into a work log.`,
           data: {
-            kind: "work-log-timer-reminder",
+            kind: WORK_LOG_TIMER_REMINDER_KIND,
             minutes,
           },
         },
@@ -70,9 +86,14 @@ export async function scheduleWorkLogTimerReminders() {
   );
 }
 
-export async function cancelWorkLogTimerReminders(notificationIds: string[]) {
+export async function cancelWorkLogTimerReminders(notificationIds: string[] = []) {
+  const idsToCancel =
+    notificationIds.length > 0
+      ? notificationIds
+      : await getScheduledWorkLogTimerReminderIds();
+
   await Promise.all(
-    notificationIds.map((notificationId) =>
+    idsToCancel.map((notificationId) =>
       Notifications.cancelScheduledNotificationAsync(notificationId),
     ),
   );
