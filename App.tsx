@@ -151,6 +151,8 @@ import {
 } from "./src/services/workLogLiveActivity";
 import {
   cancelWorkLogTimerReminders,
+  clearPersistedWorkLogTimerState,
+  persistWorkLogTimerState,
   restorePersistedWorkLogTimerReminder,
   schedulePersistedWorkLogTimerReminders,
 } from "./src/services/workLogTimerNotifications";
@@ -1936,6 +1938,7 @@ export default function App() {
     void restorePersistedWorkLogTimerReminder().then((restoredTimer) => {
       if (!restoredTimer) {
         void cancelWorkLogTimerReminders();
+        void clearPersistedWorkLogTimerState();
         return;
       }
 
@@ -2271,19 +2274,33 @@ export default function App() {
     setWorkLogTimer(nextTimer);
     setWorkLogTimerTick(nextTimer.startedAt);
     void startWorkLogLiveActivity(nextTimer);
+    void persistWorkLogTimerState(nextTimer);
     void cancelWorkLogTimerReminders()
       .then(() => schedulePersistedWorkLogTimerReminders(nextTimer))
       .then((notificationIds) => {
         setWorkLogTimer((currentTimer) => {
-          if (!currentTimer || currentTimer.id !== timerId || currentTimer.isPaused) {
+          if (
+            !currentTimer ||
+            currentTimer.id !== timerId ||
+            currentTimer.isPaused ||
+            currentTimer.startedAt === null
+          ) {
             void cancelWorkLogTimerReminders(notificationIds);
             return currentTimer;
           }
 
-          return {
+          const timerWithReminders = {
             ...currentTimer,
             reminderNotificationIds: notificationIds,
           };
+
+          void persistWorkLogTimerState({
+            elapsedMs: timerWithReminders.elapsedMs,
+            id: timerWithReminders.id,
+            reminderNotificationIds: timerWithReminders.reminderNotificationIds,
+            startedAt: currentTimer.startedAt,
+          });
+          return timerWithReminders;
         });
       });
   };
@@ -2303,6 +2320,7 @@ export default function App() {
     };
 
     setWorkLogTimer(nextTimer);
+    void clearPersistedWorkLogTimerState();
     void cancelWorkLogTimerReminders(workLogTimer.reminderNotificationIds);
     void updateWorkLogLiveActivity(nextTimer);
   };
@@ -2324,6 +2342,7 @@ export default function App() {
       }),
     );
     setWorkLogTimer(null);
+    void clearPersistedWorkLogTimerState();
     void cancelWorkLogTimerReminders(workLogTimer.reminderNotificationIds);
     void endWorkLogLiveActivity();
     setWorkLogEditorMode("create");
@@ -2337,6 +2356,7 @@ export default function App() {
 
       return null;
     });
+    void clearPersistedWorkLogTimerState();
     void endWorkLogLiveActivity();
   };
 

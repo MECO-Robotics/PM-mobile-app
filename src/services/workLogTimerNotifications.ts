@@ -1,9 +1,11 @@
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const WORK_LOG_TIMER_CHANNEL_ID = "work-log-timer";
 const WORK_LOG_TIMER_REMINDER_KIND = "work-log-timer-reminder";
 const WORK_LOG_TIMER_REMINDER_MINUTES = [30, 60, 90];
+const WORK_LOG_TIMER_STORAGE_KEY = "meco.active-work-log-timer";
 
 export type PersistedWorkLogTimerReminder = {
   elapsedMs: number;
@@ -122,13 +124,82 @@ function stringFromNotificationData(value: unknown) {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+function persistedTimerFromUnknown(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const timer = value as Record<string, unknown>;
+  const id = stringFromNotificationData(timer.id);
+  const startedAt = numberFromNotificationData(timer.startedAt);
+
+  if (!id || startedAt === null) {
+    return null;
+  }
+
+  const reminderNotificationIds = Array.isArray(timer.reminderNotificationIds)
+    ? timer.reminderNotificationIds.filter(
+        (notificationId): notificationId is string =>
+          typeof notificationId === "string" && notificationId.length > 0,
+      )
+    : [];
+
+  return {
+    elapsedMs: numberFromNotificationData(timer.elapsedMs) ?? 0,
+    id,
+    reminderNotificationIds,
+    startedAt,
+  };
+}
+
+async function readPersistedWorkLogTimerState() {
+  const rawTimer = await AsyncStorage.getItem(WORK_LOG_TIMER_STORAGE_KEY);
+
+  if (!rawTimer) {
+    return null;
+  }
+
+  try {
+    const persistedTimer = persistedTimerFromUnknown(JSON.parse(rawTimer));
+
+    if (persistedTimer) {
+      return persistedTimer;
+    }
+  } catch {
+    // Invalid persisted timer payloads should not keep blocking cleanup.
+  }
+
+  await AsyncStorage.removeItem(WORK_LOG_TIMER_STORAGE_KEY);
+  return null;
+}
+
+export async function persistWorkLogTimerState(
+  timer: PersistedWorkLogTimerReminder,
+) {
+  await AsyncStorage.setItem(WORK_LOG_TIMER_STORAGE_KEY, JSON.stringify(timer));
+}
+
+export async function clearPersistedWorkLogTimerState() {
+  await AsyncStorage.removeItem(WORK_LOG_TIMER_STORAGE_KEY);
+}
+
 export async function restorePersistedWorkLogTimerReminder(): Promise<PersistedWorkLogTimerReminder | null> {
-  const scheduledNotifications =
-    await Notifications.getAllScheduledNotificationsAsync();
+  const [storedTimer, scheduledNotifications] = await Promise.all([
+    readPersistedWorkLogTimerState(),
+    Notifications.getAllScheduledNotificationsAsync(),
+  ]);
   const timerReminders = scheduledNotifications.filter(isWorkLogTimerReminder);
 
-  if (timerReminders.length === 0) {
-    return null;
+  if (storedTimer) {
+    return {
+      ...storedTimer,
+      reminderNotificationIds: timerReminders
+        .filter(
+          (notification) =>
+            notification.content.data?.timerId === storedTimer.id,
+        )
+        .map((notification) => notification.identifier),
+    };
   }
 
   const timerId = stringFromNotificationData(
@@ -146,11 +217,14 @@ export async function restorePersistedWorkLogTimerReminder(): Promise<PersistedW
     .filter((notification) => notification.content.data?.timerId === timerId)
     .map((notification) => notification.identifier);
 
-  return {
+  const restoredTimer = {
     elapsedMs:
       numberFromNotificationData(timerReminders[0]?.content.data?.elapsedMs) ?? 0,
     id: timerId,
     reminderNotificationIds,
     startedAt,
   };
+
+  await persistWorkLogTimerState(restoredTimer);
+  return restoredTimer;
 }
