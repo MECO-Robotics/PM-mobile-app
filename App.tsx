@@ -1953,16 +1953,23 @@ export default function App() {
         return;
       }
 
+      const restoredReminderNotificationIds =
+        restoredTimer.isPaused === true ? [] : restoredTimer.reminderNotificationIds;
       const restoredWorkLogTimer = {
         elapsedMs: restoredTimer.elapsedMs,
         id: restoredTimer.id,
-        isPaused: false,
-        reminderNotificationIds: restoredTimer.reminderNotificationIds,
+        isPaused: restoredTimer.isPaused === true,
+        reminderNotificationIds: restoredReminderNotificationIds,
         startedAt: restoredTimer.startedAt,
       };
       workLogTimerRef.current = restoredWorkLogTimer;
       setWorkLogTimer(restoredWorkLogTimer);
       setWorkLogTimerTick(Date.now());
+
+      if (restoredTimer.isPaused === true) {
+        void cancelWorkLogTimerReminders(restoredTimer.reminderNotificationIds);
+        void persistWorkLogTimerState(restoredWorkLogTimer);
+      }
     });
 
     return () => {
@@ -2316,6 +2323,7 @@ export default function App() {
           void persistWorkLogTimerState({
             elapsedMs: timerWithReminders.elapsedMs,
             id: timerWithReminders.id,
+            isPaused: timerWithReminders.isPaused,
             reminderNotificationIds: timerWithReminders.reminderNotificationIds,
             startedAt: currentTimer.startedAt,
           });
@@ -2341,7 +2349,7 @@ export default function App() {
 
     workLogTimerRef.current = nextTimer;
     setWorkLogTimer(nextTimer);
-    void clearPersistedWorkLogTimerState();
+    void persistWorkLogTimerState(nextTimer);
     void cancelWorkLogTimerReminders(workLogTimer.reminderNotificationIds);
     void updateWorkLogLiveActivity(nextTimer);
   };

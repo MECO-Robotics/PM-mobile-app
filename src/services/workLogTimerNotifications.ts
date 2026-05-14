@@ -10,8 +10,9 @@ const WORK_LOG_TIMER_STORAGE_KEY = "meco.active-work-log-timer";
 export type PersistedWorkLogTimerReminder = {
   elapsedMs: number;
   id: string;
+  isPaused?: boolean;
   reminderNotificationIds: string[];
-  startedAt: number;
+  startedAt: number | null;
 };
 
 function allowsNotificationDelivery(
@@ -131,9 +132,10 @@ function persistedTimerFromUnknown(value: unknown) {
 
   const timer = value as Record<string, unknown>;
   const id = stringFromNotificationData(timer.id);
+  const isPaused = timer.isPaused === true;
   const startedAt = numberFromNotificationData(timer.startedAt);
 
-  if (!id || startedAt === null) {
+  if (!id || (!isPaused && startedAt === null)) {
     return null;
   }
 
@@ -147,8 +149,9 @@ function persistedTimerFromUnknown(value: unknown) {
   return {
     elapsedMs: numberFromNotificationData(timer.elapsedMs) ?? 0,
     id,
+    isPaused,
     reminderNotificationIds,
-    startedAt,
+    startedAt: isPaused ? null : startedAt,
   };
 }
 
