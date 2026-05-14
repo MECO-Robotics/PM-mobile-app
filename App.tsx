@@ -266,6 +266,30 @@ function getQaReviewTaskId(review: QaReview) {
   return review.subjectType === "task" && review.subjectId ? review.subjectId : null;
 }
 
+function buildTaskMutationPayload(task: Task) {
+  return {
+    title: task.title,
+    summary: task.summary,
+    subsystemId: task.subsystemId,
+    disciplineId: task.disciplineId,
+    mechanismId: task.mechanismId,
+    partInstanceId: task.partInstanceId,
+    targetEventId: task.targetEventId,
+    ownerId: task.ownerId,
+    mentorId: task.mentorId,
+    dueDate: task.dueDate,
+    priority: task.priority,
+    status: task.status,
+    dependencyIds: task.dependencyIds,
+    checklistItems: task.checklistItems ?? [],
+    blockers: task.blockers,
+    linkedManufacturingIds: task.linkedManufacturingIds,
+    linkedPurchaseIds: task.linkedPurchaseIds,
+    estimatedHours: task.estimatedHours,
+    actualHours: task.actualHours,
+  };
+}
+
 function shiftDateByDays(value: string, dayDelta: number) {
   const date = new Date(`${value}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + dayDelta);
@@ -3704,9 +3728,7 @@ export default function App() {
       (activeQaRequestId
         ? qaRequests.find((request) => request.id === activeQaRequestId)
         : null) ??
-      qaRequests.find(
-        (request) => request.taskId === task.id || request.subject.trim() === task.title.trim(),
-      );
+      qaRequests.find((request) => request.taskId === task.id);
     const nextQaReview: QaReview = {
       id: `qa-local-${Date.now()}`,
       taskId: task.id,
@@ -3771,20 +3793,29 @@ export default function App() {
     }
 
     if (qaReportDraft.result === "pass") {
-      setTasks((current) => {
-        const completedTasks = current.map((candidate) =>
-          candidate.id === task.id ? { ...candidate, status: "complete" as TaskStatus } : candidate,
-        );
-        const completedTaskById = Object.fromEntries(
-          completedTasks.map((candidate) => [candidate.id, candidate]),
-        ) as Record<string, Task>;
+      const completedTasks = tasks.map((candidate) =>
+        candidate.id === task.id ? { ...candidate, status: "complete" as TaskStatus } : candidate,
+      );
+      const completedTaskById = Object.fromEntries(
+        completedTasks.map((candidate) => [candidate.id, candidate]),
+      ) as Record<string, Task>;
+      const nextTasks = completedTasks.map((candidate) =>
+        candidate.id === task.id
+          ? candidate
+          : { ...candidate, status: getAutoTaskStatus(candidate, completedTaskById) },
+      );
+      const changedStatusTasks = nextTasks.filter(
+        (candidate) => taskById[candidate.id]?.status !== candidate.status,
+      );
 
-        return completedTasks.map((candidate) =>
-          candidate.id === task.id
-            ? candidate
-            : { ...candidate, status: getAutoTaskStatus(candidate, completedTaskById) },
-        );
-      });
+      setTasks(nextTasks);
+
+      for (const changedTask of changedStatusTasks) {
+        await runMutation(`/api/tasks/${changedTask.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(buildTaskMutationPayload(changedTask)),
+        });
+      }
     }
 
     if (qaReportDraft.result === "iteration-worthy") {
@@ -3813,8 +3844,7 @@ export default function App() {
       current.filter(
         (request) =>
           request.id !== linkedQaRequest?.id &&
-          request.taskId !== task.id &&
-          request.subject.trim() !== task.title.trim(),
+          request.taskId !== task.id,
       ),
     );
     closeQaReportEditor();
