@@ -1,6 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Image,
   Modal,
@@ -453,6 +453,7 @@ export default function App() {
     buildWorkLogDraft(),
   );
   const [workLogTimer, setWorkLogTimer] = useState<WorkLogTimerState | null>(null);
+  const workLogTimerRef = useRef<WorkLogTimerState | null>(null);
   const [workLogTimerTick, setWorkLogTimerTick] = useState(Date.now());
 
   const [manufacturingEditorMode, setManufacturingEditorMode] = useState<EditorMode | null>(
@@ -1935,22 +1936,38 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    workLogTimerRef.current = workLogTimer;
+  }, [workLogTimer]);
+
+  useEffect(() => {
+    let didCancel = false;
+
     void restorePersistedWorkLogTimerReminder().then((restoredTimer) => {
+      if (didCancel || workLogTimerRef.current) {
+        return;
+      }
+
       if (!restoredTimer) {
         void cancelWorkLogTimerReminders();
         void clearPersistedWorkLogTimerState();
         return;
       }
 
-      setWorkLogTimer({
+      const restoredWorkLogTimer = {
         elapsedMs: restoredTimer.elapsedMs,
         id: restoredTimer.id,
         isPaused: false,
         reminderNotificationIds: restoredTimer.reminderNotificationIds,
         startedAt: restoredTimer.startedAt,
-      });
+      };
+      workLogTimerRef.current = restoredWorkLogTimer;
+      setWorkLogTimer(restoredWorkLogTimer);
       setWorkLogTimerTick(Date.now());
     });
+
+    return () => {
+      didCancel = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -2271,6 +2288,7 @@ export default function App() {
       startedAt: Date.now(),
     };
 
+    workLogTimerRef.current = nextTimer;
     setWorkLogTimer(nextTimer);
     setWorkLogTimerTick(nextTimer.startedAt);
     void startWorkLogLiveActivity(nextTimer);
@@ -2286,6 +2304,7 @@ export default function App() {
             currentTimer.startedAt === null
           ) {
             void cancelWorkLogTimerReminders(notificationIds);
+            workLogTimerRef.current = currentTimer;
             return currentTimer;
           }
 
@@ -2300,6 +2319,7 @@ export default function App() {
             reminderNotificationIds: timerWithReminders.reminderNotificationIds,
             startedAt: currentTimer.startedAt,
           });
+          workLogTimerRef.current = timerWithReminders;
           return timerWithReminders;
         });
       });
@@ -2319,6 +2339,7 @@ export default function App() {
       startedAt: null,
     };
 
+    workLogTimerRef.current = nextTimer;
     setWorkLogTimer(nextTimer);
     void clearPersistedWorkLogTimerState();
     void cancelWorkLogTimerReminders(workLogTimer.reminderNotificationIds);
@@ -2341,6 +2362,7 @@ export default function App() {
         participantIds: members[0]?.id ? [members[0].id] : [],
       }),
     );
+    workLogTimerRef.current = null;
     setWorkLogTimer(null);
     void clearPersistedWorkLogTimerState();
     void cancelWorkLogTimerReminders(workLogTimer.reminderNotificationIds);
@@ -2349,6 +2371,7 @@ export default function App() {
   };
 
   const clearWorkLogTimer = () => {
+    workLogTimerRef.current = null;
     setWorkLogTimer((currentTimer) => {
       if (currentTimer) {
         void cancelWorkLogTimerReminders(currentTimer.reminderNotificationIds);
