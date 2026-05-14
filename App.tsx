@@ -151,7 +151,8 @@ import {
 } from "./src/services/workLogLiveActivity";
 import {
   cancelWorkLogTimerReminders,
-  scheduleWorkLogTimerReminders,
+  restorePersistedWorkLogTimerReminder,
+  schedulePersistedWorkLogTimerReminders,
 } from "./src/services/workLogTimerNotifications";
 
 const SWIPE_ACTIVATION_DISTANCE = 18;
@@ -1932,7 +1933,21 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void cancelWorkLogTimerReminders();
+    void restorePersistedWorkLogTimerReminder().then((restoredTimer) => {
+      if (!restoredTimer) {
+        void cancelWorkLogTimerReminders();
+        return;
+      }
+
+      setWorkLogTimer({
+        elapsedMs: restoredTimer.elapsedMs,
+        id: restoredTimer.id,
+        isPaused: false,
+        reminderNotificationIds: restoredTimer.reminderNotificationIds,
+        startedAt: restoredTimer.startedAt,
+      });
+      setWorkLogTimerTick(Date.now());
+    });
   }, []);
 
   useEffect(() => {
@@ -2257,7 +2272,7 @@ export default function App() {
     setWorkLogTimerTick(nextTimer.startedAt);
     void startWorkLogLiveActivity(nextTimer);
     void cancelWorkLogTimerReminders()
-      .then(() => scheduleWorkLogTimerReminders())
+      .then(() => schedulePersistedWorkLogTimerReminders(nextTimer))
       .then((notificationIds) => {
         setWorkLogTimer((currentTimer) => {
           if (!currentTimer || currentTimer.id !== timerId || currentTimer.isPaused) {
