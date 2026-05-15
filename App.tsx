@@ -92,13 +92,10 @@ import {
   DropdownField,
   ModalField,
   SearchField,
-  SectionTabs,
-  StatusPill,
-  SummaryRow,
   ToggleField,
 } from "./src/ui/ui";
 import { AppThemeProvider } from "./src/ui/themeContext";
-import { languageNames, LocalizationProvider, Text, type LanguageCode } from "./src/i18n";
+import { LocalizationProvider, Text, type LanguageCode } from "./src/i18n";
 import {
   ApiRequestError,
   classifyMobileAuthError,
@@ -141,6 +138,7 @@ import { RosterScreen } from "./src/screens/RosterScreen";
 import { SubsystemsScreen } from "./src/screens/SubsystemsScreen";
 import { TasksScreen } from "./src/screens/TasksScreen";
 import { WorkLogsScreen } from "./src/screens/WorkLogsScreen";
+import type { SubsystemCounts } from "./src/screens/types";
 import {
   endWorkLogLiveActivity,
   startWorkLogLiveActivity,
@@ -221,12 +219,6 @@ const RISK_PRIORITY_RANK: Record<RiskPriority, number> = {
   low: 2,
 };
 
-const RISK_PRIORITY_COLUMNS: { label: string; priority: RiskPriority }[] = [
-  { label: "High", priority: "high" },
-  { label: "Medium", priority: "medium" },
-  { label: "Low", priority: "low" },
-];
-
 const ATTENDANCE_STATUS_BY_MEMBER_ID: Record<string, AttendanceStatus> = {
   ava: "yes",
   ethan: "maybe",
@@ -236,12 +228,6 @@ const ATTENDANCE_STATUS_BY_MEMBER_ID: Record<string, AttendanceStatus> = {
   priya: "maybe",
   riley: "yes",
 };
-
-const ATTENDANCE_STATUS_OPTIONS: { status: AttendanceStatus; label: string }[] = [
-  { status: "yes", label: "Present" },
-  { status: "maybe", label: "Maybe" },
-  { status: "no", label: "Out" },
-];
 
 const INITIAL_SEASONS: SeasonOption[] = [
   { id: "test", label: "Test Season" },
@@ -335,6 +321,123 @@ function parseClientError(error: unknown) {
   }
 
   return "Request failed unexpectedly.";
+}
+
+function isValidDateInput(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function isValidTimeInput(value: string) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function taskDependsOnTarget(
+  taskId: string,
+  targetTaskId: string,
+  taskById: Record<string, Task>,
+  visitedTaskIds = new Set<string>(),
+): boolean {
+  if (taskId === targetTaskId) {
+    return true;
+  }
+
+  if (visitedTaskIds.has(taskId)) {
+    return false;
+  }
+
+  visitedTaskIds.add(taskId);
+
+  const task = taskById[taskId];
+  if (!task) {
+    return false;
+  }
+
+  return task.dependencyIds.some((dependencyId) =>
+    taskDependsOnTarget(dependencyId, targetTaskId, taskById, visitedTaskIds),
+  );
+}
+
+function getAutoTaskStatus(
+  task: Pick<Task, "blockers" | "dependencyIds" | "ownerId" | "status">,
+  taskById: Record<string, Task>,
+): TaskStatus {
+  if (task.status !== "not-started") {
+    return task.status;
+  }
+
+  const hasOpenDependency = task.dependencyIds
+    .map((dependencyId) => taskById[dependencyId])
+    .some((dependency) => dependency && dependency.status !== "complete");
+
+  if (task.ownerId && task.blockers.length === 0 && !hasOpenDependency) {
+    return "in-progress";
+  }
+
+  return task.status;
+}
+
+function hasOpenTaskDependency(
+  task: Pick<Task, "dependencyIds">,
+  taskById: Record<string, Task>,
+) {
+  return task.dependencyIds
+    .map((dependencyId) => taskById[dependencyId])
+    .some((dependency) => dependency && dependency.status !== "complete");
+}
+
+function isTaskReadyForQaPass(task: Task, taskById: Record<string, Task>) {
+  return (
+    task.status === "waiting-for-qa" &&
+    task.blockers.length === 0 &&
+    !hasOpenTaskDependency(task, taskById)
+  );
+}
+
+function getQaReviewTaskId(review: QaReview) {
+  if (review.taskId) {
+    return review.taskId;
+  }
+
+  return review.subjectType === "task" && review.subjectId ? review.subjectId : null;
+}
+
+function buildTaskMutationPayload(task: Task) {
+  return {
+    title: task.title,
+    summary: task.summary,
+    subsystemId: task.subsystemId,
+    disciplineId: task.disciplineId,
+    mechanismId: task.mechanismId,
+    partInstanceId: task.partInstanceId,
+    targetEventId: task.targetEventId,
+    ownerId: task.ownerId,
+    mentorId: task.mentorId,
+    dueDate: task.dueDate,
+    priority: task.priority,
+    status: task.status,
+    dependencyIds: task.dependencyIds,
+    checklistItems: task.checklistItems ?? [],
+    blockers: task.blockers,
+    linkedManufacturingIds: task.linkedManufacturingIds,
+    linkedPurchaseIds: task.linkedPurchaseIds,
+    estimatedHours: task.estimatedHours,
+    actualHours: task.actualHours,
+  };
+}
+
+function shiftDateByDays(value: string, dayDelta: number) {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + dayDelta);
+  return date.toISOString().slice(0, 10);
+}
+
+function csvCell(value: string | number) {
+  return `"${String(value).replace(/"/g, '""')}"`;
 }
 
 function ensureArray<T>(value: T[] | undefined | null): T[] {
@@ -655,6 +758,7 @@ export default function App() {
   const [workLogDraft, setWorkLogDraft] = useState<WorkLogDraft>(
     buildWorkLogDraft(),
   );
+  const [workLogError, setWorkLogError] = useState<string | null>(null);
   const [workLogTimer, setWorkLogTimer] = useState<WorkLogTimerState | null>(null);
   const workLogTimerRef = useRef<WorkLogTimerState | null>(null);
   const [workLogTimerTick, setWorkLogTimerTick] = useState(Date.now());
@@ -1161,6 +1265,108 @@ export default function App() {
   const activeTaskSubteamLabel =
     TASK_SUBTEAM_OPTIONS.find((option) => option.value === activeTaskSubteam)?.label ??
     "Programming";
+  const selectedTaskDependencyIds = useMemo(() => {
+    return splitList(taskDraft.dependencyIdsText)
+      .filter((dependencyId) => taskById[dependencyId])
+      .filter((dependencyId) => dependencyId !== activeTaskId);
+  }, [activeTaskId, taskById, taskDraft.dependencyIdsText]);
+  const selectedTaskDependencies = useMemo(() => {
+    return selectedTaskDependencyIds
+      .map((dependencyId) => taskById[dependencyId])
+      .filter((task): task is Task => Boolean(task));
+  }, [selectedTaskDependencyIds, taskById]);
+  const openTaskDependencies = useMemo(() => {
+    return selectedTaskDependencies.filter((dependency) => dependency.status !== "complete");
+  }, [selectedTaskDependencies]);
+  const taskDependencyReadinessMessage = useMemo(() => {
+    if (openTaskDependencies.length === 0) {
+      return null;
+    }
+
+    const dependencyNames = openTaskDependencies
+      .map((dependency) => `${dependency.title} (${STATUS_LABELS[dependency.status]})`)
+      .join(", ");
+
+    if (taskDraft.status === "complete") {
+      return `This task is marked complete but still depends on: ${dependencyNames}.`;
+    }
+
+    if (taskDraft.status === "waiting-for-qa") {
+      return `This task is waiting for QA with unfinished dependencies: ${dependencyNames}.`;
+    }
+
+    return `This task is not ready until these dependencies finish: ${dependencyNames}.`;
+  }, [openTaskDependencies, taskDraft.status]);
+  const downstreamTaskDependencies = useMemo(() => {
+    if (!activeTaskId) {
+      return [];
+    }
+
+    return tasks
+      .filter((task) => task.id !== activeTaskId)
+      .filter((task) => task.dependencyIds.includes(activeTaskId))
+      .sort(
+        (firstTask, secondTask) =>
+          firstTask.dueDate.localeCompare(secondTask.dueDate) ||
+          firstTask.title.localeCompare(secondTask.title),
+      )
+      .slice(0, 6);
+  }, [activeTaskId, tasks]);
+  const availableTaskDependencyOptions = useMemo(() => {
+    const selectedIds = new Set(selectedTaskDependencyIds);
+    const search = taskDependencySearch.trim().toLowerCase();
+
+    return tasks
+      .filter((task) => task.id !== activeTaskId)
+      .filter((task) => !selectedIds.has(task.id))
+      .filter(
+        (task) => !activeTaskId || !taskDependsOnTarget(task.id, activeTaskId, taskById),
+      )
+      .filter((task) => {
+        if (!search) {
+          return true;
+        }
+
+        const subsystemName = subsystemsById[task.subsystemId]?.name ?? "";
+        const ownerName = task.ownerId ? (membersById[task.ownerId]?.name ?? "") : "";
+
+        return [
+          task.id,
+          task.title,
+          task.summary,
+          STATUS_LABELS[task.status],
+          subsystemName,
+          ownerName,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(search);
+      })
+      .sort((firstTask, secondTask) => {
+        const firstSubsystemScore = firstTask.subsystemId === taskDraft.subsystemId ? 0 : 1;
+        const secondSubsystemScore = secondTask.subsystemId === taskDraft.subsystemId ? 0 : 1;
+        const firstDisciplineScore = firstTask.disciplineId === taskDraft.disciplineId ? 0 : 1;
+        const secondDisciplineScore = secondTask.disciplineId === taskDraft.disciplineId ? 0 : 1;
+
+        return (
+          firstSubsystemScore - secondSubsystemScore ||
+          firstDisciplineScore - secondDisciplineScore ||
+          firstTask.dueDate.localeCompare(secondTask.dueDate) ||
+          firstTask.title.localeCompare(secondTask.title)
+        );
+      })
+      .slice(0, search ? 20 : 10);
+  }, [
+    activeTaskId,
+    membersById,
+    selectedTaskDependencyIds,
+    subsystemsById,
+    taskById,
+    taskDependencySearch,
+    taskDraft.disciplineId,
+    taskDraft.subsystemId,
+    tasks,
+  ]);
 
   const navigationItems = useMemo<NavItem[]>(() => {
     const homeCount = tasks.filter((task) => task.status !== "complete").length;
@@ -1221,22 +1427,12 @@ export default function App() {
     eventReports,
   ]);
 
-  const taskSummary = useMemo(() => {
-    const blocked = activeTaskSubteamTasks.filter((task) => task.blockers.length > 0).length;
-    const waiting = activeTaskSubteamTasks.filter(
-      (task) => task.status === "waiting-for-qa",
-    ).length;
-    const complete = activeTaskSubteamTasks.filter(
-      (task) => task.status === "complete",
-    ).length;
-
-    return [
-      { label: "Total tasks", value: String(activeTaskSubteamTasks.length) },
-      { label: "Blocked", value: String(blocked) },
-      { label: "Waiting QA", value: String(waiting) },
-      { label: "Complete", value: String(complete) },
-    ] satisfies SummaryChipData[];
-  }, [activeTaskSubteamTasks]);
+  const taskLoggedHoursById = useMemo(() => {
+    return workLogs.reduce<Record<string, number>>((hoursByTaskId, workLog) => {
+      hoursByTaskId[workLog.taskId] = (hoursByTaskId[workLog.taskId] ?? 0) + workLog.hours;
+      return hoursByTaskId;
+    }, {});
+  }, [workLogs]);
 
   const filteredTaskQueue = useMemo(() => {
     const search = taskSearch.trim().toLowerCase();
@@ -2044,14 +2240,19 @@ export default function App() {
       }));
     const qaRisks = qaReviews
       .filter((review) => review.result === "iteration-worthy" || review.result === "minor-fix")
-      .map((review) => ({
-        id: `qa-${review.id}`,
-        title: review.subjectTitle,
-        detail: review.notes,
-        subsystemId: "",
-        source: review.result === "iteration-worthy" ? "Iteration" : "QA finding",
-        priority: review.result === "iteration-worthy" ? "high" as const : "medium" as const,
-      }));
+      .map((review) => {
+        const taskId = getQaReviewTaskId(review);
+        const task = taskId ? taskById[taskId] : null;
+
+        return {
+          id: `qa-${review.id}`,
+          title: review.subjectTitle,
+          detail: review.notes,
+          subsystemId: task?.subsystemId ?? "",
+          source: review.result === "iteration-worthy" ? "Iteration" : "QA finding",
+          priority: review.result === "iteration-worthy" ? "high" as const : "medium" as const,
+        };
+      });
 
     return [...blockerRisks, ...qaRisks, ...subsystemRisks].sort((left, right) => {
       const priorityDelta = RISK_PRIORITY_RANK[left.priority] - RISK_PRIORITY_RANK[right.priority];
@@ -2066,7 +2267,7 @@ export default function App() {
 
       return left.title.localeCompare(right.title);
     });
-  }, [qaReviews, subsystems, tasks]);
+  }, [qaReviews, subsystems, taskById, tasks]);
 
   const reportSummary = useMemo(() => {
     const iterationCount = qaReviews.filter((review) => review.result === "iteration-worthy").length;
@@ -2092,6 +2293,109 @@ export default function App() {
     (member) => member.role === "mentor" || member.role === "lead",
   );
   const rosterAdmins = members.filter((member) => member.role === "admin");
+  const homeActionItems = useMemo(() => {
+    const today = localTodayDate();
+    const dueSoonDate = shiftDateByDays(today, 3);
+
+    const taskActions = tasks
+      .filter((task) => task.status !== "complete")
+      .flatMap((task) => {
+        const subsystemName = subsystemsById[task.subsystemId]?.name ?? "Unknown subsystem";
+        const ownerName = task.ownerId
+          ? (membersById[task.ownerId]?.name ?? "Unassigned")
+          : "Unassigned";
+        const openDependencies = task.dependencyIds
+          .map((dependencyId) => taskById[dependencyId])
+          .filter((dependency): dependency is Task => Boolean(dependency))
+          .filter((dependency) => dependency.status !== "complete");
+        const actions = [];
+
+        if (task.blockers.length > 0) {
+          actions.push({
+            detail: `${subsystemName} - ${ownerName} - ${task.blockers.join(" | ")}`,
+            id: `blocked-${task.id}`,
+            label: "Blocked task",
+            onPressTargetId: task.id,
+            priority: "critical" as const,
+            source: "task" as const,
+            title: task.title,
+          });
+        } else if (task.dueDate < today) {
+          actions.push({
+            detail: `${subsystemName} - ${ownerName} - was due ${formatDate(task.dueDate)}`,
+            id: `overdue-${task.id}`,
+            label: "Overdue",
+            onPressTargetId: task.id,
+            priority: "critical" as const,
+            source: "task" as const,
+            title: task.title,
+          });
+        } else if (task.status === "waiting-for-qa") {
+          actions.push({
+            detail: `${subsystemName} - ${ownerName} - needs a QA decision`,
+            id: `qa-${task.id}`,
+            label: "Waiting QA",
+            onPressTargetId: task.id,
+            priority: "high" as const,
+            source: "task" as const,
+            title: task.title,
+          });
+        } else if (openDependencies.length > 0) {
+          actions.push({
+            detail: `${subsystemName} - ${ownerName} - waiting on ${openDependencies.map((dependency) => dependency.title).join(", ")}`,
+            id: `dependencies-${task.id}`,
+            label: "Dependency wait",
+            onPressTargetId: task.id,
+            priority: "high" as const,
+            source: "task" as const,
+            title: task.title,
+          });
+        } else if (task.dueDate <= dueSoonDate) {
+          actions.push({
+            detail: `${subsystemName} - ${ownerName} - due ${formatDate(task.dueDate)}`,
+            id: `due-soon-${task.id}`,
+            label: "Due soon",
+            onPressTargetId: task.id,
+            priority: "medium" as const,
+            source: "task" as const,
+            title: task.title,
+          });
+        }
+
+        return actions;
+      });
+
+    const manufacturingActions = manufacturingItems
+      .filter((item) => item.status !== "complete")
+      .filter((item) => item.dueDate <= dueSoonDate || item.status === "qa")
+      .map((item) => ({
+        detail: `${subsystemsById[item.subsystemId]?.name ?? "Unknown subsystem"} - ${item.material} - Qty ${item.quantity}`,
+        id: `manufacturing-${item.id}`,
+        label: item.status === "qa" ? "Manufacturing QA" : "Manufacturing due",
+        onPressTargetId: item.id,
+        priority: item.status === "qa" || item.dueDate < today ? "high" as const : "medium" as const,
+        source: "manufacturing" as const,
+        title: item.title,
+      }));
+
+    const purchaseActions = purchaseItems
+      .filter((item) => item.status === "requested" || item.status === "approved")
+      .map((item) => ({
+        detail: `${subsystemsById[item.subsystemId]?.name ?? "Unknown subsystem"} - ${item.vendor} - Qty ${item.quantity}`,
+        id: `purchase-${item.id}`,
+        label: item.status === "approved" ? "Ready to buy" : "Purchase request",
+        onPressTargetId: item.id,
+        priority: item.status === "approved" ? "high" as const : "medium" as const,
+        source: "purchase" as const,
+        title: item.title,
+      }));
+
+    const priorityRank = { critical: 0, high: 1, medium: 2 };
+
+    return [...taskActions, ...manufacturingActions, ...purchaseActions]
+      .sort((left, right) => priorityRank[left.priority] - priorityRank[right.priority])
+      .slice(0, 8);
+  }, [manufacturingItems, membersById, purchaseItems, subsystemsById, taskById, tasks]);
   const homeInventoryNeeds = useMemo(
     () =>
       [...purchaseItems]
@@ -2744,13 +3048,9 @@ export default function App() {
       await refreshWorkspaceFromServer(apiToken);
       setBackendStatus("connected");
     } catch (error) {
-      if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
-        endSessionForAuthFailure(getMobileAuthErrorMessage("expired-session"));
-        return;
-      }
-
       setBackendStatus("offline");
-      setSyncError(getClientErrorMessage(error));
+      setSyncError(parseClientError(error));
+      await refreshWorkspaceFromServer(apiToken);
     } finally {
       setIsSyncing(false);
     }
@@ -2812,16 +3112,45 @@ export default function App() {
     const summary = taskDraft.summary.trim();
     const parsedEstimatedHours = Number(taskDraft.estimatedHours);
 
-    if (
-      !title ||
-      !summary ||
-      !taskDraft.subsystemId ||
-      !taskDraft.ownerId ||
-      !taskDraft.mentorId ||
-      !taskDraft.dueDate.trim()
-    ) {
+    const missingFields = [
+      !title ? "title" : null,
+      !summary ? "summary" : null,
+      !taskDraft.subsystemId ? "subsystem" : null,
+      !taskDraft.ownerId ? "owner" : null,
+      Number.isNaN(parsedEstimatedHours) || parsedEstimatedHours < 0 ? "estimated hours" : null,
+    ].filter((field): field is string => Boolean(field));
+
+    if (missingFields.length > 0) {
+      setTaskEditorError(`Add ${missingFields.join(", ")} before saving this task.`);
       return;
     }
+
+    if (activeTaskId) {
+      const circularDependencies = dependencyIds.filter((dependencyId) =>
+        taskDependsOnTarget(dependencyId, activeTaskId, taskById),
+      );
+
+      if (circularDependencies.length > 0) {
+        const dependencyNames = circularDependencies
+          .map((dependencyId) => taskById[dependencyId]?.title ?? dependencyId)
+          .join(", ");
+        setTaskEditorError(
+          `Remove circular dependencies before saving: ${dependencyNames}.`,
+        );
+        return;
+      }
+    }
+
+    setTaskEditorError(null);
+    const status = getAutoTaskStatus(
+      {
+        blockers,
+        dependencyIds,
+        ownerId: taskDraft.ownerId,
+        status: taskDraft.status,
+      },
+      taskById,
+    );
 
     const payload = mapTaskPayloadToServer({
       title,
@@ -2833,18 +3162,18 @@ export default function App() {
       partInstanceId: taskDraft.partInstanceId,
       targetEventId: taskDraft.targetEventId,
       ownerId: taskDraft.ownerId,
-      mentorId: taskDraft.mentorId,
+      mentorId: taskDraft.mentorId || null,
       startDate: taskDraft.startDate || undefined,
-      dueDate: taskDraft.dueDate,
+      dueDate: taskDraft.dueDate || isoToday(),
       priority: taskDraft.priority,
       status,
       dependencyIds,
       checklistItems,
       blockers,
-      linkedManufacturingIds: [],
-      linkedPurchaseIds: [],
-      estimatedHours: 0,
-      actualHours: 0,
+      linkedManufacturingIds: existingTask?.linkedManufacturingIds ?? [],
+      linkedPurchaseIds: existingTask?.linkedPurchaseIds ?? [],
+      estimatedHours: parsedEstimatedHours,
+      actualHours: existingTask?.actualHours ?? 0,
     });
 
     const ok = await runMutation(
@@ -2941,11 +3270,6 @@ export default function App() {
       ),
     );
 
-    const startDateTime = buildDateTime(
-      milestoneStartDate,
-      milestoneStartTime || "12:00",
-    );
-
     const startDateTime = buildDateTime(startDate, startTime);
     const endDateTime = hasEnd
       ? buildDateTime(resolvedEndDate, resolvedEndTime)
@@ -2955,6 +3279,8 @@ export default function App() {
       setMilestoneError("End date/time must be after start date/time.");
       return;
     }
+
+    setMilestoneError(null);
 
     const isEdit = milestoneEditorMode === "edit" && activeMilestoneId;
     const payload: {
@@ -3089,6 +3415,45 @@ export default function App() {
       method: "PATCH",
       body: JSON.stringify(mapTaskPayloadToServer({
         title: task.title,
+        summary: nextSummary,
+        subsystemId: task.subsystemId,
+        disciplineId: task.disciplineId,
+        mechanismId: task.mechanismId,
+        partInstanceId: task.partInstanceId,
+        targetEventId: task.targetEventId,
+        ownerId: task.ownerId,
+        mentorId: task.mentorId,
+        dueDate: task.dueDate,
+        priority: task.priority,
+        status,
+        dependencyIds: task.dependencyIds,
+        checklistItems: task.checklistItems ?? [],
+        blockers: [],
+        linkedManufacturingIds: task.linkedManufacturingIds,
+        linkedPurchaseIds: task.linkedPurchaseIds,
+        estimatedHours: task.estimatedHours,
+        actualHours: task.actualHours,
+      })),
+    });
+  };
+
+  const startTask = async (task: Task) => {
+    const status = getAutoTaskStatus(task, taskById);
+
+    if (status !== "in-progress" || task.status === "in-progress") {
+      return;
+    }
+
+    setTasks((current) =>
+      current.map((candidate) =>
+        candidate.id === task.id ? { ...candidate, status } : candidate,
+      ),
+    );
+
+    await runMutation(`/api/tasks/${task.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        title: task.title,
         summary: task.summary,
         subsystemId: task.subsystemId,
         disciplineId: task.disciplineId,
@@ -3108,7 +3473,7 @@ export default function App() {
         linkedPurchaseIds: task.linkedPurchaseIds,
         estimatedHours: task.estimatedHours,
         actualHours: task.actualHours,
-      })),
+      }),
     });
   };
 
@@ -3992,17 +4357,20 @@ export default function App() {
     setQaReportError(null);
   };
 
-  const createQaRequest = (subject: string, mentorId: string) => {
+  const createQaRequest = (subject: string, mentorId: string, taskId?: string | null) => {
     const trimmedSubject = subject.trim();
+    const task = taskId ? taskById[taskId] : null;
+    const requestSubject = trimmedSubject || task?.title.trim() || "";
 
-    if (!trimmedSubject || !membersById[mentorId]) {
+    if (!requestSubject || !membersById[mentorId]) {
       return;
     }
 
     setQaRequests((current) => [
       {
         id: `qa-request-local-${Date.now()}`,
-        subject: trimmedSubject,
+        taskId: task?.id ?? null,
+        subject: requestSubject,
         mentorId,
         requestedById: signedInMember?.id ?? null,
         createdAt: new Date().toISOString(),
@@ -4012,7 +4380,7 @@ export default function App() {
     ]);
   };
 
-  const saveQaReportDraft = () => {
+  const saveQaReportDraft = async () => {
     const task = taskById[qaReportDraft.taskId];
     const participants = splitList(qaReportDraft.participantIdsText).filter(
       (participantId) => membersById[participantId],
@@ -4365,7 +4733,9 @@ export default function App() {
     filteredSubsystems,
     filteredTaskQueue,
     filteredWorkLogs,
+    homeActionItems,
     homeInventoryNeeds,
+    homeMeetingExport,
     homePriorityTasks,
     homeTaskSummary,
     inventoryView,
@@ -4373,6 +4743,7 @@ export default function App() {
     isLandscapeCardLayout,
     isLandscapeTimelineLayout,
     isSyncing,
+    manufacturingItems,
     manufacturingArchiveFilter,
     manufacturingMaterialFilter,
     manufacturingMaterialOptions,
@@ -4416,6 +4787,7 @@ export default function App() {
     openEditSubsystemEditor,
     openEditTaskEditor,
     openEditWorkLogEditor,
+    openDuplicateTaskEditor,
     openInventoryPurchases,
     openMaterialRestockEditor,
     openTaskQueueFromTask,
@@ -4429,6 +4801,7 @@ export default function App() {
     patchManufacturingItem,
     purchaseApprovalFilter,
     purchaseArchiveFilter,
+    purchaseItems,
     purchaseRequesterFilter,
     purchaseSearch,
     purchaseStatusFilter,
@@ -4443,6 +4816,7 @@ export default function App() {
     rosterAdmins,
     rosterMentors,
     rosterStudents,
+    requestTaskQa,
     selectedMemberId,
     selectedSubsystem,
     setActiveTab,
@@ -4487,12 +4861,14 @@ export default function App() {
     setWorkLogSearch,
     setWorkLogSortMode,
     setWorkLogSubsystemFilter,
+    shiftTaskDueDates,
     startWorkLogTimer,
     subsystemCountsById,
     subsystemSearch,
     subsystems,
     subsystemsById,
     syncFromBackend,
+    startTask,
     taskArchiveFilter,
     taskBlockerFilter,
     taskById,
@@ -4501,6 +4877,7 @@ export default function App() {
     taskSearch,
     taskStatusFilter,
     taskSubsystemFilter,
+    taskLoggedHoursById,
     taskSummary,
     taskView,
     tasks,
@@ -4575,6 +4952,26 @@ export default function App() {
           title={taskEditorMode === "edit" ? "Edit task" : "Create task"}
           visible={Boolean(taskEditorMode)}
         >
+          {taskEditorError ? (
+            <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+              <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+                Missing task details
+              </Text>
+              <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
+                {taskEditorError}
+              </Text>
+            </View>
+          ) : null}
+          {taskDependencyReadinessMessage ? (
+            <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+              <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+                Waiting on dependencies
+              </Text>
+              <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
+                {taskDependencyReadinessMessage}
+              </Text>
+            </View>
+          ) : null}
           <View style={isLandscapeCardLayout ? styles.taskEditorLandscapeGrid : styles.taskEditorStack}>
             <View style={[styles.taskEditorStack, isLandscapeCardLayout && styles.taskEditorLandscapeColumn]}>
               <ModalField
@@ -4742,6 +5139,158 @@ export default function App() {
                     {`${taskDraft.partInstanceId ? partInstancesById[taskDraft.partInstanceId]?.name : "No part instance"} / `}
                     {`${taskDraft.targetEventId ? eventsById[taskDraft.targetEventId]?.title : "No event"}`}
                   </Text>
+                </View>
+                <ModalField
+                  label="Estimated hours"
+                  keyboardType="decimal-pad"
+                  onChangeText={(value) =>
+                    setTaskDraft((current) => ({ ...current, estimatedHours: value }))
+                  }
+                  placeholder="4"
+                  value={taskDraft.estimatedHours}
+                />
+                <ModalField
+                  label="Checklist / substeps (comma separated)"
+                  multiline
+                  onChangeText={(value) =>
+                    setTaskDraft((current) => ({ ...current, checklistItemsText: value }))
+                  }
+                  placeholder="Cut bracket, Deburr, Test fit, Add photo evidence"
+                  value={taskDraft.checklistItemsText}
+                />
+                <View style={styles.modalField}>
+                  <Text style={[styles.modalFieldLabel, { color: themeColors.subtleText }]}>Dependencies</Text>
+                  <View
+                    style={[
+                      styles.modalFieldInput,
+                      { backgroundColor: themeColors.canvas, borderColor: themeColors.border },
+                    ]}
+                  >
+                    {selectedTaskDependencies.length > 0 ? (
+                      <View style={styles.quickActionRow}>
+                        {selectedTaskDependencies.map((dependency) => (
+                          <Pressable
+                            key={dependency.id}
+                            onPress={() => removeTaskDependency(dependency.id)}
+                            style={[
+                              styles.quickActionButton,
+                              {
+                                alignItems: "flex-start",
+                                backgroundColor: themeColors.navySurface,
+                                borderColor: themeColors.navySurface,
+                                gap: 2,
+                                maxWidth: "100%",
+                              },
+                            ]}
+                          >
+                            <Text
+                              numberOfLines={2}
+                              style={[styles.quickActionButtonLabel, { color: themeColors.navyInk }]}
+                            >
+                              {dependency.title}
+                            </Text>
+                            <Text
+                              numberOfLines={2}
+                              style={{ color: themeColors.subtleText, fontSize: 11, fontWeight: "700" }}
+                            >
+                              {`${STATUS_LABELS[dependency.status]} | due ${formatDate(dependency.dueDate)} | ${subsystemsById[dependency.subsystemId]?.name ?? "No subsystem"} | remove`}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    ) : (
+                      <Text style={{ color: themeColors.subtleText }}>No dependencies selected</Text>
+                    )}
+                  </View>
+                  {downstreamTaskDependencies.length > 0 ? (
+                    <View
+                      style={[
+                        styles.modalFieldInput,
+                        { backgroundColor: themeColors.surface, borderColor: themeColors.border },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.quickActionButtonLabel,
+                          { color: themeColors.ink, marginBottom: 6 },
+                        ]}
+                      >
+                        Waiting on this task
+                      </Text>
+                      <View style={styles.quickActionRow}>
+                        {downstreamTaskDependencies.map((dependentTask) => (
+                          <View
+                            key={dependentTask.id}
+                            style={[
+                              styles.quickActionButton,
+                              {
+                                alignItems: "flex-start",
+                                backgroundColor: themeColors.canvas,
+                                borderColor: themeColors.border,
+                                gap: 2,
+                                maxWidth: "100%",
+                              },
+                            ]}
+                          >
+                            <Text
+                              numberOfLines={2}
+                              style={[styles.quickActionButtonLabel, { color: themeColors.ink }]}
+                            >
+                              {dependentTask.title}
+                            </Text>
+                            <Text
+                              numberOfLines={2}
+                              style={{
+                                color: themeColors.subtleText,
+                                fontSize: 11,
+                                fontWeight: "700",
+                              }}
+                            >
+                              {`${STATUS_LABELS[dependentTask.status]} | due ${formatDate(dependentTask.dueDate)} | ${subsystemsById[dependentTask.subsystemId]?.name ?? "No subsystem"}`}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  ) : null}
+                  <SearchField
+                    onChangeText={setTaskDependencySearch}
+                    placeholder="Search dependency tasks"
+                    value={taskDependencySearch}
+                  />
+                  {availableTaskDependencyOptions.length > 0 ? (
+                    <View style={styles.quickActionRow}>
+                      {availableTaskDependencyOptions.map((dependency) => (
+                        <Pressable
+                          key={dependency.id}
+                          onPress={() => addTaskDependency(dependency.id)}
+                          style={[
+                            styles.quickActionButton,
+                            {
+                              alignItems: "flex-start",
+                              backgroundColor: themeColors.surface,
+                              borderColor: themeColors.border,
+                              gap: 2,
+                              maxWidth: "100%",
+                            },
+                          ]}
+                        >
+                          <Text
+                            numberOfLines={2}
+                            style={[styles.quickActionButtonLabel, { color: themeColors.ink }]}
+                          >
+                            {dependency.title}
+                          </Text>
+                          <Text
+                            numberOfLines={2}
+                            style={{ color: themeColors.subtleText, fontSize: 11, fontWeight: "700" }}
+                          >
+                            {`${STATUS_LABELS[dependency.status]} | due ${formatDate(dependency.dueDate)} | ${subsystemsById[dependency.subsystemId]?.name ?? "No subsystem"}`}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
                 </View>
                 <ModalField
                   label="Blockers (comma separated)"

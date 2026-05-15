@@ -230,15 +230,6 @@ export interface QaRequest {
   status: "requested";
 }
 
-export interface QaRequest {
-  id: string;
-  subject: string;
-  mentorId: string;
-  requestedById: string | null;
-  createdAt: string;
-  status: "requested";
-}
-
 export interface QAFinding {
   id: string;
   taskId?: string | null;

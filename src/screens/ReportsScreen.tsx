@@ -32,19 +32,26 @@ export function ReportsScreen(props: AppScreenProps) {
     eventReports,
     eventsById,
     membersById,
+    openCreateQaReportEditor,
     qaRequests,
     qaReviews,
     reportSummary,
     rosterMentors,
+    taskById,
+    tasks,
   } = props;
   const [isQaRequestOpen, setIsQaRequestOpen] = useState(false);
   const [qaRequestDraft, setQaRequestDraft] = useState({
+    taskId: "",
     subject: "",
     mentorId: rosterMentors[0]?.id ?? "",
   });
   const [selectedQaReviewId, setSelectedQaReviewId] = useState<string | null>(null);
   const mentorOptions = rosterMentors.map((mentor) => ({ id: mentor.id, name: mentor.name }));
-  const canSubmitQaRequest = Boolean(qaRequestDraft.subject.trim() && qaRequestDraft.mentorId);
+  const taskOptions = tasks.map((task) => ({ id: task.id, name: task.title }));
+  const canSubmitQaRequest = Boolean(
+    (qaRequestDraft.subject.trim() || qaRequestDraft.taskId) && qaRequestDraft.mentorId,
+  );
   const selectedQaReview = qaReviews.find((review) => review.id === selectedQaReviewId);
   const selectedQaReviewPeople = selectedQaReview
     ? selectedQaReview.participantIds
@@ -75,7 +82,10 @@ export function ReportsScreen(props: AppScreenProps) {
         },
         { label: "QA status", value: formatQaStatus(selectedQaReview.result) },
         { label: "Notes", value: selectedQaReview.notes, multiline: true },
-      ]
+        selectedQaReview.evidenceNotes
+          ? { label: "Evidence", value: selectedQaReview.evidenceNotes, multiline: true }
+          : null,
+      ].filter((row): row is QaDetailRow => Boolean(row))
     : [];
 
   const submitQaRequest = () => {
@@ -83,8 +93,8 @@ export function ReportsScreen(props: AppScreenProps) {
       return;
     }
 
-    createQaRequest(qaRequestDraft.subject, qaRequestDraft.mentorId);
-    setQaRequestDraft({ subject: "", mentorId: rosterMentors[0]?.id ?? "" });
+    createQaRequest(qaRequestDraft.subject, qaRequestDraft.mentorId, qaRequestDraft.taskId);
+    setQaRequestDraft({ taskId: "", subject: "", mentorId: rosterMentors[0]?.id ?? "" });
     setIsQaRequestOpen(false);
   };
 
@@ -116,6 +126,22 @@ const renderScreen = () => {
           </View>
           <StatusPill label="Requested" value="requested" />
         </View>
+        <DropdownField
+          clearLabel="No linked task"
+          label="Linked task"
+          onChange={(value) => {
+            const task = tasks.find((candidate) => candidate.id === value);
+
+            setQaRequestDraft((current) => ({
+              ...current,
+              taskId: value,
+              subject: task ? task.title : current.subject,
+            }));
+          }}
+          options={taskOptions}
+          placeholder="Select task"
+          value={qaRequestDraft.taskId}
+        />
         <ModalField
           label="What needs QA"
           multiline
@@ -169,6 +195,8 @@ const renderScreen = () => {
             ? membersById[request.requestedById]?.name
             : null;
           const requesterLabel = requester ?? "Unknown student";
+          const linkedTask = request.taskId ? taskById[request.taskId] : null;
+
           return (
             <View key={request.id} style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
               <View style={styles.queueRowHeader}>
@@ -187,8 +215,30 @@ const renderScreen = () => {
                 QA status: {formatQaStatus(request.status)}
               </Text>
               <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
+                Task: {linkedTask?.title ?? "Not linked"}
+              </Text>
+              <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
                 Requested {formatDateTime(request.createdAt)}
               </Text>
+              <View style={styles.quickActionRow}>
+                <Pressable
+                  disabled={!linkedTask}
+                  onPress={() => {
+                    if (linkedTask) {
+                      openCreateQaReportEditor(linkedTask.id, request.id);
+                    }
+                  }}
+                  style={[
+                    styles.quickActionButton,
+                    !linkedTask ? { opacity: 0.45 } : null,
+                    appResponsiveStyles.quickActionButton,
+                  ]}
+                >
+                  <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                    Write report
+                  </Text>
+                </Pressable>
+              </View>
             </View>
           );
         })}
@@ -222,6 +272,11 @@ const renderScreen = () => {
                 <StatusPill label={formatQaStatus(review.result)} value={review.result} />
               </View>
               <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{review.notes}</Text>
+              {review.evidenceNotes ? (
+                <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
+                  Evidence: {review.evidenceNotes}
+                </Text>
+              ) : null}
               {review.result === "iteration-worthy" ? (
                 <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
                   <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>Iteration</Text>
