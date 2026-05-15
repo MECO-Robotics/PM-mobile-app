@@ -1458,9 +1458,7 @@ export default function App() {
 
         if (taskBlockerFilter === "due-soon") {
           const today = localTodayDate();
-          const soon = new Date(`${today}T00:00:00`);
-          soon.setDate(soon.getDate() + 7);
-          const soonDate = soon.toISOString().slice(0, 10);
+          const soonDate = shiftDateByDays(today, 7);
 
           if (task.status === "complete" || task.dueDate < today || task.dueDate > soonDate) {
             return false;
@@ -3474,7 +3472,9 @@ export default function App() {
 
     setTasks((current) =>
       current.map((candidate) =>
-        candidate.id === task.id ? { ...candidate, status: "waiting-for-qa" } : candidate,
+        candidate.id === task.id
+          ? { ...candidate, mentorId, status: "waiting-for-qa" }
+          : candidate,
       ),
     );
 
@@ -3489,7 +3489,7 @@ export default function App() {
         partInstanceId: task.partInstanceId,
         targetEventId: task.targetEventId,
         ownerId: task.ownerId,
-        mentorId: task.mentorId,
+        mentorId,
         dueDate: task.dueDate,
         priority: task.priority,
         status: "waiting-for-qa",
@@ -3520,7 +3520,7 @@ export default function App() {
       setTasks((current) =>
         current.map((candidate) =>
           candidate.id === task.id && candidate.status === "waiting-for-qa"
-            ? { ...candidate, status: task.status }
+            ? { ...candidate, mentorId: task.mentorId, status: task.status }
             : candidate,
         ),
       );
