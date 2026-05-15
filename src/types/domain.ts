@@ -232,6 +232,7 @@ export interface QaRequest {
 
 export interface QaRequest {
   id: string;
+  taskId?: string | null;
   subject: string;
   mentorId: string;
   requestedById: string | null;
