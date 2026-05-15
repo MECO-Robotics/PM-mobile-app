@@ -1529,6 +1529,10 @@ export const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 2 },
     textShadowRadius: 1,
   },
+  loginFieldStack: {
+    width: "100%",
+    gap: 10,
+  },
   loginEmailRow: {
     width: "100%",
     minHeight: 50,
@@ -1566,14 +1570,19 @@ export const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   loginSendButton: {
-    minHeight: 36,
+    width: "100%",
+    minHeight: 44,
+    borderRadius: 999,
+    backgroundColor: colors.red,
+    alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 10,
+    marginTop: 2,
+    paddingHorizontal: 16,
   },
   loginSendButtonText: {
     color: colors.white,
-    fontSize: 12,
-    fontWeight: "500",
+    fontSize: 14,
+    fontWeight: "700",
   },
   loginErrorText: {
     alignSelf: "stretch",
@@ -1599,7 +1608,7 @@ export const styles = StyleSheet.create({
     backgroundColor: "#1e293b",
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 136,
+    marginTop: 76,
     paddingHorizontal: 8,
     gap: 8,
     shadowColor: "#000000",
