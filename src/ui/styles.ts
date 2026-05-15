@@ -1637,7 +1637,8 @@ export const styles = StyleSheet.create({
   loginNoticeText: {
     alignSelf: "stretch",
     color: "#dbeafe",
-    fontSize: 12,
+    fontSize: 14,
+    lineHeight: 20,
     marginTop: 10,
     textAlign: "center",
   },
