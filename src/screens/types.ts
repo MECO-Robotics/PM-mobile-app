@@ -151,6 +151,7 @@ export interface AppScreenProps {
   openCreateSubsystemEditor: () => void;
   openCreateTaskEditor: () => void;
   openCreateWorkLogEditor: () => void;
+  openWorkLogFromTimer: () => void;
   createQaRequest: (subject: string, mentorId: string) => void;
   openEditManufacturingEditor: (item: ManufacturingItem) => void;
   openEditMemberEditor: (memberId: string) => void;
@@ -258,4 +259,9 @@ export interface AppScreenProps {
   workLogSortMode: WorkLogSortMode;
   workLogSubsystemFilter: string;
   workLogSummary: SummaryChipData[];
+  workTimerElapsedLabel: string;
+  workTimerIsActive: boolean;
+  workTimerIsPaused: boolean;
+  startWorkLogTimer: () => void;
+  pauseWorkLogTimer: () => void;
 }
