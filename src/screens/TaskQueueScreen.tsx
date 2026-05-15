@@ -32,7 +32,6 @@ import {
   timePortion,
   timelineProgress,
 } from "../ui/helpers";
-import { LandscapeSubsystemTimeline } from "../ui/LandscapeSubsystemTimeline";
 import { styles } from "../ui/styles";
 import {
   EmptyState,

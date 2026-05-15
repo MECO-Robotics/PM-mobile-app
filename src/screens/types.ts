@@ -159,6 +159,7 @@ export interface AppScreenProps {
   milestoneSortOrder: "asc" | "desc";
   milestoneSummary: SummaryChipData[];
   milestoneTypeFilter: string;
+  openCreateDeadlineEditor: () => void;
   openCreateEventReportEditor: (eventId?: string) => void;
   openCreateManufacturingEditor: () => void;
   openCreateMemberEditor: () => void;
@@ -169,6 +170,7 @@ export interface AppScreenProps {
   openCreateSubsystemEditor: () => void;
   openCreateTaskEditor: () => void;
   openCreateWorkLogEditor: (taskId?: string) => void;
+  openWorkLogFromTimer: () => void;
   createQaRequest: (subject: string, mentorId: string, taskId?: string | null) => void;
   openEditManufacturingEditor: (item: ManufacturingItem) => void;
   openEditMemberEditor: (memberId: string) => void;
@@ -282,4 +284,9 @@ export interface AppScreenProps {
   workLogSortMode: WorkLogSortMode;
   workLogSubsystemFilter: string;
   workLogSummary: SummaryChipData[];
+  workTimerElapsedLabel: string;
+  workTimerIsActive: boolean;
+  workTimerIsPaused: boolean;
+  startWorkLogTimer: () => void;
+  pauseWorkLogTimer: () => void;
 }

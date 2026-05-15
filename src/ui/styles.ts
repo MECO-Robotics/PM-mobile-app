@@ -603,6 +603,14 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
+  workTimerCard: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
   statusPill: {
     borderRadius: 6,
     paddingHorizontal: 8,
@@ -1191,6 +1199,17 @@ export const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: "800",
   },
+  workLogAddMenu: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    gap: spacing.sm,
+    ...shadows.card,
+  },
   overlayScrim: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.34)",
@@ -1206,13 +1225,17 @@ export const styles = StyleSheet.create({
     width: 28,
     zIndex: 20,
   },
-  navDrawerScrim: {
+  navDrawerSafeArea: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.34)",
+  },
+  navDrawerScrim: {
+    flex: 1,
     justifyContent: "flex-start",
     alignItems: "flex-start",
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.md,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.md,
   },
   navDrawer: {
     height: "100%",
@@ -1230,6 +1253,10 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.sm,
+  },
+  navDrawerHeaderText: {
+    flex: 1,
+    minWidth: 0,
   },
   navDrawerTitle: {
     color: colors.ink,
@@ -1529,6 +1556,10 @@ export const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 2 },
     textShadowRadius: 1,
   },
+  loginFieldStack: {
+    width: "100%",
+    gap: 10,
+  },
   loginEmailRow: {
     width: "100%",
     minHeight: 50,
@@ -1549,6 +1580,15 @@ export const styles = StyleSheet.create({
   loginEmailRowDark: {
     backgroundColor: "#172746",
   },
+  loginCodeRow: {
+    width: "100%",
+    minHeight: 50,
+    borderRadius: 999,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 18,
+    paddingRight: 8,
+  },
   loginEmailInput: {
     flex: 1,
     minWidth: 0,
@@ -1557,19 +1597,40 @@ export const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   loginSendButton: {
-    minHeight: 36,
+    width: "100%",
+    minHeight: 44,
+    borderRadius: 999,
+    backgroundColor: colors.red,
+    alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 10,
+    marginTop: 2,
+    paddingHorizontal: 16,
+  },
+  loginInlineSendButton: {
+    width: "auto",
+    flexShrink: 0,
+    marginLeft: 8,
+    marginTop: 0,
   },
   loginSendButtonText: {
     color: colors.white,
-    fontSize: 12,
-    fontWeight: "500",
+    fontSize: 14,
+    fontWeight: "700",
   },
   loginErrorText: {
     alignSelf: "stretch",
-    color: "#ff9aa5",
-    fontSize: 12,
+    color: colors.black,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 20,
+    marginTop: 10,
+    textAlign: "center",
+  },
+  loginNoticeText: {
+    alignSelf: "stretch",
+    color: "#dbeafe",
+    fontSize: 14,
+    lineHeight: 20,
     marginTop: 10,
     textAlign: "center",
   },
@@ -1580,7 +1641,7 @@ export const styles = StyleSheet.create({
     backgroundColor: "#1e293b",
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 136,
+    marginTop: 76,
     paddingHorizontal: 8,
     gap: 8,
     shadowColor: "#000000",
@@ -1619,10 +1680,9 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  loginGoogleMarkText: {
-    color: "#4285f4",
-    fontSize: 22,
-    fontWeight: "900",
+  loginGoogleMarkImage: {
+    width: 26,
+    height: 26,
   },
   settingsRow: {
     borderRadius: radii.md,
