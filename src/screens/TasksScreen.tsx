@@ -30,7 +30,7 @@ import {
   timePortion,
   timelineProgress,
 } from "../ui/helpers";
-import { LandscapeSubsystemTimeline } from "../ui/LandscapeSubsystemTimeline";
+import { LandscapeSubsystemTimeline } from "../ui/landscapeTimeline/LandscapeSubsystemTimeline";
 import { styles } from "../ui/styles";
 import {
   EmptyState,
@@ -74,6 +74,7 @@ export function TasksScreen(props: AppScreenProps) {
     milestoneSortOrder,
     milestoneSummary,
     milestoneTypeFilter,
+    openCreateDeadlineEditor,
     openCreateEventReportEditor,
     openCreateMilestoneEditor,
     openCreateQaReportEditor,
@@ -120,7 +121,7 @@ const renderScreen = () => {
         colors={themeColors}
         events={events}
         membersById={membersById}
-        onAddDeadline={openCreateMilestoneEditor}
+        onAddDeadline={openCreateDeadlineEditor}
         onAddTask={openCreateTaskEditor}
         onTaskPress={openEditTaskEditor}
         subsystems={subsystems}
