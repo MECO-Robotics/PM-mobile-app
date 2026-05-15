@@ -2271,10 +2271,8 @@ export default function App() {
   );
   const rosterAdmins = members.filter((member) => member.role === "admin");
   const homeActionItems = useMemo(() => {
-    const today = isoToday();
-    const threeDaysFromNow = new Date(today);
-    threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
-    const dueSoonDate = threeDaysFromNow.toISOString().slice(0, 10);
+    const today = localTodayDate();
+    const dueSoonDate = shiftDateByDays(today, 3);
 
     const taskActions = tasks
       .filter((task) => task.status !== "complete")
@@ -4427,7 +4425,7 @@ export default function App() {
         dueDate: isoToday(),
         priority: qaReportDraft.result === "iteration-worthy" ? "high" : "medium",
         status: "not-started",
-        dependencyIds: [task.id],
+        dependencyIds: [],
         checklistItems: [],
         blockers: [],
         linkedManufacturingIds: task.linkedManufacturingIds,
