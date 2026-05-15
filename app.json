@@ -21,6 +21,7 @@
         }
       ],
       "expo-localization",
+      "expo-notifications",
       "expo-web-browser"
     ],
     "splash": {

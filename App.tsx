@@ -2,7 +2,7 @@ import { StatusBar } from "expo-status-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Image,
@@ -141,6 +141,18 @@ import { RosterScreen } from "./src/screens/RosterScreen";
 import { SubsystemsScreen } from "./src/screens/SubsystemsScreen";
 import { TasksScreen } from "./src/screens/TasksScreen";
 import { WorkLogsScreen } from "./src/screens/WorkLogsScreen";
+import {
+  endWorkLogLiveActivity,
+  startWorkLogLiveActivity,
+  updateWorkLogLiveActivity,
+} from "./src/services/workLogLiveActivity";
+import {
+  cancelWorkLogTimerReminders,
+  clearPersistedWorkLogTimerState,
+  persistWorkLogTimerState,
+  restorePersistedWorkLogTimerReminder,
+  schedulePersistedWorkLogTimerReminders,
+} from "./src/services/workLogTimerNotifications";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -148,6 +160,8 @@ const SWIPE_ACTIVATION_DISTANCE = 18;
 const SWIPE_COMMIT_DISTANCE = 52;
 const SUBTAB_SWIPE_ACTIVATION_DISTANCE = 24;
 const SUBTAB_SWIPE_COMMIT_DISTANCE = 72;
+const TIMER_TICK_MS = 1000;
+const MS_PER_HOUR = 1000 * 60 * 60;
 const GOOGLE_CLIENT_ID_PLACEHOLDER = "missing-google-client-id";
 
 type AttendanceStatus = "yes" | "maybe" | "no";
@@ -155,6 +169,50 @@ type SeasonOption = {
   id: string;
   label: string;
 };
+type WorkLogTimerState = {
+  id: string;
+  elapsedMs: number;
+  isPaused: boolean;
+  reminderNotificationIds: string[];
+  startedAt: number | null;
+};
+
+function formatTimerElapsed(elapsedMs: number) {
+  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const paddedMinutes = String(minutes).padStart(2, "0");
+  const paddedSeconds = String(seconds).padStart(2, "0");
+
+  return hours > 0
+    ? `${hours}:${paddedMinutes}:${paddedSeconds}`
+    : `${minutes}:${paddedSeconds}`;
+}
+
+function formatHoursFromTimer(elapsedMs: number) {
+  const roundedHours = Math.round((elapsedMs / MS_PER_HOUR) * 100) / 100;
+
+  return Number.isInteger(roundedHours)
+    ? String(roundedHours)
+    : String(roundedHours).replace(/0$/, "");
+}
+
+function getWorkLogTimerElapsedMs(
+  timer: WorkLogTimerState | null,
+  now = Date.now(),
+) {
+  if (!timer) {
+    return 0;
+  }
+
+  return (
+    timer.elapsedMs +
+    (timer.startedAt && !timer.isPaused
+      ? Math.max(0, now - timer.startedAt)
+      : 0)
+  );
+}
 type RiskPriority = "high" | "medium" | "low";
 
 const RISK_PRIORITY_RANK: Record<RiskPriority, number> = {
@@ -597,7 +655,6 @@ export default function App() {
   const [workLogDraft, setWorkLogDraft] = useState<WorkLogDraft>(
     buildWorkLogDraft(),
   );
-  const [workLogError, setWorkLogError] = useState<string | null>(null);
   const [workLogTimer, setWorkLogTimer] = useState<WorkLogTimerState | null>(null);
   const workLogTimerRef = useRef<WorkLogTimerState | null>(null);
   const [workLogTimerTick, setWorkLogTimerTick] = useState(Date.now());
@@ -2476,6 +2533,48 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    workLogTimerRef.current = workLogTimer;
+  }, [workLogTimer]);
+
+  useEffect(() => {
+    let didCancel = false;
+
+    void restorePersistedWorkLogTimerReminder().then((restoredTimer) => {
+      if (didCancel || workLogTimerRef.current) {
+        return;
+      }
+
+      if (!restoredTimer) {
+        void cancelWorkLogTimerReminders();
+        void clearPersistedWorkLogTimerState();
+        return;
+      }
+
+      const restoredReminderNotificationIds =
+        restoredTimer.isPaused === true ? [] : restoredTimer.reminderNotificationIds;
+      const restoredWorkLogTimer = {
+        elapsedMs: restoredTimer.elapsedMs,
+        id: restoredTimer.id,
+        isPaused: restoredTimer.isPaused === true,
+        reminderNotificationIds: restoredReminderNotificationIds,
+        startedAt: restoredTimer.startedAt,
+      };
+      workLogTimerRef.current = restoredWorkLogTimer;
+      setWorkLogTimer(restoredWorkLogTimer);
+      setWorkLogTimerTick(Date.now());
+
+      if (restoredTimer.isPaused === true) {
+        void cancelWorkLogTimerReminders(restoredTimer.reminderNotificationIds);
+        void persistWorkLogTimerState(restoredWorkLogTimer);
+      }
+    });
+
+    return () => {
+      didCancel = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (activePersonFilter === "all") {
       return;
     }
@@ -4182,6 +4281,7 @@ export default function App() {
     setPartInstances([]);
     setQaReviews([]);
     setEventReports([]);
+    clearWorkLogTimer();
     setActiveTab("home");
     setActivePersonFilter("all");
     setSelectedMemberId(null);
@@ -4239,6 +4339,7 @@ export default function App() {
     closePartDefinitionEditor();
     closeQaReportEditor();
     closeEventReportEditor();
+    clearWorkLogTimer();
   };
 
   const screenProps = {
@@ -4306,6 +4407,7 @@ export default function App() {
     openCreateSubsystemEditor,
     openCreateTaskEditor,
     openCreateWorkLogEditor,
+    openWorkLogFromTimer,
     openEditManufacturingEditor,
     openEditMemberEditor,
     openEditMilestoneEditor,
@@ -4385,6 +4487,7 @@ export default function App() {
     setWorkLogSearch,
     setWorkLogSortMode,
     setWorkLogSubsystemFilter,
+    startWorkLogTimer,
     subsystemCountsById,
     subsystemSearch,
     subsystems,
@@ -4409,6 +4512,10 @@ export default function App() {
     workLogSortMode,
     workLogSubsystemFilter,
     workLogSummary,
+    workTimerElapsedLabel,
+    workTimerIsActive: Boolean(workLogTimer),
+    workTimerIsPaused: Boolean(workLogTimer?.isPaused),
+    pauseWorkLogTimer,
   };
   const renderActiveTab = () => {
     switch (activeTab) {
