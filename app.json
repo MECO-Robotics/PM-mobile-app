@@ -2,6 +2,7 @@
   "expo": {
     "name": "MECO Mission Control",
     "slug": "meco-mission-control-mobile",
+    "scheme": "org.mecorobotics.missioncontrol",
     "version": "1.0.0",
     "orientation": "default",
     "backgroundColor": "#10284d",
@@ -19,7 +20,8 @@
           "initialOrientation": "DEFAULT"
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      "expo-web-browser"
     ],
     "splash": {
       "image": "./assets/splash-icon.png",

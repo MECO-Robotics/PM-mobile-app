@@ -29,6 +29,26 @@ const members: Member[] = [
 
 const subsystems: Subsystem[] = [
   {
+    id: "climber",
+    name: "Climber",
+    description: "Endgame lift, latch, and climb release mechanisms.",
+    isCore: false,
+    parentSubsystemId: null,
+    responsibleEngineerId: "priya",
+    mentorIds: ["jordan"],
+    risks: ["Hook alignment", "Winch load margin"],
+  },
+  {
+    id: "controls",
+    name: "Controls",
+    description: "Robot software, safety, and autonomous logic.",
+    isCore: false,
+    parentSubsystemId: "drive",
+    responsibleEngineerId: "ethan",
+    mentorIds: ["riley"],
+    risks: ["Auto safety interlocks"],
+  },
+  {
     id: "drive",
     name: "Drivetrain",
     description: "Core drivetrain, chassis interfaces, and shared base electronics.",
@@ -49,14 +69,14 @@ const subsystems: Subsystem[] = [
     risks: ["Chain wear", "Assembly tolerance"],
   },
   {
-    id: "controls",
-    name: "Controls",
-    description: "Robot software, safety, and autonomous logic.",
+    id: "vision",
+    name: "Vision",
+    description: "Camera targeting, pose estimation, and visual feedback.",
     isCore: false,
     parentSubsystemId: "drive",
     responsibleEngineerId: "ethan",
     mentorIds: ["riley"],
-    risks: ["Auto safety interlocks"],
+    risks: ["Camera calibration", "Lighting variability"],
   },
 ];
 
