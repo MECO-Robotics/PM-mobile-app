@@ -154,6 +154,8 @@ import {
 
 WebBrowser.maybeCompleteAuthSession();
 
+WebBrowser.maybeCompleteAuthSession();
+
 const SWIPE_ACTIVATION_DISTANCE = 18;
 const SWIPE_COMMIT_DISTANCE = 52;
 const SUBTAB_SWIPE_ACTIVATION_DISTANCE = 24;
@@ -3539,7 +3541,7 @@ export default function App() {
         linkedPurchaseIds: task.linkedPurchaseIds,
         estimatedHours: task.estimatedHours,
         actualHours: task.actualHours,
-      }),
+      })),
     });
   };
 

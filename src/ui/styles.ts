@@ -1634,6 +1634,13 @@ export const styles = StyleSheet.create({
     marginTop: 10,
     textAlign: "center",
   },
+  loginNoticeText: {
+    alignSelf: "stretch",
+    color: "#dbeafe",
+    fontSize: 12,
+    marginTop: 10,
+    textAlign: "center",
+  },
   loginGoogleButton: {
     width: "100%",
     minHeight: 42,
