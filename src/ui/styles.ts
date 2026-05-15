@@ -1606,6 +1606,12 @@ export const styles = StyleSheet.create({
     marginTop: 2,
     paddingHorizontal: 16,
   },
+  loginInlineSendButton: {
+    width: "auto",
+    flexShrink: 0,
+    marginLeft: 8,
+    marginTop: 0,
+  },
   loginSendButtonText: {
     color: colors.white,
     fontSize: 14,
@@ -1625,13 +1631,6 @@ export const styles = StyleSheet.create({
     color: "#dbeafe",
     fontSize: 14,
     lineHeight: 20,
-    marginTop: 10,
-    textAlign: "center",
-  },
-  loginNoticeText: {
-    alignSelf: "stretch",
-    color: "#dbeafe",
-    fontSize: 12,
     marginTop: 10,
     textAlign: "center",
   },

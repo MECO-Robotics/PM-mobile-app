@@ -4214,7 +4214,13 @@ export default function App() {
     setApiToken(null);
     setSessionUser(null);
     setHasAuthenticated(false);
+    setAuthCode("");
+    setAuthEmail("");
+    setAuthError(null);
+    setAuthNotice(null);
+    setIsAuthenticating(false);
     setIsGoogleSignInPending(false);
+    setHasRequestedEmailCode(false);
     setIsPersonMenuVisible(false);
     setIsSeasonMenuVisible(false);
     setIsNavMenuVisible(false);
@@ -4222,10 +4228,6 @@ export default function App() {
     setActivePersonFilter("all");
     setSelectedMemberId(null);
     setSyncError(null);
-    setAuthError(null);
-    setAuthNotice(null);
-    setAuthCode("");
-    setHasRequestedEmailCode(false);
     closeTaskEditor();
     closeWorkLogEditor();
     closeMilestoneEditor();
@@ -5687,75 +5689,156 @@ export default function App() {
               />
             </View>
 
-            <Text style={styles.loginTitle}>Sign in with email</Text>
-
-            <View style={styles.loginFieldStack}>
-              <View
-                style={[
-                  styles.loginEmailRow,
-                  isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
-                ]}
-              >
-                <TextInput
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  autoCorrect={false}
-                  editable={!isAuthenticating}
-                  keyboardType="email-address"
-                  onChangeText={(value) => {
-                    setAuthEmail(value);
-                    setAuthCode("");
-                    setAuthNotice(null);
-                    setHasRequestedEmailCode(false);
-                  }}
-                  placeholder={`you@${hostedDomain}`}
-                  placeholderTextColor="#f1f5ff"
-                  returnKeyType="next"
-                  style={styles.loginEmailInput}
-                  textContentType="emailAddress"
-                  value={authEmail}
-                />
-              </View>
-              <View
-                style={[
-                  styles.loginEmailRow,
-                  isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
-                ]}
-              >
-                <TextInput
-                  autoCapitalize="none"
-                  autoComplete="one-time-code"
-                  autoCorrect={false}
-                  editable={!isAuthenticating && hasRequestedEmailCode}
-                  keyboardType="default"
-                  onChangeText={setAuthCode}
-                  onSubmitEditing={signInWithEmail}
-                  placeholder="Email code"
-                  placeholderTextColor="#f1f5ff"
-                  returnKeyType="go"
-                  style={styles.loginEmailInput}
-                  textContentType="oneTimeCode"
-                  value={authCode}
-                />
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                disabled={isAuthenticating}
-                onPress={signInWithEmail}
-                style={styles.loginSendButton}
-              >
-                <Text style={styles.loginSendButtonText}>
-                  {isAuthenticating
-                    ? hasRequestedEmailCode
-                      ? "Verifying"
-                      : "Sending"
-                    : hasRequestedEmailCode
-                      ? "Verify Code"
-                      : "Send Code"}
+            {isEmailCodeFlowAvailable ? (
+              <>
+                <Text
+                  style={[
+                    styles.loginTitle,
+                    {
+                      fontSize: scaleLogin(28),
+                      marginBottom: scaleLogin(16),
+                      marginTop: scaleLogin(14),
+                    },
+                  ]}
+                >
+                  Sign in with email
                 </Text>
 
-            {authNotice ? <Text style={styles.loginNoticeText}>{authNotice}</Text> : null}
-            {authError ? <Text style={styles.loginErrorText}>{authError}</Text> : null}
+                <View
+                  style={[
+                    styles.loginEmailRow,
+                    isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
+                    {
+                      minHeight: scaleLogin(50),
+                      paddingLeft: scaleLogin(18),
+                      paddingRight: scaleLogin(8),
+                    },
+                  ]}
+                >
+                  <TextInput
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    autoCorrect={false}
+                    editable={!isAuthenticating && !hasRequestedEmailCode}
+                    keyboardType="email-address"
+                    onChangeText={(value) => {
+                      setAuthEmail(value);
+                      setAuthCode("");
+                      setAuthNotice(null);
+                      setHasRequestedEmailCode(false);
+                    }}
+                    placeholder={`you@${hostedDomain}`}
+                    placeholderTextColor="#f1f5ff"
+                    returnKeyType="next"
+                    style={[
+                      styles.loginEmailInput,
+                      { fontSize: scaleLogin(13), paddingVertical: scaleLogin(12) },
+                    ]}
+                    textContentType="emailAddress"
+                    value={authEmail}
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={isAuthenticating}
+                    onPress={() => {
+                      if (hasRequestedEmailCode) {
+                        setAuthCode("");
+                        setAuthError(null);
+                        setAuthNotice(null);
+                        setHasRequestedEmailCode(false);
+                        return;
+                      }
+
+                      void signInWithEmail();
+                    }}
+                    style={[
+                      styles.loginSendButton,
+                      styles.loginInlineSendButton,
+                      {
+                        minHeight: scaleLogin(36),
+                        minWidth: scaleLogin(78),
+                        paddingHorizontal: scaleLogin(10),
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]}>
+                      {hasRequestedEmailCode ? "Change" : isAuthenticating ? "Sending" : "Send Code"}
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {hasRequestedEmailCode ? (
+                  <View
+                    style={[
+                      styles.loginCodeRow,
+                      isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
+                      {
+                        marginTop: scaleLogin(10),
+                        minHeight: scaleLogin(50),
+                        paddingLeft: scaleLogin(18),
+                        paddingRight: scaleLogin(8),
+                      },
+                    ]}
+                  >
+                    <TextInput
+                      autoCapitalize="none"
+                      autoComplete="one-time-code"
+                      autoCorrect={false}
+                      editable={!isAuthenticating}
+                      keyboardType="default"
+                      onChangeText={setAuthCode}
+                      onSubmitEditing={signInWithEmail}
+                      placeholder="Code"
+                      placeholderTextColor="#f1f5ff"
+                      returnKeyType="go"
+                      style={[
+                        styles.loginEmailInput,
+                        { fontSize: scaleLogin(13), paddingVertical: scaleLogin(12) },
+                      ]}
+                      textContentType="oneTimeCode"
+                      value={authCode}
+                    />
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={isAuthenticating}
+                      onPress={signInWithEmail}
+                      style={[
+                        styles.loginSendButton,
+                        styles.loginInlineSendButton,
+                        {
+                          minHeight: scaleLogin(36),
+                          minWidth: scaleLogin(78),
+                          paddingHorizontal: scaleLogin(10),
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]}>
+                        {isAuthenticating ? "Checking" : "Verify"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+              </>
+            ) : null}
+
+            {authNotice ? (
+              <Text style={[styles.loginNoticeText, { fontSize: scaleLogin(14) }]}>
+                {authNotice}
+              </Text>
+            ) : null}
+            {authError ? (
+              <Text
+                style={[
+                  styles.loginErrorText,
+                  {
+                    color: isDarkModeEnabled ? "#fecdd3" : colors.black,
+                    fontSize: scaleLogin(14),
+                  },
+                ]}
+              >
+                {authError}
+              </Text>
+            ) : null}
 
             <Pressable
               accessibilityRole="button"
@@ -5781,11 +5864,7 @@ export default function App() {
                 <Text style={[styles.loginAvatarText, { fontSize: scaleLogin(12) }]}>A</Text>
               </View>
               <Text style={[styles.loginGoogleText, { fontSize: scaleLogin(13) }]}>
-                {isAuthConfigUnavailable
-                  ? "Auth unavailable"
-                  : isAuthenticating
-                    ? "Signing in"
-                    : "Sign in with Google"}
+                {isAuthenticating ? "Signing in" : "Sign in with Google"}
               </Text>
               <View
                 style={[
