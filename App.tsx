@@ -4694,7 +4694,12 @@ export default function App() {
                     }}
                     style={[
                       styles.loginSendButton,
-                      { minHeight: scaleLogin(36), paddingHorizontal: scaleLogin(10) },
+                      styles.loginInlineSendButton,
+                      {
+                        minHeight: scaleLogin(36),
+                        minWidth: scaleLogin(78),
+                        paddingHorizontal: scaleLogin(10),
+                      },
                     ]}
                   >
                     <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]}>
@@ -4716,31 +4721,36 @@ export default function App() {
                       },
                     ]}
                   >
-                      <TextInput
-                        autoCapitalize="none"
-                        autoComplete="one-time-code"
-                        autoCorrect={false}
-                        editable={!isAuthenticating}
-                        keyboardType="default"
-                        onChangeText={setAuthCode}
-                        onSubmitEditing={signInWithEmail}
-                        placeholder="Code"
-                        placeholderTextColor="#f1f5ff"
-                        returnKeyType="go"
-                        style={[
-                          styles.loginEmailInput,
-                          { fontSize: scaleLogin(13), paddingVertical: scaleLogin(12) },
-                        ]}
-                        textContentType="oneTimeCode"
-                        value={authCode}
-                      />
-                      <Pressable
-                        accessibilityRole="button"
-                        disabled={isAuthenticating}
-                        onPress={signInWithEmail}
-                        style={[
-                          styles.loginSendButton,
-                          { minHeight: scaleLogin(36), paddingHorizontal: scaleLogin(10) },
+                    <TextInput
+                      autoCapitalize="none"
+                      autoComplete="one-time-code"
+                      autoCorrect={false}
+                      editable={!isAuthenticating}
+                      keyboardType="default"
+                      onChangeText={setAuthCode}
+                      onSubmitEditing={signInWithEmail}
+                      placeholder="Code"
+                      placeholderTextColor="#f1f5ff"
+                      returnKeyType="go"
+                      style={[
+                        styles.loginEmailInput,
+                        { fontSize: scaleLogin(13), paddingVertical: scaleLogin(12) },
+                      ]}
+                      textContentType="oneTimeCode"
+                      value={authCode}
+                    />
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={isAuthenticating}
+                      onPress={signInWithEmail}
+                      style={[
+                        styles.loginSendButton,
+                        styles.loginInlineSendButton,
+                        {
+                          minHeight: scaleLogin(36),
+                          minWidth: scaleLogin(78),
+                          paddingHorizontal: scaleLogin(10),
+                        },
                       ]}
                     >
                       <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]}>

@@ -1579,6 +1579,12 @@ export const styles = StyleSheet.create({
     marginTop: 2,
     paddingHorizontal: 16,
   },
+  loginInlineSendButton: {
+    width: "auto",
+    flexShrink: 0,
+    marginLeft: 8,
+    marginTop: 0,
+  },
   loginSendButtonText: {
     color: colors.white,
     fontSize: 14,
