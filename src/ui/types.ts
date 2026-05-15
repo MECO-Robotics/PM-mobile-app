@@ -54,6 +54,9 @@ export type MaterialRollup = {
   onHand: number;
   reorderPoint: number;
   openDemand: number;
+  openPurchaseCount: number;
+  openPurchaseQuantity: number;
+  suggestedOrderQuantity: number;
   vendor: string;
   stock: "low" | "ok";
 };
@@ -74,6 +77,9 @@ export type TaskDraft = {
   mechanismId: string | null;
   partInstanceId: string | null;
   targetEventId: string | null;
+  estimatedHours: string;
+  dependencyIdsText: string;
+  checklistItemsText: string;
   blockersText: string;
 };
 
@@ -144,13 +150,27 @@ export type MilestoneDraft = {
 export type MilestoneSortField = "startDateTime" | "title" | "type";
 
 export type ArchiveFilterMode = "active" | "archived" | "all";
-export type BlockerFilterMode = "all" | "blocked" | "clear";
+export type BlockerFilterMode =
+  | "all"
+  | "blocked"
+  | "clear"
+  | "over-estimate"
+  | "overdue"
+  | "due-soon"
+  | "dependency-wait"
+  | "ready-now"
+  | "ready-to-qa"
+  | "needs-fabrication"
+  | "needs-purchase"
+  | "unassigned";
 export type QaReportDraft = {
   taskId: string;
   participantIdsText: string;
   result: "pass" | "minor-fix" | "iteration-worthy";
   mentorApproved: boolean;
   notes: string;
+  evidenceNotes: string;
+  followUpTaskTitle: string;
 };
 export type EventReportDraft = {
   eventId: string;

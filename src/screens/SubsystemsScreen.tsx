@@ -132,6 +132,33 @@ const renderScreen = () => {
             <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
               Mechanisms {counts.mechanisms} | Open tasks {counts.openTasks}/{counts.tasks} | Risks {counts.risks}
             </Text>
+            <View style={styles.queuePillRow}>
+              <StatusPill
+                label={
+                  counts.health === "good"
+                    ? "Healthy"
+                    : counts.health === "watch"
+                      ? "Watch"
+                      : "At risk"
+                }
+                value={counts.health === "good" ? "complete" : counts.health === "watch" ? "waiting" : "critical"}
+              />
+              {counts.blockedTasks > 0 ? (
+                <StatusPill label={`${counts.blockedTasks} blocked`} value="critical" />
+              ) : null}
+              {counts.overdueTasks > 0 ? (
+                <StatusPill label={`${counts.overdueTasks} overdue`} value="critical" />
+              ) : null}
+              {counts.waitingQa > 0 ? (
+                <StatusPill label={`${counts.waitingQa} QA`} value="waiting" />
+              ) : null}
+              {counts.qaFindings > 0 ? (
+                <StatusPill label={`${counts.qaFindings} QA finding`} value="warning" />
+              ) : null}
+              {counts.openPurchases > 0 ? (
+                <StatusPill label={`${counts.openPurchases} purchase`} value="requested" />
+              ) : null}
+            </View>
 
             {subsystem.risks.length > 0 ? (
               <View style={styles.queuePillRow}>

@@ -126,6 +126,7 @@ export interface Task {
   priority: TaskPriority;
   status: TaskStatus;
   dependencyIds: string[];
+  checklistItems?: string[];
   blockers: string[];
   isBlocked: boolean;
   linkedManufacturingIds: string[];
@@ -206,6 +207,9 @@ export interface PurchaseItem {
 
 export interface QaReview {
   id: string;
+  taskId?: string | null;
+  subjectId?: string | null;
+  subjectType?: "task" | "manufacturing" | string;
   subjectTitle: string;
   participantIds: string[];
   requestedById?: string | null;
@@ -213,10 +217,12 @@ export interface QaReview {
   result: QaResult;
   mentorApproved: boolean;
   notes: string;
+  evidenceNotes?: string;
 }
 
 export interface QaRequest {
   id: string;
+  taskId?: string | null;
   subject: string;
   mentorId: string;
   requestedById: string | null;
