@@ -1,5 +1,7 @@
 import { StatusBar } from "expo-status-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
+import * as Google from "expo-auth-session/providers/google";
+import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -96,8 +98,7 @@ import {
   ToggleField,
 } from "./src/ui/ui";
 import { AppThemeProvider } from "./src/ui/themeContext";
-import { LocalizationProvider, Text, type LanguageCode } from "./src/i18n";
-import { LandscapeSubsystemTimeline } from "./src/ui/LandscapeSubsystemTimeline";
+import { languageNames, LocalizationProvider, Text, type LanguageCode } from "./src/i18n";
 import {
   ApiRequestError,
   classifyMobileAuthError,
@@ -141,12 +142,12 @@ import { SubsystemsScreen } from "./src/screens/SubsystemsScreen";
 import { TasksScreen } from "./src/screens/TasksScreen";
 import { WorkLogsScreen } from "./src/screens/WorkLogsScreen";
 
+WebBrowser.maybeCompleteAuthSession();
+
 const SWIPE_ACTIVATION_DISTANCE = 18;
 const SWIPE_COMMIT_DISTANCE = 52;
 const SUBTAB_SWIPE_ACTIVATION_DISTANCE = 24;
 const SUBTAB_SWIPE_COMMIT_DISTANCE = 72;
-const TIMER_TICK_MS = 1000;
-const MS_PER_HOUR = 1000 * 60 * 60;
 const GOOGLE_CLIENT_ID_PLACEHOLDER = "missing-google-client-id";
 
 type AttendanceStatus = "yes" | "maybe" | "no";
@@ -189,6 +190,71 @@ const INITIAL_SEASONS: SeasonOption[] = [
   { id: "new", label: "New Season" },
 ];
 
+const REQUIRED_EMAIL_DOMAIN = "mecorobotics.org";
+
+const REQUIRED_TASK_SUBSYSTEMS: Subsystem[] = [
+  {
+    id: "climber",
+    name: "Climber",
+    description: "Endgame lift, latch, and climb release mechanisms.",
+    isCore: false,
+    parentSubsystemId: null,
+    responsibleEngineerId: "priya",
+    mentorIds: ["jordan"],
+    risks: ["Hook alignment", "Winch load margin"],
+  },
+  {
+    id: "controls",
+    name: "Controls",
+    description: "Robot software, safety, and autonomous logic.",
+    isCore: false,
+    parentSubsystemId: "drive",
+    responsibleEngineerId: "ethan",
+    mentorIds: ["riley"],
+    risks: ["Auto safety interlocks"],
+  },
+  {
+    id: "drive",
+    name: "Drivetrain",
+    description: "Core drivetrain, chassis interfaces, and shared base electronics.",
+    isCore: true,
+    parentSubsystemId: null,
+    responsibleEngineerId: "ava",
+    mentorIds: ["jordan"],
+    risks: ["Sensor drift", "Cable clearance"],
+  },
+  {
+    id: "manipulator",
+    name: "Manipulator",
+    description: "Intake, handling, and game-piece interaction hardware.",
+    isCore: false,
+    parentSubsystemId: "drive",
+    responsibleEngineerId: "lucas",
+    mentorIds: ["riley"],
+    risks: ["Chain wear", "Assembly tolerance"],
+  },
+  {
+    id: "vision",
+    name: "Vision",
+    description: "Camera targeting, pose estimation, and visual feedback.",
+    isCore: false,
+    parentSubsystemId: "drive",
+    responsibleEngineerId: "ethan",
+    mentorIds: ["riley"],
+    risks: ["Camera calibration", "Lighting variability"],
+  },
+];
+function buildSubsystemOptions(subsystems: Subsystem[]) {
+  return subsystems.map((subsystem) => ({
+    id: subsystem.id,
+    name: subsystem.name,
+  }));
+}
+
+function normalizeTaskSubsystems(currentSubsystems: Subsystem[]) {
+  return currentSubsystems.length > 0 ? currentSubsystems : REQUIRED_TASK_SUBSYSTEMS;
+}
+
 function withSeededSubteamTasks(currentTasks: Task[]) {
   const currentTaskIds = new Set(currentTasks.map((task) => task.id));
   const missingSeededTasks = seededTasks.filter((task) => !currentTaskIds.has(task.id));
@@ -217,6 +283,41 @@ function ensureArray<T>(value: T[] | undefined | null): T[] {
   return Array.isArray(value) ? value : [];
 }
 
+type ServerTask = Task & {
+  targetMilestoneId?: string | null;
+};
+
+type EmailCodeStartResponse = {
+  sentTo?: string;
+  expiresInMinutes?: number;
+};
+
+function normalizeTaskFromServer(task: ServerTask): Task {
+  return {
+    ...task,
+    targetEventId: task.targetEventId ?? task.targetMilestoneId ?? null,
+  };
+}
+
+function mapTaskPayloadToServer<T extends { targetEventId?: string | null }>(
+  payload: T,
+) {
+  const { targetEventId, ...serverPayload } = payload;
+
+  return {
+    ...serverPayload,
+    targetMilestoneId: targetEventId ?? null,
+  };
+}
+
+function getTaskSubteamForDiscipline(disciplineId: string, fallback: TaskSubteamTab) {
+  return (
+    TASK_SUBTEAM_OPTIONS.find((option) =>
+      TASK_SUBTEAM_DISCIPLINE_IDS[option.value].includes(disciplineId),
+    )?.value ?? fallback
+  );
+}
+
 function mapTaskPriorityToRiskPriority(priority: TaskPriority): RiskPriority {
   if (priority === "critical" || priority === "high") {
     return "high";
@@ -239,7 +340,41 @@ function mapMilestoneTypeToEventType(type: string | undefined): EventType {
   }
 }
 
+function mapEventTypeToMilestoneType(type: EventType) {
+  return type === "drive-practice" ? "practice" : type;
+}
+
+function normalizeRequiredEmailDomain(domain: string | null | undefined) {
+  return domain?.trim().toLowerCase().replace(/^@/, "") || REQUIRED_EMAIL_DOMAIN;
+}
+
+function hasRequiredEmailDomain(email: string, requiredDomain: string) {
+  const [, domain = ""] = email.split("@");
+  const normalizedDomain = domain.toLowerCase();
+  return (
+    normalizedDomain === requiredDomain ||
+    normalizedDomain.endsWith(`.${requiredDomain}`)
+  );
+}
+
+function buildLocalEmailSessionUser(email: string, hostedDomain: string): SessionUser {
+  const [accountName] = email.split("@");
+  const accountId = accountName.trim().toLowerCase();
+  const name = accountId.replace(/[._-]+/g, " ").trim();
+
+  return {
+    accountId: accountId || email,
+    authProvider: "email",
+    email,
+    hostedDomain,
+    name: name || email,
+    picture: null,
+  };
+}
+
 function mapMilestonesToEvents(payload: PlatformBootstrapPayload): Event[] {
+  const subsystems = ensureArray(payload.subsystems);
+
   return ensureArray(payload.milestones).map((milestone) => ({
     id: milestone.id,
     title: milestone.title,
@@ -248,8 +383,32 @@ function mapMilestonesToEvents(payload: PlatformBootstrapPayload): Event[] {
     endDateTime: milestone.endDateTime,
     isExternal: milestone.isExternal,
     description: milestone.description,
-    relatedSubsystemIds: ensureArray(milestone.relatedSubsystemIds),
+    relatedSubsystemIds:
+      milestone.relatedSubsystemIds ??
+      subsystems
+        .filter((subsystem) => ensureArray(milestone.projectIds).includes(subsystem.projectId ?? ""))
+        .map((subsystem) => subsystem.id),
   }));
+}
+
+type MilestoneMutationResponse = {
+  item?: BootstrapMilestone;
+};
+
+function applyMilestoneSubsystemLinks(
+  currentEvents: Event[],
+  milestone: BootstrapMilestone | undefined,
+  fallbackMilestoneId: string | null,
+  relatedSubsystemIds: string[],
+) {
+  const milestoneId = milestone?.id ?? fallbackMilestoneId;
+  if (!milestoneId) {
+    return currentEvents;
+  }
+
+  return currentEvents.map((event) =>
+    event.id === milestoneId ? { ...event, relatedSubsystemIds } : event,
+  );
 }
 
 export default function App() {
@@ -269,8 +428,6 @@ export default function App() {
   const [authCode, setAuthCode] = useState("");
   const [hasRequestedEmailCode, setHasRequestedEmailCode] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [authErrorState, setAuthErrorState] =
-    useState<MobileAuthErrorState | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isGoogleSignInPending, setIsGoogleSignInPending] = useState(false);
@@ -289,7 +446,6 @@ export default function App() {
   const googleWebClientId =
     process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim() || googleClientId;
   const requiredEmailDomain = normalizeRequiredEmailDomain(authConfig?.hostedDomain);
-  const isAuthConfigUnavailable = authErrorState === "auth-config-unavailable";
   const activeGoogleClientId =
     Platform.OS === "ios"
       ? googleIosClientId
@@ -307,24 +463,8 @@ export default function App() {
     });
 
   const showAuthError = useCallback((message: string) => {
-    setAuthErrorState(null);
     setAuthError(message);
     Alert.alert("Sign-in problem", message);
-  }, []);
-
-  const endSessionForAuthFailure = useCallback((message: string) => {
-    setApiToken(null);
-    setSessionUser(null);
-    setHasAuthenticated(false);
-    setAuthCode("");
-    setHasRequestedEmailCode(false);
-    setIsGoogleSignInPending(false);
-    setIsAuthenticating(false);
-    setSyncError(null);
-    setAuthNotice(null);
-    setAuthErrorState("expired-session");
-    setAuthError(message);
-    setBackendStatus("connected");
   }, []);
 
   const [activeTab, setActiveTab] = useState<ViewTab>("home");
@@ -519,12 +659,15 @@ export default function App() {
 
   const applyBootstrapPayload = useCallback((payload: PlatformBootstrapPayload) => {
     const events = ensureArray(payload.events);
+    const tasks = ensureArray(payload.tasks).map((task) =>
+      normalizeTaskFromServer(task as ServerTask),
+    );
 
     setMembers(ensureArray(payload.members));
-    setSubsystems(ensureArray(payload.subsystems));
+    setSubsystems(normalizeTaskSubsystems(ensureArray(payload.subsystems)));
     setDisciplines(ensureArray(payload.disciplines));
     setMechanisms(ensureArray(payload.mechanisms));
-    setTasks(withSeededSubteamTasks(ensureArray(payload.tasks)));
+    setTasks(tasks);
     setEvents(events.length > 0 ? events : mapMilestonesToEvents(payload));
     setWorkLogs(ensureArray(payload.workLogs));
     setManufacturingItems(ensureArray(payload.manufacturingItems));
@@ -602,16 +745,9 @@ export default function App() {
   const signInWithGoogle = useCallback(async () => {
     setIsAuthenticating(true);
     setAuthError(null);
-    setAuthErrorState(null);
     setAuthNotice(null);
 
     try {
-      if (isAuthConfigUnavailable) {
-        setAuthErrorState("auth-config-unavailable");
-        setAuthError(getMobileAuthErrorMessage("auth-config-unavailable"));
-        return;
-      }
-
       if (!activeGoogleClientId) {
         if (!authConfig?.devBypassAvailable) {
           showAuthError(
@@ -651,7 +787,7 @@ export default function App() {
       }
     } catch (error) {
       setIsGoogleSignInPending(false);
-      showAuthError(getClientErrorMessage(error));
+      showAuthError(parseClientError(error));
     } finally {
       setIsAuthenticating(false);
     }
@@ -661,7 +797,6 @@ export default function App() {
     authConfig?.devBypassAvailable,
     finishSignIn,
     googleRequest,
-    isAuthConfigUnavailable,
     promptGoogleSignIn,
     showAuthError,
   ]);
@@ -690,7 +825,6 @@ export default function App() {
 
       setIsAuthenticating(true);
       setAuthError(null);
-      setAuthErrorState(null);
       setAuthNotice(null);
 
       try {
@@ -708,7 +842,7 @@ export default function App() {
         }
       } catch (error) {
         if (isActive) {
-          showAuthError(getClientErrorMessage(error));
+          showAuthError(parseClientError(error));
         }
       } finally {
         if (isActive) {
@@ -730,24 +864,9 @@ export default function App() {
     const code = authCode.trim();
 
     setAuthError(null);
-    setAuthErrorState(null);
     setAuthNotice(null);
 
-    let currentAuthConfig = authConfig;
-    if (isAuthConfigUnavailable) {
-      setIsAuthenticating(true);
-      try {
-        currentAuthConfig = await loadPublicAuthConfig();
-      } finally {
-        setIsAuthenticating(false);
-      }
-
-      if (!currentAuthConfig) {
-        return;
-      }
-    }
-
-    if (currentAuthConfig?.emailEnabled === false) {
+    if (authConfig?.emailEnabled === false) {
       setAuthError("Email sign-in is not enabled for this workspace.");
       return;
     }
@@ -827,8 +946,6 @@ export default function App() {
     authEmail,
     finishSignIn,
     hasRequestedEmailCode,
-    isAuthConfigUnavailable,
-    loadPublicAuthConfig,
     requiredEmailDomain,
   ]);
 
@@ -2410,7 +2527,7 @@ export default function App() {
     setActiveTaskId(null);
     setTaskDraft(
       buildTaskDraft({
-        subsystemId: subsystems[0]?.id ?? "",
+        subsystemId: taskSubsystemOptions[0]?.id ?? "",
         disciplineId:
           TASK_SUBTEAM_DISCIPLINE_IDS[activeTaskSubteam][0] ?? disciplines[0]?.id ?? "",
         ownerId: members[0]?.id ?? "",
@@ -2428,10 +2545,7 @@ export default function App() {
   };
 
   const openTaskQueueFromTask = (task: Task) => {
-    const nextSubteam =
-      TASK_SUBTEAM_OPTIONS.find((option) =>
-        TASK_SUBTEAM_DISCIPLINE_IDS[option.value].includes(task.disciplineId),
-      )?.value ?? activeTaskSubteam;
+    const nextSubteam = getTaskSubteamForDiscipline(task.disciplineId, activeTaskSubteam);
 
     setActiveTaskSubteam(nextSubteam);
     setTaskView("queue");
@@ -2599,45 +2713,16 @@ export default function App() {
     const summary = taskDraft.summary.trim();
     const parsedEstimatedHours = Number(taskDraft.estimatedHours);
 
-    const missingFields = [
-      !title ? "title" : null,
-      !summary ? "summary" : null,
-      !taskDraft.subsystemId ? "subsystem" : null,
-      !taskDraft.ownerId ? "owner" : null,
-      Number.isNaN(parsedEstimatedHours) || parsedEstimatedHours < 0 ? "estimated hours" : null,
-    ].filter((field): field is string => Boolean(field));
-
-    if (missingFields.length > 0) {
-      setTaskEditorError(`Add ${missingFields.join(", ")} before saving this task.`);
+    if (
+      !title ||
+      !summary ||
+      !taskDraft.subsystemId ||
+      !taskDraft.ownerId ||
+      !taskDraft.mentorId ||
+      !taskDraft.dueDate.trim()
+    ) {
       return;
     }
-
-    if (activeTaskId) {
-      const circularDependencies = dependencyIds.filter((dependencyId) =>
-        taskDependsOnTarget(dependencyId, activeTaskId, taskById),
-      );
-
-      if (circularDependencies.length > 0) {
-        const dependencyNames = circularDependencies
-          .map((dependencyId) => taskById[dependencyId]?.title ?? dependencyId)
-          .join(", ");
-        setTaskEditorError(
-          `Remove circular dependencies before saving: ${dependencyNames}.`,
-        );
-        return;
-      }
-    }
-
-    setTaskEditorError(null);
-    const status = getAutoTaskStatus(
-      {
-        blockers,
-        dependencyIds,
-        ownerId: taskDraft.ownerId,
-        status: taskDraft.status,
-      },
-      taskById,
-    );
 
     const payload = mapTaskPayloadToServer({
       title,
@@ -2649,18 +2734,18 @@ export default function App() {
       partInstanceId: taskDraft.partInstanceId,
       targetEventId: taskDraft.targetEventId,
       ownerId: taskDraft.ownerId,
-      mentorId: taskDraft.mentorId || null,
+      mentorId: taskDraft.mentorId,
       startDate: taskDraft.startDate || undefined,
-      dueDate: taskDraft.dueDate || isoToday(),
+      dueDate: taskDraft.dueDate,
       priority: taskDraft.priority,
       status,
       dependencyIds,
       checklistItems,
       blockers,
-      linkedManufacturingIds: existingTask?.linkedManufacturingIds ?? [],
-      linkedPurchaseIds: existingTask?.linkedPurchaseIds ?? [],
-      estimatedHours: parsedEstimatedHours,
-      actualHours: existingTask?.actualHours ?? 0,
+      linkedManufacturingIds: [],
+      linkedPurchaseIds: [],
+      estimatedHours: 0,
+      actualHours: 0,
     });
 
     const ok = await runMutation(
@@ -2757,6 +2842,11 @@ export default function App() {
       ),
     );
 
+    const startDateTime = buildDateTime(
+      milestoneStartDate,
+      milestoneStartTime || "12:00",
+    );
+
     const startDateTime = buildDateTime(startDate, startTime);
     const endDateTime = hasEnd
       ? buildDateTime(resolvedEndDate, resolvedEndTime)
@@ -2766,8 +2856,6 @@ export default function App() {
       setMilestoneError("End date/time must be after start date/time.");
       return;
     }
-
-    setMilestoneError(null);
 
     const isEdit = milestoneEditorMode === "edit" && activeMilestoneId;
     const payload: {
@@ -2816,13 +2904,8 @@ export default function App() {
       setBackendStatus("connected");
       closeMilestoneEditor();
     } catch (error) {
-      if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
-        endSessionForAuthFailure(getMobileAuthErrorMessage("expired-session"));
-        return;
-      }
-
       setBackendStatus("offline");
-      setSyncError(getClientErrorMessage(error));
+      setSyncError(parseClientError(error));
     } finally {
       setIsSyncing(false);
     }
@@ -2907,45 +2990,6 @@ export default function App() {
       method: "PATCH",
       body: JSON.stringify(mapTaskPayloadToServer({
         title: task.title,
-        summary: nextSummary,
-        subsystemId: task.subsystemId,
-        disciplineId: task.disciplineId,
-        mechanismId: task.mechanismId,
-        partInstanceId: task.partInstanceId,
-        targetEventId: task.targetEventId,
-        ownerId: task.ownerId,
-        mentorId: task.mentorId,
-        dueDate: task.dueDate,
-        priority: task.priority,
-        status,
-        dependencyIds: task.dependencyIds,
-        checklistItems: task.checklistItems ?? [],
-        blockers: [],
-        linkedManufacturingIds: task.linkedManufacturingIds,
-        linkedPurchaseIds: task.linkedPurchaseIds,
-        estimatedHours: task.estimatedHours,
-        actualHours: task.actualHours,
-      })),
-    });
-  };
-
-  const startTask = async (task: Task) => {
-    const status = getAutoTaskStatus(task, taskById);
-
-    if (status !== "in-progress" || task.status === "in-progress") {
-      return;
-    }
-
-    setTasks((current) =>
-      current.map((candidate) =>
-        candidate.id === task.id ? { ...candidate, status } : candidate,
-      ),
-    );
-
-    await runMutation(`/api/tasks/${task.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        title: task.title,
         summary: task.summary,
         subsystemId: task.subsystemId,
         disciplineId: task.disciplineId,
@@ -2965,7 +3009,7 @@ export default function App() {
         linkedPurchaseIds: task.linkedPurchaseIds,
         estimatedHours: task.estimatedHours,
         actualHours: task.actualHours,
-      }),
+      })),
     });
   };
 
@@ -4170,6 +4214,7 @@ export default function App() {
     setApiToken(null);
     setSessionUser(null);
     setHasAuthenticated(false);
+    setIsGoogleSignInPending(false);
     setIsPersonMenuVisible(false);
     setIsSeasonMenuVisible(false);
     setIsNavMenuVisible(false);
@@ -4178,9 +4223,13 @@ export default function App() {
     setSelectedMemberId(null);
     setSyncError(null);
     setAuthError(null);
+    setAuthNotice(null);
+    setAuthCode("");
+    setHasRequestedEmailCode(false);
     closeTaskEditor();
     closeWorkLogEditor();
     closeMilestoneEditor();
+    closeDeadlineEditor();
     closeManufacturingEditor();
     closePurchaseEditor();
     closeMemberEditor();
@@ -4243,6 +4292,7 @@ export default function App() {
     milestoneSortOrder,
     milestoneSummary,
     milestoneTypeFilter,
+    openCreateDeadlineEditor,
     createQaRequest,
     openCreateEventReportEditor,
     openCreateManufacturingEditor,
@@ -4358,7 +4408,6 @@ export default function App() {
     workLogSubsystemFilter,
     workLogSummary,
   };
-  
   const renderActiveTab = () => {
     switch (activeTab) {
       case "home":
@@ -4433,7 +4482,13 @@ export default function App() {
                 value={taskDraft.summary}
               />
               <ModalField
-                label="Due date (YYYY-MM-DD)"
+                label="Start date (YYYY-MM-DD)"
+                onChangeText={(value) => setTaskDraft((current) => ({ ...current, startDate: value }))}
+                placeholder={isoToday()}
+                value={taskDraft.startDate}
+              />
+              <ModalField
+                label="End date required (YYYY-MM-DD)"
                 onChangeText={(value) => setTaskDraft((current) => ({ ...current, dueDate: value }))}
                 placeholder="2026-04-24"
                 value={taskDraft.dueDate}
@@ -4461,7 +4516,7 @@ export default function App() {
                     };
                   })
                 }
-                options={subsystemOptions}
+                options={taskSubsystemOptions}
                 placeholder="Select subsystem"
                 value={taskDraft.subsystemId}
               />
@@ -4590,6 +4645,30 @@ export default function App() {
               </AdvancedOptions>
             </View>
           </View>
+        </EditorModal>
+
+        <EditorModal
+          onCancel={closeDeadlineEditor}
+          onSave={saveDeadlineDraft}
+          saveLabel="Create deadline"
+          title="Create deadline"
+          visible={deadlineEditorVisible}
+        >
+          <ModalField
+            label="Title"
+            onChangeText={setDeadlineTitle}
+            placeholder="Deadline title"
+            value={deadlineTitle}
+          />
+          <ModalField
+            label="Day (YYYY-MM-DD)"
+            onChangeText={setDeadlineDate}
+            placeholder={localTodayDate()}
+            value={deadlineDate}
+          />
+          {deadlineError ? (
+            <Text style={{ color: themeColors.orangeInk }}>{deadlineError}</Text>
+          ) : null}
         </EditorModal>
 
         <EditorModal
@@ -5608,156 +5687,75 @@ export default function App() {
               />
             </View>
 
-            {isEmailCodeFlowAvailable ? (
-              <>
-                <Text
-                  style={[
-                    styles.loginTitle,
-                    {
-                      fontSize: scaleLogin(28),
-                      marginBottom: scaleLogin(16),
-                      marginTop: scaleLogin(14),
-                    },
-                  ]}
-                >
-                  Sign in with email
-                </Text>
+            <Text style={styles.loginTitle}>Sign in with email</Text>
 
-                <View
-                  style={[
-                    styles.loginEmailRow,
-                    isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
-                    {
-                      minHeight: scaleLogin(50),
-                      paddingLeft: scaleLogin(18),
-                      paddingRight: scaleLogin(8),
-                    },
-                  ]}
-                >
-                  <TextInput
-                    autoCapitalize="none"
-                    autoComplete="email"
-                    autoCorrect={false}
-                    editable={!isAuthenticating && !hasRequestedEmailCode}
-                    keyboardType="email-address"
-                    onChangeText={(value) => {
-                      setAuthEmail(value);
-                      setAuthCode("");
-                      setAuthNotice(null);
-                      setHasRequestedEmailCode(false);
-                    }}
-                    placeholder={`you@${hostedDomain}`}
-                    placeholderTextColor="#f1f5ff"
-                    returnKeyType="next"
-                    style={[
-                      styles.loginEmailInput,
-                      { fontSize: scaleLogin(13), paddingVertical: scaleLogin(12) },
-                    ]}
-                    textContentType="emailAddress"
-                    value={authEmail}
-                  />
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={isAuthenticating}
-                    onPress={() => {
-                      if (hasRequestedEmailCode) {
-                        setAuthCode("");
-                        setAuthError(null);
-                        setAuthNotice(null);
-                        setHasRequestedEmailCode(false);
-                        return;
-                      }
-
-                      void signInWithEmail();
-                    }}
-                    style={[
-                      styles.loginSendButton,
-                      styles.loginInlineSendButton,
-                      {
-                        minHeight: scaleLogin(36),
-                        minWidth: scaleLogin(78),
-                        paddingHorizontal: scaleLogin(10),
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]}>
-                      {hasRequestedEmailCode ? "Change" : isAuthenticating ? "Sending" : "Send Code"}
-                    </Text>
-                  </Pressable>
-                </View>
-
-                {hasRequestedEmailCode ? (
-                  <View
-                    style={[
-                      styles.loginCodeRow,
-                      isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
-                      {
-                        marginTop: scaleLogin(10),
-                        minHeight: scaleLogin(50),
-                        paddingLeft: scaleLogin(18),
-                        paddingRight: scaleLogin(8),
-                      },
-                    ]}
-                  >
-                    <TextInput
-                      autoCapitalize="none"
-                      autoComplete="one-time-code"
-                      autoCorrect={false}
-                      editable={!isAuthenticating}
-                      keyboardType="default"
-                      onChangeText={setAuthCode}
-                      onSubmitEditing={signInWithEmail}
-                      placeholder="Code"
-                      placeholderTextColor="#f1f5ff"
-                      returnKeyType="go"
-                      style={[
-                        styles.loginEmailInput,
-                        { fontSize: scaleLogin(13), paddingVertical: scaleLogin(12) },
-                      ]}
-                      textContentType="oneTimeCode"
-                      value={authCode}
-                    />
-                    <Pressable
-                      accessibilityRole="button"
-                      disabled={isAuthenticating}
-                      onPress={signInWithEmail}
-                      style={[
-                        styles.loginSendButton,
-                        styles.loginInlineSendButton,
-                        {
-                          minHeight: scaleLogin(36),
-                          minWidth: scaleLogin(78),
-                          paddingHorizontal: scaleLogin(10),
-                        },
-                      ]}
-                    >
-                      <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]}>
-                        {isAuthenticating ? "Checking" : "Verify"}
-                      </Text>
-                    </Pressable>
-                  </View>
-                ) : null}
-              </>
-            ) : null}
-
-            {authNotice ? (
-              <Text style={[styles.loginNoticeText, { fontSize: scaleLogin(14) }]}>
-                {authNotice}
-              </Text>
-            ) : null}
-            {authError ? (
-              <Text
+            <View style={styles.loginFieldStack}>
+              <View
                 style={[
-                  styles.loginErrorText,
-                  {
-                    color: isDarkModeEnabled ? "#fecdd3" : colors.black,
-                    fontSize: scaleLogin(14),
-                  },
+                  styles.loginEmailRow,
+                  isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
                 ]}
               >
-                {authError}
-              </Text>
-            ) : null}
+                <TextInput
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  autoCorrect={false}
+                  editable={!isAuthenticating}
+                  keyboardType="email-address"
+                  onChangeText={(value) => {
+                    setAuthEmail(value);
+                    setAuthCode("");
+                    setAuthNotice(null);
+                    setHasRequestedEmailCode(false);
+                  }}
+                  placeholder={`you@${hostedDomain}`}
+                  placeholderTextColor="#f1f5ff"
+                  returnKeyType="next"
+                  style={styles.loginEmailInput}
+                  textContentType="emailAddress"
+                  value={authEmail}
+                />
+              </View>
+              <View
+                style={[
+                  styles.loginEmailRow,
+                  isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
+                ]}
+              >
+                <TextInput
+                  autoCapitalize="none"
+                  autoComplete="one-time-code"
+                  autoCorrect={false}
+                  editable={!isAuthenticating && hasRequestedEmailCode}
+                  keyboardType="default"
+                  onChangeText={setAuthCode}
+                  onSubmitEditing={signInWithEmail}
+                  placeholder="Email code"
+                  placeholderTextColor="#f1f5ff"
+                  returnKeyType="go"
+                  style={styles.loginEmailInput}
+                  textContentType="oneTimeCode"
+                  value={authCode}
+                />
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isAuthenticating}
+                onPress={signInWithEmail}
+                style={styles.loginSendButton}
+              >
+                <Text style={styles.loginSendButtonText}>
+                  {isAuthenticating
+                    ? hasRequestedEmailCode
+                      ? "Verifying"
+                      : "Sending"
+                    : hasRequestedEmailCode
+                      ? "Verify Code"
+                      : "Send Code"}
+                </Text>
+
+            {authNotice ? <Text style={styles.loginNoticeText}>{authNotice}</Text> : null}
+            {authError ? <Text style={styles.loginErrorText}>{authError}</Text> : null}
 
             <Pressable
               accessibilityRole="button"

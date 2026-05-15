@@ -277,6 +277,7 @@ export interface BootstrapMilestone {
   endDateTime: string | null;
   isExternal: boolean;
   description: string;
+  projectIds?: string[];
   relatedSubsystemIds?: string[];
 }
 
