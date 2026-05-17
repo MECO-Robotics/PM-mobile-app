@@ -42,16 +42,13 @@ if [ ! -d "$TMP_DIR/skills" ]; then
 fi
 
 if [ ! -d "skills" ]; then
-  echo "skills/ is missing in this checkout; syncing for validation."
-  bash scripts/sync-skills.sh
-  echo "skills/ synced from shared repo."
-  cleanup
-  trap - EXIT
-  exit 0
+  echo "skills/ is missing."
+  echo "Run: bash scripts/sync-skills.sh"
+  exit 1
 fi
 
 set +e
-DIFF_OUTPUT="$(diff --strip-trailing-cr -qr "$TMP_DIR/skills" skills 2>&1)"
+DIFF_OUTPUT="$(diff -qr "$TMP_DIR/skills" skills 2>&1)"
 DIFF_STATUS=$?
 set -e
 

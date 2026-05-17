@@ -42,6 +42,6 @@ jobs:
           git config --global --add url."https://x-access-token:${SKILLS_REPO_TOKEN}@github.com/".insteadOf "git@github.com:"
           git config --global --add url."https://x-access-token:${SKILLS_REPO_TOKEN}@github.com/".insteadOf "https://github.com/"
 
-      - name: Import shared skills
+      - name: Check skills are current
         shell: bash
         run: bash scripts/check-skills-current.sh
