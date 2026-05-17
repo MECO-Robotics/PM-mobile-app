@@ -589,7 +589,7 @@ export default function App() {
     "connecting" | "connected" | "offline"
   >("connecting");
   const [syncError, setSyncError] = useState<string | null>(null);
-  const envGoogleClientId =
+  const envGoogleClientId = 
     process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID?.trim() ?? "";
   const googleClientId = authConfig?.googleClientId?.trim() || envGoogleClientId;
   const googleIosClientId =
