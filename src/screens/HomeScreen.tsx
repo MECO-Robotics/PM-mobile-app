@@ -57,6 +57,7 @@ export function HomeScreen(props: AppScreenProps) {
     membersById,
     openEditPurchaseEditor,
     openInventoryPurchases,
+    openSignedInTaskQueue,
     openTaskQueueFromTask,
     setActiveTab,
     subsystemsById,
@@ -77,6 +78,57 @@ const renderScreen = () => {
         </Pressable>
       }
     >
+      <Pressable
+        accessibilityRole="button"
+        onPress={openSignedInTaskQueue}
+        style={[styles.calloutBox, appResponsiveStyles.calloutBox]}
+      >
+        <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+          Tasks for this meeting
+        </Text>
+        <SummaryRow chips={homeTaskSummary} />
+      </Pressable>
+
+      {homePriorityTasks.map((task) => {
+        const subsystemName = subsystemsById[task.subsystemId]?.name ?? "Unknown";
+        const ownerName = task.ownerId
+          ? (membersById[task.ownerId]?.name ?? "Unassigned")
+          : "Unassigned";
+
+        return (
+          <Pressable
+            key={task.id}
+            onPress={() => openTaskQueueFromTask(task)}
+            style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
+          >
+            <View style={styles.queueRowHeader}>
+              <View style={styles.queueRowPrimaryText}>
+                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                  {task.title}
+                </Text>
+                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                  {subsystemName} - {ownerName} - due {formatDate(task.dueDate)}
+                </Text>
+              </View>
+              <StatusPill label={task.priority} value={task.priority} />
+            </View>
+            <Text numberOfLines={2} style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
+              {task.summary}
+            </Text>
+            <View style={styles.queuePillRow}>
+              <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
+              {task.blockers.length > 0 ? (
+                <StatusPill label="Blocked" value="critical" />
+              ) : null}
+            </View>
+          </Pressable>
+        );
+      })}
+
+      {homePriorityTasks.length === 0 ? (
+        <EmptyState text="No open tasks need attention right now." />
+      ) : null}
+
       <View style={styles.homeSection}>
         <Pressable
           accessibilityRole="button"
@@ -122,53 +174,6 @@ const renderScreen = () => {
           <EmptyState text="No purchase items need buying right now." />
         ) : null}
       </View>
-
-      <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
-        <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
-          Tasks for this meeting
-        </Text>
-        <SummaryRow chips={homeTaskSummary} />
-      </View>
-
-      {homePriorityTasks.map((task) => {
-        const subsystemName = subsystemsById[task.subsystemId]?.name ?? "Unknown";
-        const ownerName = task.ownerId
-          ? (membersById[task.ownerId]?.name ?? "Unassigned")
-          : "Unassigned";
-
-        return (
-          <Pressable
-            key={task.id}
-            onPress={() => openTaskQueueFromTask(task)}
-            style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
-          >
-            <View style={styles.queueRowHeader}>
-              <View style={styles.queueRowPrimaryText}>
-                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
-                  {task.title}
-                </Text>
-                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                  {subsystemName} - {ownerName} - due {formatDate(task.dueDate)}
-                </Text>
-              </View>
-              <StatusPill label={task.priority} value={task.priority} />
-            </View>
-            <Text numberOfLines={2} style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
-              {task.summary}
-            </Text>
-            <View style={styles.queuePillRow}>
-              <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
-              {task.blockers.length > 0 ? (
-                <StatusPill label="Blocked" value="critical" />
-              ) : null}
-            </View>
-          </Pressable>
-        );
-      })}
-
-      {homePriorityTasks.length === 0 ? (
-        <EmptyState text="No open tasks need attention right now." />
-      ) : null}
 
       <Pressable
         accessibilityRole="button"

@@ -162,6 +162,7 @@ export interface AppScreenProps {
   openEditWorkLogEditor: (workLog: WorkLog) => void;
   openInventoryPurchases: () => void;
   openMaterialRestockEditor: (row: MaterialRollup) => void;
+  openSignedInTaskQueue: () => void;
   openTaskQueueFromTask: (task: Task) => void;
   partDefinitions: PartDefinition[];
   partDefinitionsById: Record<string, PartDefinition>;

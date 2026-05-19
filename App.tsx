@@ -1,10 +1,9 @@
 import { StatusBar } from "expo-status-bar";
+import * as Crypto from "expo-crypto";
 import * as ScreenOrientation from "expo-screen-orientation";
-import * as Google from "expo-auth-session/providers/google";
-import * as WebBrowser from "expo-web-browser";
+import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Alert,
   Image,
   Modal,
   PanResponder,
@@ -12,7 +11,6 @@ import {
   SafeAreaView,
   ScrollView,
   TextInput,
-  Platform,
   useColorScheme,
   useWindowDimensions,
   View,
@@ -150,13 +148,16 @@ import { SubsystemsScreen } from "./src/screens/SubsystemsScreen";
 import { TasksScreen } from "./src/screens/TasksScreen";
 import { WorkLogsScreen } from "./src/screens/WorkLogsScreen";
 
-WebBrowser.maybeCompleteAuthSession();
-
 const SWIPE_ACTIVATION_DISTANCE = 18;
 const SWIPE_COMMIT_DISTANCE = 52;
 const SUBTAB_SWIPE_ACTIVATION_DISTANCE = 24;
 const SUBTAB_SWIPE_COMMIT_DISTANCE = 72;
-const GOOGLE_CLIENT_ID_PLACEHOLDER = "missing-google-client-id";
+const AUTH_DEVICE_ID_STORAGE_KEY = "meco-auth-device-id";
+const AUTH_TOKEN_STORAGE_KEY = "meco-auth-token";
+const AUTH_THEME_BY_EMAIL_STORAGE_KEY = "meco-theme-by-email";
+const AUTH_SUBTEAMS_BY_EMAIL_STORAGE_KEY = "meco-subteams-by-email";
+const USER_PREFERENCES_API_ENABLED =
+  process.env.EXPO_PUBLIC_USER_PREFERENCES_API_ENABLED === "true";
 
 type AttendanceStatus = "yes" | "maybe" | "no";
 type SeasonOption = {
@@ -197,8 +198,6 @@ const INITIAL_SEASONS: SeasonOption[] = [
   { id: "test", label: "Test Season" },
   { id: "new", label: "New Season" },
 ];
-
-const REQUIRED_EMAIL_DOMAIN = "mecorobotics.org";
 
 const REQUIRED_TASK_SUBSYSTEMS: Subsystem[] = [
   {
@@ -295,6 +294,192 @@ type EmailCodeStartResponse = {
   expiresInMinutes?: number;
 };
 
+type AuthMeResponse = {
+  enabled: boolean;
+  user: SessionUser | null;
+};
+
+type UserPreferencesResponse = {
+  taskSubteamIds?: TaskSubteamTab[];
+  themeMode: AppThemeName | null;
+};
+
+async function getOrCreateAuthDeviceId() {
+  try {
+    if (!(await SecureStore.isAvailableAsync())) {
+      return null;
+    }
+
+    const existingDeviceId = await SecureStore.getItemAsync(AUTH_DEVICE_ID_STORAGE_KEY);
+    if (existingDeviceId) {
+      return existingDeviceId;
+    }
+
+    const nextDeviceId = Crypto.randomUUID();
+    await SecureStore.setItemAsync(AUTH_DEVICE_ID_STORAGE_KEY, nextDeviceId);
+    return nextDeviceId;
+  } catch {
+    return null;
+  }
+}
+
+async function getStoredAuthToken() {
+  try {
+    if (!(await SecureStore.isAvailableAsync())) {
+      return null;
+    }
+
+    return await SecureStore.getItemAsync(AUTH_TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+async function persistAuthToken(token: string | null) {
+  try {
+    if (!(await SecureStore.isAvailableAsync())) {
+      return;
+    }
+
+    if (token) {
+      await SecureStore.setItemAsync(AUTH_TOKEN_STORAGE_KEY, token);
+    } else {
+      await SecureStore.deleteItemAsync(AUTH_TOKEN_STORAGE_KEY);
+    }
+  } catch {
+    // Keep the in-memory session usable if platform secure storage is unavailable.
+  }
+}
+
+function normalizeAccountEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function parseThemePreferencesByEmail(value: string | null) {
+  if (!value) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsed)
+        .filter((entry): entry is [string, AppThemeName] => entry[1] === "light" || entry[1] === "dark")
+        .map(([email, themeMode]) => [normalizeAccountEmail(email), themeMode]),
+    ) as Record<string, AppThemeName>;
+  } catch {
+    return {};
+  }
+}
+
+function isTaskSubteam(value: unknown): value is TaskSubteamTab {
+  return typeof value === "string" && value in TASK_SUBTEAM_DISCIPLINE_IDS;
+}
+
+function parseSubteamPreferencesByEmail(value: string | null) {
+  if (!value) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsed)
+        .map(([email, subteams]) => [
+          normalizeAccountEmail(email),
+          Array.isArray(subteams) ? subteams.filter(isTaskSubteam) : [],
+        ])
+        .filter(([, subteams]) => subteams.length > 0),
+    ) as Record<string, TaskSubteamTab[]>;
+  } catch {
+    return {};
+  }
+}
+
+async function getStoredTaskSubteams(email: string) {
+  try {
+    if (!(await SecureStore.isAvailableAsync())) {
+      return [];
+    }
+
+    const subteamsByEmail = parseSubteamPreferencesByEmail(
+      await SecureStore.getItemAsync(AUTH_SUBTEAMS_BY_EMAIL_STORAGE_KEY),
+    );
+    return subteamsByEmail[normalizeAccountEmail(email)] ?? [];
+  } catch {
+    return [];
+  }
+}
+
+async function persistTaskSubteams(email: string, subteams: TaskSubteamTab[]) {
+  try {
+    if (!(await SecureStore.isAvailableAsync())) {
+      return;
+    }
+
+    const subteamsByEmail = parseSubteamPreferencesByEmail(
+      await SecureStore.getItemAsync(AUTH_SUBTEAMS_BY_EMAIL_STORAGE_KEY),
+    );
+    subteamsByEmail[normalizeAccountEmail(email)] = subteams;
+    await SecureStore.setItemAsync(
+      AUTH_SUBTEAMS_BY_EMAIL_STORAGE_KEY,
+      JSON.stringify(subteamsByEmail),
+    );
+  } catch {
+    // Subteam onboarding still updates visible app state even if storage fails.
+  }
+}
+
+async function getStoredThemePreference(email: string) {
+  try {
+    if (!(await SecureStore.isAvailableAsync())) {
+      return null;
+    }
+
+    const preferencesByEmail = parseThemePreferencesByEmail(
+      await SecureStore.getItemAsync(AUTH_THEME_BY_EMAIL_STORAGE_KEY),
+    );
+    return preferencesByEmail[normalizeAccountEmail(email)] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function persistThemePreference(email: string, themeMode: AppThemeName) {
+  try {
+    if (!(await SecureStore.isAvailableAsync())) {
+      return;
+    }
+
+    const preferencesByEmail = parseThemePreferencesByEmail(
+      await SecureStore.getItemAsync(AUTH_THEME_BY_EMAIL_STORAGE_KEY),
+    );
+    preferencesByEmail[normalizeAccountEmail(email)] = themeMode;
+    await SecureStore.setItemAsync(
+      AUTH_THEME_BY_EMAIL_STORAGE_KEY,
+      JSON.stringify(preferencesByEmail),
+    );
+  } catch {
+    // Theme preference is nice-to-have; the visible app state has already changed.
+  }
+}
+
+function isUnauthorizedError(error: unknown) {
+  return error instanceof ApiRequestError && error.status === 401;
+}
+
+function isMissingUserPreferencesRoute(error: unknown) {
+  return error instanceof ApiRequestError && error.status === 404;
+}
+
 function normalizeTaskFromServer(task: ServerTask): Task {
   return {
     ...task,
@@ -345,34 +530,6 @@ function mapMilestoneTypeToEventType(type: string | undefined): EventType {
 
 function mapEventTypeToMilestoneType(type: EventType) {
   return type === "drive-practice" ? "practice" : type;
-}
-
-function normalizeRequiredEmailDomain(domain: string | null | undefined) {
-  return domain?.trim().toLowerCase().replace(/^@/, "") || REQUIRED_EMAIL_DOMAIN;
-}
-
-function hasRequiredEmailDomain(email: string, requiredDomain: string) {
-  const [, domain = ""] = email.split("@");
-  const normalizedDomain = domain.toLowerCase();
-  return (
-    normalizedDomain === requiredDomain ||
-    normalizedDomain.endsWith(`.${requiredDomain}`)
-  );
-}
-
-function buildLocalEmailSessionUser(email: string, hostedDomain: string): SessionUser {
-  const [accountName] = email.split("@");
-  const accountId = accountName.trim().toLowerCase();
-  const name = accountId.replace(/[._-]+/g, " ").trim();
-
-  return {
-    accountId: accountId || email,
-    authProvider: "email",
-    email,
-    hostedDomain,
-    name: name || email,
-    picture: null,
-  };
 }
 
 function mapMilestonesToEvents(payload: PlatformBootstrapPayload): Event[] {
@@ -427,48 +584,19 @@ export default function App() {
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [authConfig, setAuthConfig] = useState<PublicAuthConfig | null>(null);
   const [hasAuthenticated, setHasAuthenticated] = useState(false);
+  const [hasCheckedStoredSession, setHasCheckedStoredSession] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
   const [authCode, setAuthCode] = useState("");
   const [hasRequestedEmailCode, setHasRequestedEmailCode] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [isGoogleSignInPending, setIsGoogleSignInPending] = useState(false);
+  const [isEmailCodeSending, setIsEmailCodeSending] = useState(false);
+  const [isEmailCodeVerifying, setIsEmailCodeVerifying] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [backendStatus, setBackendStatus] = useState<
     "connecting" | "connected" | "offline"
   >("connecting");
   const [syncError, setSyncError] = useState<string | null>(null);
-  const envGoogleClientId =
-    process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID?.trim() ?? "";
-  const googleClientId = authConfig?.googleClientId?.trim() || envGoogleClientId;
-  const googleIosClientId =
-    process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim() || googleClientId;
-  const googleAndroidClientId =
-    process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID?.trim() || googleClientId;
-  const googleWebClientId =
-    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim() || googleClientId;
-  const requiredEmailDomain = normalizeRequiredEmailDomain(authConfig?.hostedDomain);
-  const activeGoogleClientId =
-    Platform.OS === "ios"
-      ? googleIosClientId
-      : Platform.OS === "android"
-        ? googleAndroidClientId
-        : googleWebClientId;
-
-  const [googleRequest, googleResponse, promptGoogleSignIn] =
-    Google.useIdTokenAuthRequest({
-      androidClientId: googleAndroidClientId || GOOGLE_CLIENT_ID_PLACEHOLDER,
-      clientId: googleClientId || GOOGLE_CLIENT_ID_PLACEHOLDER,
-      iosClientId: googleIosClientId || GOOGLE_CLIENT_ID_PLACEHOLDER,
-      selectAccount: true,
-      webClientId: googleWebClientId || GOOGLE_CLIENT_ID_PLACEHOLDER,
-    });
-
-  const showAuthError = useCallback((message: string) => {
-    setAuthError(message);
-    Alert.alert("Sign-in problem", message);
-  }, []);
 
   const [activeTab, setActiveTab] = useState<ViewTab>("home");
   const [taskView, setTaskView] = useState<TaskViewTab>("queue");
@@ -480,6 +608,7 @@ export default function App() {
   const [isNavMenuVisible, setIsNavMenuVisible] = useState(false);
   const [isProjectOverlayVisible, setIsProjectOverlayVisible] = useState(false);
   const [isPersonMenuVisible, setIsPersonMenuVisible] = useState(false);
+  const [isSubteamOnboardingVisible, setIsSubteamOnboardingVisible] = useState(false);
   const [isSeasonMenuVisible, setIsSeasonMenuVisible] = useState(false);
   const [isAttendanceModalVisible, setIsAttendanceModalVisible] = useState(false);
   const [attendanceStatusByMemberId, setAttendanceStatusByMemberId] =
@@ -701,143 +830,94 @@ export default function App() {
     }
   }, [apiBaseUrl]);
 
+  const loadUserPreferences = useCallback(
+    async (token: string | null, email: string) => {
+      const storedThemeMode = await getStoredThemePreference(email);
+      if (storedThemeMode) {
+        setThemeOverride(storedThemeMode);
+      }
+
+      if (!USER_PREFERENCES_API_ENABLED || !token) {
+        return;
+      }
+
+      try {
+        const preferences = await requestJson<UserPreferencesResponse>(
+          apiBaseUrl,
+          "/api/users/me/preferences",
+          undefined,
+          token,
+        );
+        if (preferences.themeMode) {
+          setThemeOverride(preferences.themeMode);
+          await persistThemePreference(email, preferences.themeMode);
+        } else if (!storedThemeMode) {
+          setThemeOverride(null);
+        }
+
+        const serverTaskSubteams = preferences.taskSubteamIds?.filter(isTaskSubteam) ?? [];
+        if (serverTaskSubteams.length > 0) {
+          setSessionUser((current) =>
+            current?.email === email ? { ...current, taskSubteamIds: serverTaskSubteams } : current,
+          );
+          await persistTaskSubteams(email, serverTaskSubteams);
+          setIsSubteamOnboardingVisible(false);
+        }
+      } catch (error) {
+        if (!isUnauthorizedError(error) && !isMissingUserPreferencesRoute(error)) {
+          setSyncError(parseClientError(error));
+        }
+      }
+    },
+    [apiBaseUrl],
+  );
+
   const finishSignIn = useCallback(
     async (token: string | null, user: SessionUser) => {
+      const storedTaskSubteams = await getStoredTaskSubteams(user.email);
+      const userTaskSubteams =
+        user.taskSubteamIds && user.taskSubteamIds.length > 0
+          ? user.taskSubteamIds
+          : storedTaskSubteams;
+      const userWithSubteams: SessionUser = {
+        ...user,
+        taskSubteamIds: userTaskSubteams,
+      };
+
+      await persistAuthToken(token);
       setApiToken(token);
-      setSessionUser(user);
+      setSessionUser(userWithSubteams);
       setHasAuthenticated(true);
+      setIsSubteamOnboardingVisible(userTaskSubteams.length === 0);
       setIsSyncing(true);
       setSyncError(null);
 
       try {
+        await loadUserPreferences(token, userWithSubteams.email);
         await refreshWorkspaceFromServer(token);
         setBackendStatus("connected");
       } catch (error) {
+        if (isUnauthorizedError(error)) {
+          await persistAuthToken(null);
+          setApiToken(null);
+          setSessionUser(null);
+          setHasAuthenticated(false);
+        }
         setBackendStatus("offline");
         setSyncError(parseClientError(error));
       } finally {
         setIsSyncing(false);
       }
     },
-    [refreshWorkspaceFromServer],
+    [loadUserPreferences, refreshWorkspaceFromServer],
   );
 
-  const signInWithGoogle = useCallback(async () => {
-    setIsAuthenticating(true);
-    setAuthError(null);
-    setAuthNotice(null);
-
-    try {
-      if (!activeGoogleClientId) {
-        if (!authConfig?.devBypassAvailable) {
-          showAuthError(
-            Platform.OS === "ios"
-              ? "Google sign-in needs a configured Google client ID, then Expo must be restarted."
-              : Platform.OS === "android"
-                ? "Google sign-in needs a configured Google client ID, then Expo must be restarted."
-                : "Google sign-in is not configured for this app yet.",
-          );
-          return;
-        }
-
-        const session = await requestJson<SessionResponse>(
-          apiBaseUrl,
-          "/api/auth/dev-bypass",
-          { method: "POST" },
-        );
-        await finishSignIn(session.token, session.user);
-        return;
-      }
-
-      if (!googleRequest) {
-        showAuthError("Google sign-in is still loading. Try again in a moment.");
-        return;
-      }
-
-      setIsGoogleSignInPending(true);
-      const result = await promptGoogleSignIn();
-      if (result.type === "cancel" || result.type === "dismiss") {
-        setIsGoogleSignInPending(false);
-        return;
-      }
-
-      if (result.type !== "success") {
-        setIsGoogleSignInPending(false);
-        showAuthError("Google sign-in did not complete.");
-      }
-    } catch (error) {
-      setIsGoogleSignInPending(false);
-      showAuthError(parseClientError(error));
-    } finally {
-      setIsAuthenticating(false);
-    }
-  }, [
-    apiBaseUrl,
-    activeGoogleClientId,
-    authConfig?.devBypassAvailable,
-    finishSignIn,
-    googleRequest,
-    promptGoogleSignIn,
-    showAuthError,
-  ]);
-
-  useEffect(() => {
-    if (!isGoogleSignInPending || hasAuthenticated || googleResponse?.type !== "success") {
-      return;
-    }
-
-    const credential =
-      googleResponse.params.id_token ?? googleResponse.authentication?.idToken;
-    const hasAuthorizationCode = Boolean(googleResponse.params.code);
-
-    let isActive = true;
-
-    async function exchangeGoogleCredential() {
-      if (!credential) {
-        setIsGoogleSignInPending(false);
-        showAuthError(
-          hasAuthorizationCode
-            ? "Google returned an authorization code instead of an ID token. This app needs an ID token to sign in."
-            : "Google did not return an ID token.",
-        );
-        return;
-      }
-
-      setIsAuthenticating(true);
-      setAuthError(null);
-      setAuthNotice(null);
-
-      try {
-        const session = await requestJson<SessionResponse>(
-          apiBaseUrl,
-          "/api/auth/google",
-          {
-            method: "POST",
-            body: JSON.stringify({ credential }),
-          },
-        );
-
-        if (isActive) {
-          await finishSignIn(session.token, session.user);
-        }
-      } catch (error) {
-        if (isActive) {
-          showAuthError(parseClientError(error));
-        }
-      } finally {
-        if (isActive) {
-          setIsGoogleSignInPending(false);
-          setIsAuthenticating(false);
-        }
-      }
-    }
-
-    void exchangeGoogleCredential();
-
-    return () => {
-      isActive = false;
-    };
-  }, [apiBaseUrl, finishSignIn, googleResponse, hasAuthenticated, isGoogleSignInPending, showAuthError]);
+  const clearAuthenticatedSession = useCallback(async () => {
+    await persistAuthToken(null);
+    setApiToken(null);
+    setSessionUser(null);
+    setHasAuthenticated(false);
+  }, []);
 
   const signInWithEmail = useCallback(async () => {
     const email = authEmail.trim().toLowerCase();
@@ -851,8 +931,8 @@ export default function App() {
       return;
     }
 
-    if (!email || !hasRequiredEmailDomain(email, requiredEmailDomain)) {
-      setAuthError(`Use an @${requiredEmailDomain} email.`);
+    if (!email) {
+      setAuthError("Enter your email address.");
       return;
     }
 
@@ -861,42 +941,25 @@ export default function App() {
       return;
     }
 
-    setIsAuthenticating(true);
+    if (hasRequestedEmailCode) {
+      setIsEmailCodeVerifying(true);
+    } else {
+      setIsEmailCodeSending(true);
+    }
 
     try {
       if (hasRequestedEmailCode) {
+        const deviceId = await getOrCreateAuthDeviceId();
         const session = await requestJson<SessionResponse>(
           apiBaseUrl,
           "/api/auth/email/verify",
           {
             method: "POST",
-            body: JSON.stringify({ email, code }),
+            body: JSON.stringify({ code, deviceId, email }),
           },
         );
         setAuthCode("");
         await finishSignIn(session.token, session.user);
-        return;
-      }
-
-      if (authConfig?.devBypassAvailable) {
-        const session = await requestJson<SessionResponse>(
-          apiBaseUrl,
-          "/api/auth/dev-bypass",
-          { method: "POST" },
-        );
-        await finishSignIn(session.token, {
-          ...session.user,
-          authProvider: "email",
-          email,
-        });
-        return;
-      }
-
-      if (authConfig?.enabled === false) {
-        await finishSignIn(null, buildLocalEmailSessionUser(email, requiredEmailDomain));
-        setAuthNotice(
-          "Authentication service is unavailable. Continuing with a local session.",
-        );
         return;
       }
 
@@ -917,7 +980,8 @@ export default function App() {
     } catch (error) {
       setAuthError(parseClientError(error));
     } finally {
-      setIsAuthenticating(false);
+      setIsEmailCodeSending(false);
+      setIsEmailCodeVerifying(false);
     }
   }, [
     apiBaseUrl,
@@ -926,7 +990,6 @@ export default function App() {
     authEmail,
     finishSignIn,
     hasRequestedEmailCode,
-    requiredEmailDomain,
   ]);
 
   const syncFromBackend = useCallback(async () => {
@@ -935,35 +998,31 @@ export default function App() {
     setSyncError(null);
 
     try {
-      const authConfig = await requestJson<PublicAuthConfig>(
+      const nextAuthConfig = await requestJson<PublicAuthConfig>(
         apiBaseUrl,
         "/api/auth/config",
       );
+      setAuthConfig(nextAuthConfig);
 
-      let token = process.env.EXPO_PUBLIC_API_TOKEN?.trim() ?? "";
-      token = token.length > 0 ? token : "";
+      const envToken = process.env.EXPO_PUBLIC_API_TOKEN?.trim() || null;
+      const token = apiToken ?? envToken ?? (await getStoredAuthToken());
 
-      if (!token && authConfig.devBypassAvailable) {
-        const session = await requestJson<SessionResponse>(
-          apiBaseUrl,
-          "/api/auth/dev-bypass",
-          { method: "POST" },
-        );
-        token = session.token;
-        setSessionUser(session.user);
+      if (token) {
+        await persistAuthToken(token);
       }
-
-      const resolvedToken = token || null;
-      setApiToken(resolvedToken);
-      await refreshWorkspaceFromServer(resolvedToken);
+      setApiToken(token);
+      await refreshWorkspaceFromServer(token);
       setBackendStatus("connected");
     } catch (error) {
+      if (isUnauthorizedError(error)) {
+        await clearAuthenticatedSession();
+      }
       setBackendStatus("offline");
       setSyncError(parseClientError(error));
     } finally {
       setIsSyncing(false);
     }
-  }, [apiBaseUrl, refreshWorkspaceFromServer]);
+  }, [apiBaseUrl, apiToken, clearAuthenticatedSession, refreshWorkspaceFromServer]);
 
   const runMutation = useCallback(
     async (path: string, init: RequestInit) => {
@@ -976,6 +1035,9 @@ export default function App() {
         setBackendStatus("connected");
         return true;
       } catch (error) {
+        if (isUnauthorizedError(error)) {
+          await clearAuthenticatedSession();
+        }
         setBackendStatus("offline");
         setSyncError(parseClientError(error));
         return false;
@@ -983,7 +1045,7 @@ export default function App() {
         setIsSyncing(false);
       }
     },
-    [apiBaseUrl, apiToken, refreshWorkspaceFromServer],
+    [apiBaseUrl, apiToken, clearAuthenticatedSession, refreshWorkspaceFromServer],
   );
 
   const membersById = useMemo(() => {
@@ -1023,6 +1085,17 @@ export default function App() {
     signedInMember?.role === "admin";
   const signedInEmailInitial =
     sessionUser?.email.trim().charAt(0).toUpperCase() || "M";
+  const signedInTaskSubteams = useMemo<TaskSubteamTab[]>(() => {
+    return sessionUser?.taskSubteamIds ?? [];
+  }, [sessionUser?.taskSubteamIds]);
+  const signedInTaskSubteamLabel =
+    TASK_SUBTEAM_OPTIONS.find((option) => option.value === signedInTaskSubteams[0])?.label ??
+    "Choose";
+  const signedInTaskDisciplineIds = useMemo(() => {
+    return new Set(
+      signedInTaskSubteams.flatMap((subteamId) => TASK_SUBTEAM_DISCIPLINE_IDS[subteamId]),
+    );
+  }, [signedInTaskSubteams]);
 
   const subsystemsById = useMemo(() => {
     return Object.fromEntries(
@@ -1828,6 +1901,11 @@ export default function App() {
         .slice(0, 5),
     [purchaseItems],
   );
+  const homeTaskCandidates = useMemo(() => {
+    return signedInTaskDisciplineIds.size > 0
+      ? tasks.filter((task) => signedInTaskDisciplineIds.has(task.disciplineId))
+      : tasks;
+  }, [signedInTaskDisciplineIds, tasks]);
   const homePriorityTasks = useMemo(() => {
     const priorityRank: Record<TaskPriority, number> = {
       critical: 0,
@@ -1836,7 +1914,7 @@ export default function App() {
       low: 3,
     };
 
-    return [...tasks]
+    return [...homeTaskCandidates]
       .filter((task) => task.status !== "complete")
       .sort((left, right) => {
         const blockerDelta =
@@ -1853,9 +1931,9 @@ export default function App() {
         return left.dueDate.localeCompare(right.dueDate);
       })
       .slice(0, 5);
-  }, [tasks]);
+  }, [homeTaskCandidates]);
   const homeTaskSummary = useMemo(() => {
-    const openTasks = tasks.filter((task) => task.status !== "complete");
+    const openTasks = homeTaskCandidates.filter((task) => task.status !== "complete");
     const blockedTasks = openTasks.filter((task) => task.blockers.length > 0);
     const dueToday = openTasks.filter((task) => task.dueDate <= isoToday());
     const waitingQa = openTasks.filter((task) => task.status === "waiting-for-qa");
@@ -1866,7 +1944,7 @@ export default function App() {
       { label: "Due now", value: String(dueToday.length) },
       { label: "Waiting QA", value: String(waitingQa.length) },
     ] satisfies SummaryChipData[];
-  }, [tasks]);
+  }, [homeTaskCandidates]);
   const meetingAttendance = useMemo(
     () =>
       [...members]
@@ -2207,6 +2285,73 @@ export default function App() {
   }, [loadPublicAuthConfig]);
 
   useEffect(() => {
+    if (!authConfig || hasAuthenticated || hasCheckedStoredSession) {
+      return;
+    }
+
+    let isActive = true;
+    const currentAuthConfig = authConfig;
+    setHasCheckedStoredSession(true);
+
+    async function restoreStoredSession() {
+      if (!currentAuthConfig.enabled) {
+        await persistAuthToken(null);
+        return;
+      }
+
+      const token = await getStoredAuthToken();
+      if (!token) {
+        return;
+      }
+
+      setAuthError(null);
+      setAuthNotice(null);
+
+      try {
+        const authMe = await requestJson<AuthMeResponse>(
+          apiBaseUrl,
+          "/api/auth/me",
+          undefined,
+          token,
+        );
+
+        if (!isActive) {
+          return;
+        }
+
+        if (!authMe.user) {
+          await clearAuthenticatedSession();
+          return;
+        }
+
+        await finishSignIn(token, authMe.user);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        await clearAuthenticatedSession();
+        if (!isUnauthorizedError(error)) {
+          setSyncError(parseClientError(error));
+        }
+      }
+    }
+
+    void restoreStoredSession();
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    apiBaseUrl,
+    authConfig,
+    clearAuthenticatedSession,
+    finishSignIn,
+    hasAuthenticated,
+    hasCheckedStoredSession,
+  ]);
+
+  useEffect(() => {
     void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.ALL).catch(
       () => undefined,
     );
@@ -2267,6 +2412,19 @@ export default function App() {
     const nextSubteam = getTaskSubteamForDiscipline(task.disciplineId, activeTaskSubteam);
 
     setActiveTaskSubteam(nextSubteam);
+    setTaskView("queue");
+    setTaskSearch("");
+    setTaskSubsystemFilter("all");
+    setTaskOwnerFilter("all");
+    setTaskStatusFilter("all");
+    setTaskPriorityFilter("all");
+    setTaskBlockerFilter("all");
+    setTaskArchiveFilter("active");
+    setActiveTab("tasks");
+  };
+
+  const openSignedInTaskQueue = () => {
+    setActiveTaskSubteam(signedInTaskSubteams[0] ?? activeTaskSubteam);
     setTaskView("queue");
     setTaskSearch("");
     setTaskSubsystemFilter("all");
@@ -3366,15 +3524,16 @@ export default function App() {
   };
 
   const signOut = () => {
+    void persistAuthToken(null);
     setApiToken(null);
     setSessionUser(null);
     setHasAuthenticated(false);
+    setIsSubteamOnboardingVisible(false);
+    setThemeOverride(null);
     setAuthCode("");
     setAuthEmail("");
     setAuthError(null);
     setAuthNotice(null);
-    setIsAuthenticating(false);
-    setIsGoogleSignInPending(false);
     setHasRequestedEmailCode(false);
     setIsPersonMenuVisible(false);
     setIsSeasonMenuVisible(false);
@@ -3394,6 +3553,78 @@ export default function App() {
     closePartDefinitionEditor();
     closeQaReportEditor();
     closeEventReportEditor();
+  };
+
+  const selectSignedInSubteam = (subteam: TaskSubteamTab) => {
+    const email = sessionUser?.email;
+    if (!email) {
+      return;
+    }
+
+    const nextSubteams = [subteam];
+    void persistTaskSubteams(email, nextSubteams);
+    setSessionUser((current) =>
+      current ? { ...current, taskSubteamIds: nextSubteams } : current,
+    );
+    setActiveTaskSubteam(subteam);
+    setIsSubteamOnboardingVisible(false);
+
+    if (!apiToken) {
+      return;
+    }
+
+    void requestJson<UserPreferencesResponse>(
+      apiBaseUrl,
+      "/api/users/me/preferences",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ taskSubteamIds: nextSubteams }),
+      },
+      apiToken,
+    ).catch(async (error) => {
+      if (isUnauthorizedError(error)) {
+        await clearAuthenticatedSession();
+        return;
+      }
+
+      if (isMissingUserPreferencesRoute(error)) {
+        return;
+      }
+    });
+  };
+
+  const updateThemePreference = () => {
+    const nextThemeMode: AppThemeName = themeMode === "dark" ? "light" : "dark";
+    setThemeOverride(nextThemeMode);
+
+    if (sessionUser?.email) {
+      void persistThemePreference(sessionUser.email, nextThemeMode);
+    }
+
+    if (!USER_PREFERENCES_API_ENABLED || !apiToken) {
+      return;
+    }
+
+    void requestJson<UserPreferencesResponse>(
+      apiBaseUrl,
+      "/api/users/me/preferences",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ themeMode: nextThemeMode }),
+      },
+      apiToken,
+    ).catch(async (error) => {
+      if (isUnauthorizedError(error)) {
+        await clearAuthenticatedSession();
+        return;
+      }
+
+      if (isMissingUserPreferencesRoute(error)) {
+        return;
+      }
+
+      setSyncError(parseClientError(error));
+    });
   };
 
   const screenProps = {
@@ -3471,6 +3702,7 @@ export default function App() {
     openEditWorkLogEditor,
     openInventoryPurchases,
     openMaterialRestockEditor,
+    openSignedInTaskQueue,
     openTaskQueueFromTask,
     partDefinitions,
     partDefinitionsById,
@@ -4578,13 +4810,14 @@ export default function App() {
   const renderLoginScreen = () => {
     const hostedDomain = authConfig?.hostedDomain ?? "mecorobotics.org";
     const isEmailCodeFlowAvailable = authConfig?.emailEnabled !== false;
+    const isEmailAuthPending = isEmailCodeSending || isEmailCodeVerifying;
     const loginScale = Math.min(
-      1.45,
-      Math.max(0.78, Math.min(width / 390, height / 722)),
+      1.2,
+      Math.max(0.82, Math.min(width / 390, height / 640)),
     );
     const scaleLogin = (value: number) => Math.round(value * loginScale);
-    const loginCardHeight = Math.min(height - 8, scaleLogin(722));
-    const loginCardWidth = Math.min(width - 48, scaleLogin(334));
+    const loginCardHeight = Math.min(height - 24, scaleLogin(578));
+    const loginCardWidth = Math.min(width - 36, scaleLogin(340));
 
     return (
       <View
@@ -4611,9 +4844,9 @@ export default function App() {
               {
                 borderRadius: scaleLogin(29),
                 minHeight: loginCardHeight,
-                paddingBottom: scaleLogin(28),
-                paddingHorizontal: scaleLogin(28),
-                paddingTop: scaleLogin(28),
+                paddingBottom: scaleLogin(30),
+                paddingHorizontal: scaleLogin(24),
+                paddingTop: scaleLogin(24),
                 width: loginCardWidth,
               },
             ]}
@@ -4625,7 +4858,7 @@ export default function App() {
                 source={require("./assets/meco-shield.png")}
                 style={[
                   styles.loginLogoImage,
-                  { height: scaleLogin(334), width: scaleLogin(304) },
+                  { height: scaleLogin(250), width: scaleLogin(228) },
                 ]}
               />
             </View>
@@ -4637,8 +4870,8 @@ export default function App() {
                     styles.loginTitle,
                     {
                       fontSize: scaleLogin(28),
-                      marginBottom: scaleLogin(16),
-                      marginTop: scaleLogin(14),
+                      marginBottom: scaleLogin(18),
+                      marginTop: scaleLogin(18),
                     },
                   ]}
                 >
@@ -4651,7 +4884,7 @@ export default function App() {
                     isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
                     {
                       minHeight: scaleLogin(50),
-                      paddingLeft: scaleLogin(18),
+                      paddingLeft: scaleLogin(16),
                       paddingRight: scaleLogin(8),
                     },
                   ]}
@@ -4660,7 +4893,7 @@ export default function App() {
                     autoCapitalize="none"
                     autoComplete="email"
                     autoCorrect={false}
-                    editable={!isAuthenticating && !hasRequestedEmailCode}
+                    editable={!isEmailCodeSending && !hasRequestedEmailCode}
                     keyboardType="email-address"
                     onChangeText={(value) => {
                       setAuthEmail(value);
@@ -4673,14 +4906,14 @@ export default function App() {
                     returnKeyType="next"
                     style={[
                       styles.loginEmailInput,
-                      { fontSize: scaleLogin(13), paddingVertical: scaleLogin(12) },
+                      { fontSize: scaleLogin(14), paddingVertical: scaleLogin(12) },
                     ]}
                     textContentType="emailAddress"
                     value={authEmail}
                   />
                   <Pressable
                     accessibilityRole="button"
-                    disabled={isAuthenticating}
+                    disabled={isEmailAuthPending}
                     onPress={() => {
                       if (hasRequestedEmailCode) {
                         setAuthCode("");
@@ -4697,13 +4930,13 @@ export default function App() {
                       styles.loginInlineSendButton,
                       {
                         minHeight: scaleLogin(36),
-                        minWidth: scaleLogin(78),
+                        minWidth: scaleLogin(92),
                         paddingHorizontal: scaleLogin(10),
                       },
                     ]}
                   >
-                    <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]}>
-                      {hasRequestedEmailCode ? "Change" : isAuthenticating ? "Sending" : "Send Code"}
+                    <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]} numberOfLines={1}>
+                      {hasRequestedEmailCode ? "Change" : isEmailCodeSending ? "Sending" : "Send Code"}
                     </Text>
                   </Pressable>
                 </View>
@@ -4714,9 +4947,9 @@ export default function App() {
                       styles.loginCodeRow,
                       isDarkModeEnabled ? styles.loginEmailRowDark : styles.loginEmailRowLight,
                       {
-                        marginTop: scaleLogin(10),
+                        marginTop: scaleLogin(12),
                         minHeight: scaleLogin(50),
-                        paddingLeft: scaleLogin(18),
+                        paddingLeft: scaleLogin(16),
                         paddingRight: scaleLogin(8),
                       },
                     ]}
@@ -4725,7 +4958,7 @@ export default function App() {
                       autoCapitalize="none"
                       autoComplete="one-time-code"
                       autoCorrect={false}
-                      editable={!isAuthenticating}
+                      editable={!isEmailCodeVerifying}
                       keyboardType="default"
                       onChangeText={setAuthCode}
                       onSubmitEditing={signInWithEmail}
@@ -4734,27 +4967,27 @@ export default function App() {
                       returnKeyType="go"
                       style={[
                         styles.loginEmailInput,
-                        { fontSize: scaleLogin(13), paddingVertical: scaleLogin(12) },
+                        { fontSize: scaleLogin(14), paddingVertical: scaleLogin(12) },
                       ]}
                       textContentType="oneTimeCode"
                       value={authCode}
                     />
                     <Pressable
                       accessibilityRole="button"
-                      disabled={isAuthenticating}
+                      disabled={isEmailAuthPending}
                       onPress={signInWithEmail}
                       style={[
                         styles.loginSendButton,
                         styles.loginInlineSendButton,
                         {
                           minHeight: scaleLogin(36),
-                          minWidth: scaleLogin(78),
+                          minWidth: scaleLogin(92),
                           paddingHorizontal: scaleLogin(10),
                         },
                       ]}
                     >
-                      <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]}>
-                        {isAuthenticating ? "Checking" : "Verify"}
+                      <Text style={[styles.loginSendButtonText, { fontSize: scaleLogin(12) }]} numberOfLines={1}>
+                        {isEmailCodeVerifying ? "Checking" : "Verify"}
                       </Text>
                     </Pressable>
                   </View>
@@ -4781,49 +5014,6 @@ export default function App() {
               </Text>
             ) : null}
 
-            <Pressable
-              accessibilityRole="button"
-              disabled={isAuthenticating}
-              onPress={signInWithGoogle}
-              style={({ pressed }) => [
-                styles.loginGoogleButton,
-                {
-                  gap: scaleLogin(8),
-                  marginTop: "auto",
-                  minHeight: scaleLogin(42),
-                  paddingHorizontal: scaleLogin(8),
-                },
-                pressed && styles.loginGoogleButtonPressed,
-              ]}
-            >
-              <View
-                style={[
-                  styles.loginAvatar,
-                  { height: scaleLogin(22), width: scaleLogin(22) },
-                ]}
-              >
-                <Text style={[styles.loginAvatarText, { fontSize: scaleLogin(12) }]}>A</Text>
-              </View>
-              <Text style={[styles.loginGoogleText, { fontSize: scaleLogin(13) }]}>
-                {isAuthenticating ? "Signing in" : "Sign in with Google"}
-              </Text>
-              <View
-                style={[
-                  styles.loginGoogleMark,
-                  { height: scaleLogin(38), width: scaleLogin(38) },
-                ]}
-              >
-                <Image
-                  accessibilityLabel="Google logo"
-                  resizeMode="contain"
-                  source={require("./assets/google-g.png")}
-                  style={[
-                    styles.loginGoogleMarkImage,
-                    { height: scaleLogin(26), width: scaleLogin(26) },
-                  ]}
-                />
-              </View>
-            </Pressable>
           </View>
         </SafeAreaView>
       </View>
@@ -4992,7 +5182,7 @@ export default function App() {
           </View>
 
           <Pressable
-            onPress={() => setThemeOverride(themeMode === "dark" ? "light" : "dark")}
+            onPress={updateThemePreference}
             style={[
               styles.settingsRow,
               appResponsiveStyles.settingsRow,
@@ -5004,6 +5194,18 @@ export default function App() {
             </View>
             <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>
               {themeMode === "dark" ? "Dark" : "Light"}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setIsSubteamOnboardingVisible(true)}
+            style={[styles.settingsRow, appResponsiveStyles.settingsRow]}
+          >
+            <View>
+              <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>Subteam</Text>
+            </View>
+            <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>
+              {signedInTaskSubteamLabel}
             </Text>
           </Pressable>
 
@@ -5106,6 +5308,52 @@ export default function App() {
 
         </Pressable>
       </Pressable>
+    </Modal>
+  );
+
+  const renderSubteamOnboardingModal = () => (
+    <Modal
+      animationType="fade"
+      onRequestClose={() => undefined}
+      supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
+      transparent
+      visible={isSubteamOnboardingVisible}
+    >
+      <View style={styles.overlayScrim}>
+        <View style={[styles.overlayCard, appResponsiveStyles.overlayCard]}>
+          <View style={styles.overlayHeader}>
+            <View style={[styles.personMark, { backgroundColor: themeColors.navySurface }]}>
+              <Text style={[styles.personMarkLabel, { color: themeColors.navyInk }]}>
+                {signedInEmailInitial}
+              </Text>
+            </View>
+            <View style={styles.overlayHeaderCopy}>
+              <Text style={[styles.overlayTitle, { color: themeColors.ink }]}>Choose your subteam</Text>
+              <Text style={[styles.overlaySubtitle, { color: themeColors.subtleText }]}>
+                This sets which tasks show first on Home.
+              </Text>
+            </View>
+          </View>
+
+          {TASK_SUBTEAM_OPTIONS.map((option) => (
+            <Pressable
+              accessibilityRole="button"
+              key={option.value}
+              onPress={() => selectSignedInSubteam(option.value)}
+              style={[styles.settingsRow, appResponsiveStyles.settingsRow]}
+            >
+              <View>
+                <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>
+                  {option.label}
+                </Text>
+              </View>
+              <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>
+                Select
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
     </Modal>
   );
 
@@ -5213,6 +5461,7 @@ export default function App() {
       {renderNavigationMenu()}
       {renderProjectOverlay()}
       {renderPersonMenu()}
+      {renderSubteamOnboardingModal()}
           </SafeAreaView>
         </AppThemeProvider>
       )}
