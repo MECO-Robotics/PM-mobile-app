@@ -27,6 +27,7 @@ environment, and owner initials for the release.
   - Build link:
   - Build profile:
 - [ ] Required GitHub checks are passing before promotion.
+  - `merge-requirements`:
   - `ci-validate`:
   - `snapshot-validate`:
   - `cross-repo-production-gate`, for `main` promotions:
