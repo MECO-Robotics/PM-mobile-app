@@ -1,0 +1,141 @@
+name: Mobile Feature Request
+description: Request mobile app work with platform expectations, validation, and evidence needs.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for mobile feature requests and workflow improvements. Include platform expectations and planned device validation so implementation and review are consistent.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Briefly describe the requested mobile capability.
+      placeholder: Add a mentor-facing queue for pending QA requests...
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: What user problem does this solve, and when does it happen?
+      placeholder: Mentors currently need to inspect individual tasks to find QA-ready work.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-outcome
+    attributes:
+      label: Proposed outcome
+      description: Describe the intended user-facing behavior or acceptance criteria.
+      placeholder: Mentors can open one list of QA-ready tasks and complete reviews from there.
+    validations:
+      required: true
+
+  - type: input
+    id: audience
+    attributes:
+      label: Primary audience
+      description: Who primarily benefits from this change?
+      placeholder: Students, mentors, admins, release owners...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: Affected area
+      description: Pick the primary workflow or screen this request changes.
+      options:
+        - Home dashboard
+        - Tasks
+        - Attendance or meetings
+        - Work logs
+        - Manufacturing
+        - Inventory or purchases
+        - Reports
+        - Risks
+        - Roster
+        - Subsystems
+        - Authentication or session
+        - Navigation or app shell
+        - Notifications or live activity
+        - Release, build, or configuration
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform-expectation
+    attributes:
+      label: Platform compatibility expectation
+      description: Where should this feature work?
+      options:
+        - iOS and Android
+        - iOS only
+        - Android only
+        - Platform-neutral or data-only
+        - Unknown, needs product or technical review
+    validations:
+      required: true
+
+  - type: textarea
+    id: design-evidence
+    attributes:
+      label: Screenshots, mockups, or video references
+      description: Attach or link visual references. If none exist, describe the expected evidence needed during PR review.
+      placeholder: Drag files here, paste links, or describe the expected before/after screenshots.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: planned-device-testing
+    attributes:
+      label: Planned device testing checklist
+      description: Select the validation coverage expected before this feature is accepted.
+      options:
+        - label: Validate on a physical iOS device.
+        - label: Validate on an iOS simulator.
+        - label: Validate on a physical Android device.
+        - label: Validate on an Android emulator.
+        - label: Validate backgrounding and foregrounding behavior.
+        - label: Validate network loss or slow network behavior, if relevant.
+
+  - type: textarea
+    id: device-testing-notes
+    attributes:
+      label: Device testing notes and not-tested rationale
+      description: List target devices/OS versions and explain any platform or device category that will not be tested.
+      placeholder: |
+        Target iOS device/simulator:
+        Target Android device/emulator:
+        Not planned:
+        Reason:
+    validations:
+      required: true
+
+  - type: textarea
+    id: accessibility-localization
+    attributes:
+      label: Accessibility and localization considerations
+      description: Note text, layout, language, right-to-left, touch target, contrast, or screen reader considerations.
+      placeholder: Supports existing translations; verify long labels and right-to-left layout if text changes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: rollout
+    attributes:
+      label: Rollout, release, or configuration notes
+      description: Include feature flags, API dependencies, release sequencing, or migration concerns.
+      placeholder: Requires backend endpoint before mobile release; no app config changes expected.
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add links, decisions, constraints, or related issues.
