@@ -23,10 +23,7 @@ import type { AppScreenProps } from "./types";
 export function InventoryMaterialsScreen(props: AppScreenProps) {
   const {
     appResponsiveStyles,
-    editTagStyle,
     filteredMaterialRollups,
-    filteredPartDefinitions,
-    filteredPartInstances,
     filteredPurchases,
     inventoryView,
     materialsCategoryFilter,
