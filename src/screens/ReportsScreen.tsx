@@ -28,6 +28,7 @@ const formatQaStatus = (value: string) =>
 export function ReportsScreen(props: AppScreenProps) {
   const {
     appResponsiveStyles,
+    canMentorApprove,
     createQaRequest,
     eventReports,
     eventsById,
@@ -53,6 +54,7 @@ export function ReportsScreen(props: AppScreenProps) {
     (qaRequestDraft.subject.trim() || qaRequestDraft.taskId) && qaRequestDraft.mentorId,
   );
   const selectedQaReview = qaReviews.find((review) => review.id === selectedQaReviewId);
+  const selectedQaReviewTaskId = selectedQaReview?.taskId ?? undefined;
   const selectedQaReviewPeople = selectedQaReview
     ? selectedQaReview.participantIds
         .map((participantId) => membersById[participantId]?.name)
@@ -172,6 +174,41 @@ const renderScreen = () => {
       >
         {selectedQaReview ? (
           <>
+            {canMentorApprove && selectedQaReviewTaskId ? (
+              <View style={styles.quickActionRow}>
+                <Pressable
+                  onPress={() => {
+                    openCreateQaReportEditor(selectedQaReviewTaskId, undefined, "pass");
+                    setSelectedQaReviewId(null);
+                  }}
+                  style={[
+                    styles.quickActionButton,
+                    styles.quickActionButtonPrimary,
+                    appResponsiveStyles.quickActionButton,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.quickActionButtonPrimaryLabel,
+                      appResponsiveStyles.quickActionButtonLabel,
+                    ]}
+                  >
+                    Approve
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    openCreateQaReportEditor(selectedQaReviewTaskId, undefined, "minor-fix");
+                    setSelectedQaReviewId(null);
+                  }}
+                  style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                >
+                  <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                    Fail test
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
             <QaDetailFields rows={selectedQaReviewRows} />
             {selectedQaReview.result === "iteration-worthy" ? (
               <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
@@ -220,25 +257,45 @@ const renderScreen = () => {
               <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
                 Requested {formatDateTime(request.createdAt)}
               </Text>
-              <View style={styles.quickActionRow}>
-                <Pressable
-                  disabled={!linkedTask}
-                  onPress={() => {
-                    if (linkedTask) {
-                      openCreateQaReportEditor(linkedTask.id, request.id);
-                    }
-                  }}
-                  style={[
-                    styles.quickActionButton,
-                    !linkedTask ? { opacity: 0.45 } : null,
-                    appResponsiveStyles.quickActionButton,
-                  ]}
-                >
-                  <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                    Write report
-                  </Text>
-                </Pressable>
-              </View>
+              {canMentorApprove ? (
+                <View style={styles.quickActionRow}>
+                  <Pressable
+                    disabled={!linkedTask}
+                    onPress={() => {
+                      if (linkedTask) {
+                        openCreateQaReportEditor(linkedTask.id, request.id, "pass");
+                      }
+                    }}
+                    style={[
+                      styles.quickActionButton,
+                      styles.quickActionButtonPrimary,
+                      !linkedTask ? { opacity: 0.45 } : null,
+                      appResponsiveStyles.quickActionButton,
+                    ]}
+                  >
+                    <Text style={[styles.quickActionButtonPrimaryLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                      Approve
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    disabled={!linkedTask}
+                    onPress={() => {
+                      if (linkedTask) {
+                        openCreateQaReportEditor(linkedTask.id, request.id, "minor-fix");
+                      }
+                    }}
+                    style={[
+                      styles.quickActionButton,
+                      !linkedTask ? { opacity: 0.45 } : null,
+                      appResponsiveStyles.quickActionButton,
+                    ]}
+                  >
+                    <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                      Fail test
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
             </View>
           );
         })}

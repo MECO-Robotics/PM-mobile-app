@@ -21,17 +21,19 @@ import {
 import { landscapeTimelineStyles as styles } from "./landscapeTimelineStyles";
 
 type Props = {
+  canAddTask?: boolean;
   colors: AppThemeColors;
   events: Event[];
   membersById: Record<string, Member>;
   onAddDeadline: () => void;
   onAddTask: () => void;
-  onTaskPress: (task: Task) => void;
+  onTaskPress?: (task: Task) => void;
   subsystems: Subsystem[];
   tasks: Task[];
 };
 
 export function LandscapeSubsystemTimeline({
+  canAddTask = true,
   colors,
   events,
   onAddDeadline,
@@ -65,6 +67,7 @@ export function LandscapeSubsystemTimeline({
     <View style={[styles.shell, { backgroundColor: colors.canvas }]}>
       <LandscapeTimelineHeader
         colors={colors}
+        canAddTask={canAddTask}
         locale={locale}
         onAddDeadline={onAddDeadline}
         onAddTask={onAddTask}

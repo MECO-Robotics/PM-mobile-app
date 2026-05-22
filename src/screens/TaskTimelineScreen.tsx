@@ -52,6 +52,7 @@ export function TaskTimelineScreen(props: AppScreenProps) {
     activeTaskSubteam,
     activeTaskSubteamLabel,
     appResponsiveStyles,
+    canManageTasks,
     clearTaskBlockers,
     disciplinesById,
     editTagStyle,
@@ -116,9 +117,11 @@ const renderScreen = () => {
       title={`${activeTaskSubteamLabel} timeline`}
       subtitle="Calendar-ordered milestones and ownership cues for the selected subteam."
       actions={
-        <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-          <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add task</Text>
-        </Pressable>
+        canManageTasks ? (
+          <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add task</Text>
+          </Pressable>
+        ) : null
       }
     >
       <FilterToolbar>
@@ -157,7 +160,7 @@ const renderScreen = () => {
         return (
           <Pressable
             key={task.id}
-            onPress={() => openEditTaskEditor(task)}
+            onPress={canManageTasks ? () => openEditTaskEditor(task) : undefined}
             style={[styles.timelineRow, appResponsiveStyles.rowCard]}
           >
             <View style={styles.timelineRowHeader}>
