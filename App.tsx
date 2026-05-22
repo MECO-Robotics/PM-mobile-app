@@ -895,6 +895,7 @@ export default function App() {
       setAuthErrorState(null);
       setAuthError(null);
       setBackendStatus("connected");
+      return config;
     } catch (error) {
       const message = getClientErrorMessage(error, "auth-config");
       setBackendStatus("offline");
@@ -908,6 +909,7 @@ export default function App() {
       setAuthErrorState("auth-config-unavailable");
       setAuthError(message);
       setSyncError(message);
+      return null;
     }
   }, [apiBaseUrl]);
 
@@ -1077,13 +1079,21 @@ export default function App() {
     setAuthErrorState(null);
     setAuthNotice(null);
 
+    let currentAuthConfig = authConfig;
     if (isAuthConfigUnavailable) {
-      setAuthErrorState("auth-config-unavailable");
-      setAuthError(getMobileAuthErrorMessage("auth-config-unavailable"));
-      return;
+      setIsAuthenticating(true);
+      try {
+        currentAuthConfig = await loadPublicAuthConfig();
+      } finally {
+        setIsAuthenticating(false);
+      }
+
+      if (!currentAuthConfig) {
+        return;
+      }
     }
 
-    if (authConfig?.emailEnabled === false) {
+    if (currentAuthConfig?.emailEnabled === false) {
       setAuthError("Email sign-in is not enabled for this workspace.");
       return;
     }
@@ -1164,6 +1174,7 @@ export default function App() {
     finishSignIn,
     hasRequestedEmailCode,
     isAuthConfigUnavailable,
+    loadPublicAuthConfig,
     requiredEmailDomain,
   ]);
 
