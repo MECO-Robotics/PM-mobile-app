@@ -18,18 +18,16 @@
 
 `development` requires:
 
-- `ci-validate`
-- `snapshot-validate`
+- `merge-requirements`
 - at least 1 approval
 
 `main` requires:
 
-- `ci-validate`
-- `snapshot-validate`
+- `merge-requirements`
 - `cross-repo-production-gate`
 - at least 2 approvals
 
-Keep conversation resolution, linear history, and admin enforcement enabled on both protected branches.
+`merge-requirements` is the required aggregate gate for branch model, skill sync, validation, and snapshot checks. Keep conversation resolution, linear history, and admin enforcement enabled on both protected branches.
 
 ## CI Expectations
 
