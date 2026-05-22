@@ -915,21 +915,27 @@ export default function App() {
     async (token: string | null, user: SessionUser) => {
       setApiToken(token);
       setSessionUser(user);
-      setHasAuthenticated(true);
+      setHasAuthenticated(false);
       setIsSyncing(true);
       setSyncError(null);
 
       try {
         await refreshWorkspaceFromServer(token);
         setBackendStatus("connected");
+        setHasAuthenticated(true);
       } catch (error) {
+        const errorMessage = getClientErrorMessage(error, "authenticated");
         if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
-          endSessionForAuthFailure(getMobileAuthErrorMessage("expired-session"));
+          endSessionForAuthFailure(errorMessage);
           return;
         }
 
+        setApiToken(null);
+        setSessionUser(null);
+        setHasAuthenticated(false);
         setBackendStatus("offline");
-        setSyncError(getClientErrorMessage(error));
+        setSyncError(errorMessage);
+        setAuthError(errorMessage);
       } finally {
         setIsSyncing(false);
       }
