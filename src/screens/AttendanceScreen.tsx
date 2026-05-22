@@ -6,6 +6,7 @@ import { styles } from "../ui/styles";
 import {
   EmptyState,
   SummaryRow,
+  StatusPill,
   WorkspacePanel,
 } from "../ui/ui";
 

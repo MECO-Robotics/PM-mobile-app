@@ -4843,6 +4843,7 @@ export default function App() {
     setDisciplines([]);
     setMechanisms([]);
     setTasks([]);
+    setMeetings([]);
     setEvents([]);
     setWorkLogs([]);
     setManufacturingItems([]);
