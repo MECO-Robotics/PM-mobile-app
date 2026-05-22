@@ -11,6 +11,9 @@ web-build/
 expo-env.d.ts
 .tmp-skills-sync/
 
+# Imported shared skills
+/skills/
+
 # Native
 .kotlin/
 *.orig.*
