@@ -2,8 +2,9 @@
   "expo": {
     "name": "MECO Mission Control",
     "slug": "meco-mission-control-mobile",
+    "scheme": "org.mecorobotics.missioncontrol",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "backgroundColor": "#10284d",
     "platforms": [
       "ios",
@@ -12,6 +13,17 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "plugins": [
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "DEFAULT"
+        }
+      ],
+      "expo-localization",
+      "expo-notifications",
+      "expo-web-browser"
+    ],
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -19,7 +31,21 @@
     },
     "ios": {
       "bundleIdentifier": "org.mecorobotics.missioncontrol",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "requireFullScreen": true,
+      "infoPlist": {
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ],
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
+      }
     },
     "android": {
       "package": "org.mecorobotics.missioncontrol",

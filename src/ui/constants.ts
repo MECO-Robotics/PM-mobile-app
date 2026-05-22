@@ -7,6 +7,7 @@ import type {
   ManufacturingViewTab,
   Option,
   StatusGroup,
+  TaskSubteamTab,
   TaskViewTab,
   WorkLogSortMode,
 } from "./types";
@@ -15,6 +16,18 @@ export const TASK_VIEW_OPTIONS: { value: TaskViewTab; label: string }[] = [
   { value: "queue", label: "Queue" },
   { value: "milestones", label: "Milestones" },
 ];
+
+export const TASK_SUBTEAM_OPTIONS: { value: TaskSubteamTab; label: string }[] = [
+  { value: "programming", label: "Programming" },
+  { value: "mechanical", label: "Mechanical" },
+  { value: "electrical", label: "Electrical" },
+];
+
+export const TASK_SUBTEAM_DISCIPLINE_IDS: Record<TaskSubteamTab, string[]> = {
+  programming: ["software", "programming", "integration", "testing"],
+  mechanical: ["mechanical", "design", "manufacturing", "assembly"],
+  electrical: ["electrical"],
+};
 
 export const MANUFACTURING_VIEW_OPTIONS: { value: ManufacturingViewTab; label: string }[] = [
   { value: "cnc", label: "CNC" },
@@ -100,6 +113,39 @@ export const WORKLOG_SORT_OPTIONS: { id: WorkLogSortMode; name: string }[] = [
   { id: "shortest", name: "Shortest first" },
 ];
 
+export const WORKLOG_TEMPLATE_OPTIONS = [
+  {
+    id: "cad",
+    name: "CAD",
+    notes: "CAD work:\n- Changed:\n- Checked clearances/interfaces:\n- Next step:",
+  },
+  {
+    id: "machining",
+    name: "Machining",
+    notes: "Machining/fabrication:\n- Made:\n- Material/tooling:\n- Measurement/fit check:\n- Next step:",
+  },
+  {
+    id: "wiring",
+    name: "Wiring",
+    notes: "Wiring/electrical:\n- Wired/changed:\n- Tested:\n- Labeling/documentation:\n- Next step:",
+  },
+  {
+    id: "programming",
+    name: "Programming",
+    notes: "Programming:\n- Changed:\n- Tested on robot/sim:\n- Issue found:\n- Next step:",
+  },
+  {
+    id: "testing",
+    name: "Testing",
+    notes: "Testing:\n- Test goal:\n- Setup:\n- Result:\n- Follow-up:",
+  },
+  {
+    id: "meeting",
+    name: "Meeting",
+    notes: "Meeting notes:\n- Decisions:\n- Assigned work:\n- Risks/blockers:\n- Next check-in:",
+  },
+];
+
 export const EVENT_TYPE_OPTIONS: Option[] = [
   { id: "drive-practice", name: "Drive practice" },
   { id: "competition", name: "Competition" },
@@ -117,6 +163,15 @@ export const ARCHIVE_FILTER_OPTIONS: { id: ArchiveFilterMode; name: string }[] =
 export const BLOCKER_FILTER_OPTIONS: { id: BlockerFilterMode; name: string }[] = [
   { id: "blocked", name: "Blocked" },
   { id: "clear", name: "No blockers" },
+  { id: "over-estimate", name: "Over estimate" },
+  { id: "overdue", name: "Overdue" },
+  { id: "due-soon", name: "Due soon" },
+  { id: "dependency-wait", name: "Dependency wait" },
+  { id: "ready-now", name: "Ready now" },
+  { id: "ready-to-qa", name: "Ready for QA" },
+  { id: "needs-fabrication", name: "Needs fabrication" },
+  { id: "needs-purchase", name: "Needs purchase" },
+  { id: "unassigned", name: "Unassigned" },
 ];
 
 export const QA_RESULT_OPTIONS: { id: QaResult; name: string }[] = [

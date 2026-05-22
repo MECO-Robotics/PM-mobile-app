@@ -126,6 +126,7 @@ export interface Task {
   priority: TaskPriority;
   status: TaskStatus;
   dependencyIds: string[];
+  checklistItems?: string[];
   blockers: string[];
   isBlocked: boolean;
   linkedManufacturingIds: string[];
@@ -206,11 +207,27 @@ export interface PurchaseItem {
 
 export interface QaReview {
   id: string;
+  taskId?: string | null;
+  subjectId?: string | null;
+  subjectType?: "task" | "manufacturing" | string;
   subjectTitle: string;
   participantIds: string[];
+  requestedById?: string | null;
+  mentorId?: string | null;
   result: QaResult;
   mentorApproved: boolean;
   notes: string;
+  evidenceNotes?: string;
+}
+
+export interface QaRequest {
+  id: string;
+  taskId?: string | null;
+  subject: string;
+  mentorId: string;
+  requestedById: string | null;
+  createdAt: string;
+  status: "requested";
 }
 
 export interface QAFinding {
@@ -251,6 +268,7 @@ export interface BootstrapMilestone {
   endDateTime: string | null;
   isExternal: boolean;
   description: string;
+  projectIds?: string[];
   relatedSubsystemIds?: string[];
 }
 
@@ -267,6 +285,7 @@ export interface PlatformBootstrapPayload {
   workLogs?: WorkLog[];
   manufacturingItems?: ManufacturingItem[];
   purchaseItems?: PurchaseItem[];
+  qaRequests?: QaRequest[];
   qaFindings?: QAFinding[];
   testFindings?: TestFinding[];
   designIterations?: DesignIteration[];

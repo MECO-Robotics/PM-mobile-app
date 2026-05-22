@@ -6,11 +6,11 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  Text,
   useWindowDimensions,
   View,
 } from "react-native";
 
+import { Text } from "../i18n";
 import { styles } from "./styles";
 import { useAppTheme } from "./themeContext";
 
@@ -169,12 +169,19 @@ export function EditorModal({
   onDelete?: () => void;
   children: ReactNode;
 }) {
-  const { width } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const isCompactLayout = width < 430;
+  const isLandscapeLayout = width > height;
   const { colors: themeColors } = useAppTheme();
 
   return (
-    <Modal animationType="fade" onRequestClose={onCancel} transparent visible={visible}>
+    <Modal
+      animationType="fade"
+      onRequestClose={onCancel}
+      supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
+      transparent
+      visible={visible}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={[styles.modalScrim, isCompactLayout && styles.modalScrimCompact]}
@@ -183,6 +190,7 @@ export function EditorModal({
           style={[
             styles.modalCard,
             { backgroundColor: themeColors.surface, borderColor: themeColors.border },
+            isLandscapeLayout && styles.modalCardLandscape,
             isCompactLayout && styles.modalCardCompact,
           ]}
         >

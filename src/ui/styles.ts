@@ -117,21 +117,6 @@ export const styles = StyleSheet.create({
     fontWeight: "900",
     lineHeight: 16,
   },
-  eyeIcon: {
-    width: 22,
-    height: 14,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: colors.navyInk,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  eyePupil: {
-    width: 6,
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: colors.navyInk,
-  },
   brandWrap: {
     flex: 1,
     minWidth: 0,
@@ -198,13 +183,6 @@ export const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   sidebarNavRowCompact: {
-    paddingHorizontal: spacing.md,
-  },
-  personFilterStrip: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-  },
-  personFilterStripCompact: {
     paddingHorizontal: spacing.md,
   },
   sidebarTab: {
@@ -525,6 +503,25 @@ export const styles = StyleSheet.create({
     padding: spacing.sm,
     gap: 6,
   },
+  queueRowCardLandscape: {
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  taskCardLandscapeContent: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.md,
+  },
+  taskCardLandscapeMain: {
+    flex: 1.6,
+    minWidth: 0,
+    gap: spacing.xs,
+  },
+  taskCardLandscapeAside: {
+    flex: 1,
+    minWidth: 220,
+    gap: spacing.xs,
+  },
   queueRowHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -606,6 +603,14 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
+  workTimerCard: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
   statusPill: {
     borderRadius: 6,
     paddingHorizontal: 8,
@@ -656,6 +661,35 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+    flexWrap: "wrap",
+  },
+  attendanceStatusControls: {
+    flexDirection: "row",
+    gap: spacing.xs,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
+  attendanceStatusButton: {
+    minHeight: 32,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  attendanceStatusButtonActive: {
+    borderColor: colors.blue,
+    backgroundColor: colors.navySurface,
+  },
+  attendanceStatusButtonLabel: {
+    color: colors.subtleText,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  attendanceStatusButtonLabelActive: {
+    color: colors.navyInk,
   },
   attendanceMark: {
     width: 28,
@@ -728,6 +762,75 @@ export const styles = StyleSheet.create({
   riskSeverityMedium: {
     borderColor: "rgba(233, 131, 53, 0.45)",
     backgroundColor: "rgba(233, 131, 53, 0.12)",
+  },
+  riskSeverityLow: {
+    borderColor: "rgba(22, 71, 142, 0.26)",
+    backgroundColor: "rgba(22, 71, 142, 0.08)",
+  },
+  riskLandscapeBoard: {
+    width: "100%",
+    flexDirection: "row",
+    gap: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  riskLandscapeColumn: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    padding: spacing.sm,
+    gap: spacing.sm,
+    ...shadows.card,
+  },
+  riskLandscapeColumnHeader: {
+    minHeight: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  riskPriorityBadge: {
+    minHeight: 32,
+    borderRadius: 8,
+    paddingHorizontal: spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  riskPriorityBadgeHigh: {
+    backgroundColor: "#fee2e2",
+  },
+  riskPriorityBadgeMedium: {
+    backgroundColor: "#fef3c7",
+  },
+  riskPriorityBadgeLow: {
+    backgroundColor: "#eef2f7",
+  },
+  riskPriorityBadgeText: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  riskPriorityBadgeTextHigh: {
+    color: "#991b1b",
+  },
+  riskPriorityBadgeTextMedium: {
+    color: "#92400e",
+  },
+  riskPriorityBadgeTextLow: {
+    color: "#475569",
+  },
+  riskColumnCount: {
+    minWidth: 36,
+    height: 36,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  riskColumnCountText: {
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  riskLandscapeItem: {
+    minHeight: 144,
   },
   interactionNote: {
     borderRadius: radii.md,
@@ -963,6 +1066,10 @@ export const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.card,
   },
+  modalCardLandscape: {
+    maxWidth: 920,
+    maxHeight: "84%",
+  },
   modalCardCompact: {
     maxHeight: "92%",
     padding: spacing.sm,
@@ -976,6 +1083,19 @@ export const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
+  },
+  taskEditorStack: {
+    gap: spacing.sm,
+  },
+  taskEditorLandscapeGrid: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.md,
+  },
+  taskEditorLandscapeColumn: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.sm,
   },
   modalField: {
     gap: 6,
@@ -1079,6 +1199,17 @@ export const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: "800",
   },
+  workLogAddMenu: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    gap: spacing.sm,
+    ...shadows.card,
+  },
   overlayScrim: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.34)",
@@ -1094,13 +1225,17 @@ export const styles = StyleSheet.create({
     width: 28,
     zIndex: 20,
   },
-  navDrawerScrim: {
+  navDrawerSafeArea: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.34)",
+  },
+  navDrawerScrim: {
+    flex: 1,
     justifyContent: "flex-start",
     alignItems: "flex-start",
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.md,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.md,
   },
   navDrawer: {
     height: "100%",
@@ -1118,6 +1253,10 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.sm,
+  },
+  navDrawerHeaderText: {
+    flex: 1,
+    minWidth: 0,
   },
   navDrawerTitle: {
     color: colors.ink,
@@ -1186,6 +1325,17 @@ export const styles = StyleSheet.create({
   overlayHeaderCopy: {
     flex: 1,
     minWidth: 0,
+  },
+  overlayHeaderAction: {
+    minHeight: 36,
+    paddingHorizontal: spacing.xs,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  overlayHeaderActionLabel: {
+    color: colors.ink,
+    fontSize: 16,
+    fontWeight: "500",
   },
   overlayTitle: {
     color: colors.ink,
@@ -1406,6 +1556,10 @@ export const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 2 },
     textShadowRadius: 1,
   },
+  loginFieldStack: {
+    width: "100%",
+    gap: 10,
+  },
   loginEmailRow: {
     width: "100%",
     minHeight: 50,
@@ -1426,6 +1580,15 @@ export const styles = StyleSheet.create({
   loginEmailRowDark: {
     backgroundColor: "#172746",
   },
+  loginCodeRow: {
+    width: "100%",
+    minHeight: 50,
+    borderRadius: 999,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 18,
+    paddingRight: 8,
+  },
   loginEmailInput: {
     flex: 1,
     minWidth: 0,
@@ -1434,19 +1597,40 @@ export const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   loginSendButton: {
-    minHeight: 36,
+    width: "100%",
+    minHeight: 44,
+    borderRadius: 999,
+    backgroundColor: colors.red,
+    alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 10,
+    marginTop: 2,
+    paddingHorizontal: 16,
+  },
+  loginInlineSendButton: {
+    width: "auto",
+    flexShrink: 0,
+    marginLeft: 8,
+    marginTop: 0,
   },
   loginSendButtonText: {
     color: colors.white,
-    fontSize: 12,
-    fontWeight: "500",
+    fontSize: 14,
+    fontWeight: "700",
   },
   loginErrorText: {
     alignSelf: "stretch",
-    color: "#ff9aa5",
-    fontSize: 12,
+    color: colors.black,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 20,
+    marginTop: 10,
+    textAlign: "center",
+  },
+  loginNoticeText: {
+    alignSelf: "stretch",
+    color: "#dbeafe",
+    fontSize: 14,
+    lineHeight: 20,
     marginTop: 10,
     textAlign: "center",
   },
@@ -1457,7 +1641,7 @@ export const styles = StyleSheet.create({
     backgroundColor: "#1e293b",
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 136,
+    marginTop: 76,
     paddingHorizontal: 8,
     gap: 8,
     shadowColor: "#000000",
@@ -1496,10 +1680,9 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  loginGoogleMarkText: {
-    color: "#4285f4",
-    fontSize: 22,
-    fontWeight: "900",
+  loginGoogleMarkImage: {
+    width: 26,
+    height: 26,
   },
   settingsRow: {
     borderRadius: radii.md,
@@ -1530,5 +1713,47 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "900",
     textTransform: "uppercase",
+  },
+  settingsSubmenu: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.xs,
+    gap: spacing.xs,
+  },
+  settingsSubmenuRow: {
+    minHeight: 36,
+    borderRadius: 8,
+    paddingHorizontal: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  settingsSubmenuRowActive: {
+    backgroundColor: colors.navySurface,
+  },
+  settingsSubmenuLabel: {
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: "800",
+    flex: 1,
+  },
+  settingsIconButton: {
+    minWidth: 28,
+    minHeight: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  settingsIconButtonLabel: {
+    color: colors.navyInk,
+    fontSize: 18,
+    fontWeight: "900",
+    lineHeight: 20,
   },
 });
