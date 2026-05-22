@@ -389,6 +389,9 @@ const purchaseItems: PurchaseItem[] = [
 const qaReviews: QaReview[] = [
   {
     id: "qa-1",
+    taskId: "pdh-labels",
+    subjectId: "pdh-labels",
+    subjectType: "task",
     subjectTitle: "Wire Power Distribution",
     participantIds: ["priya", "jordan"],
     result: "pass",
@@ -397,6 +400,9 @@ const qaReviews: QaReview[] = [
   },
   {
     id: "qa-2",
+    taskId: "swerve-sensor-bundle",
+    subjectId: "swerve-sensor-bundle",
+    subjectType: "task",
     subjectTitle: "Swerve sensor bracket",
     participantIds: ["ava", "jordan"],
     result: "pass",
@@ -405,6 +411,9 @@ const qaReviews: QaReview[] = [
   },
   {
     id: "qa-3",
+    taskId: "intake-guard",
+    subjectId: "intake-guard",
+    subjectType: "task",
     subjectTitle: "Intake belt guard redesign",
     participantIds: ["lucas", "riley"],
     result: "minor-fix",
@@ -413,6 +422,9 @@ const qaReviews: QaReview[] = [
   },
   {
     id: "qa-4",
+    taskId: "wire-auto-safety",
+    subjectId: "wire-auto-safety",
+    subjectType: "task",
     subjectTitle: "Wire Auto Safety",
     participantIds: ["ethan", "riley"],
     result: "iteration-worthy",

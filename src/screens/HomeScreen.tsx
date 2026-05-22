@@ -1,43 +1,11 @@
-import { Image, Pressable, ScrollView, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { Text } from "../i18n";
-import {
-  ARCHIVE_FILTER_OPTIONS,
-  BLOCKER_FILTER_OPTIONS,
-  EVENT_TYPE_OPTIONS,
-  EVENT_TYPE_STYLES,
-  INVENTORY_VIEW_OPTIONS,
-  MANUFACTURING_STATUS_OPTIONS,
-  MANUFACTURING_VIEW_OPTIONS,
-  MATERIAL_CATEGORY_OPTIONS,
-  PART_STATUS_OPTIONS,
-  PURCHASE_APPROVAL_OPTIONS,
-  PURCHASE_STATUS_OPTIONS,
-  STATUS_LABELS,
-  SUBVIEW_INTERACTION_GUIDANCE,
-  TASK_PRIORITY_OPTIONS,
-  TASK_STATUS_OPTIONS,
-  TASK_SUBTEAM_OPTIONS,
-  TASK_VIEW_OPTIONS,
-  WORKLOG_SORT_OPTIONS,
-} from "../ui/constants";
-import {
-  capitalize,
-  datePortion,
-  formatDate,
-  formatDateTime,
-  splitList,
-  timePortion,
-  timelineProgress,
-} from "../ui/helpers";
+import { STATUS_LABELS } from "../ui/constants";
+import { capitalize, formatDate } from "../ui/helpers";
 import { styles } from "../ui/styles";
 import {
   EmptyState,
-  FilterToolbar,
-  InteractionNote,
-  OptionChipRow,
-  SearchField,
-  SectionTabs,
   StatusPill,
   SummaryRow,
   WorkspacePanel,
@@ -50,15 +18,20 @@ export function HomeScreen(props: AppScreenProps) {
   const {
     appResponsiveStyles,
     attendancePreview,
+    homeActionItems,
     homeInventoryNeeds,
+    homeMeetingExport,
     homePriorityTasks,
     homeTaskSummary,
     isSyncing,
+    manufacturingItems,
     membersById,
+    openEditManufacturingEditor,
     openEditPurchaseEditor,
     openInventoryPurchases,
     openSignedInTaskQueue,
     openTaskQueueFromTask,
+    purchaseItems,
     setActiveTab,
     subsystemsById,
     syncFromBackend,
@@ -66,6 +39,31 @@ export function HomeScreen(props: AppScreenProps) {
   } = props;
 
 const renderScreen = () => {
+  const openHomeActionItem = (item: (typeof homeActionItems)[number]) => {
+    if (item.source === "task") {
+      const task = tasks.find((candidate) => candidate.id === item.onPressTargetId);
+      if (task) {
+        openTaskQueueFromTask(task);
+      }
+      return;
+    }
+
+    if (item.source === "purchase") {
+      const purchase = purchaseItems.find((candidate) => candidate.id === item.onPressTargetId);
+      if (purchase) {
+        openEditPurchaseEditor(purchase);
+      }
+      return;
+    }
+
+    const manufacturingItem = manufacturingItems.find(
+      (candidate) => candidate.id === item.onPressTargetId,
+    );
+    if (manufacturingItem) {
+      openEditManufacturingEditor(manufacturingItem);
+    }
+  };
+
   return (
     <WorkspacePanel
       title="Home"
@@ -89,45 +87,39 @@ const renderScreen = () => {
         <SummaryRow chips={homeTaskSummary} />
       </Pressable>
 
-      {homePriorityTasks.map((task) => {
-        const subsystemName = subsystemsById[task.subsystemId]?.name ?? "Unknown";
-        const ownerName = task.ownerId
-          ? (membersById[task.ownerId]?.name ?? "Unassigned")
-          : "Unassigned";
-
-        return (
+      <View style={styles.homeSection}>
+        <View style={styles.homeSectionHeader}>
+          <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>
+            Next actions
+          </Text>
+          <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
+            The highest-risk work across tasks, manufacturing, and purchases.
+          </Text>
+        </View>
+        {homeActionItems.map((item) => (
           <Pressable
-            key={task.id}
-            onPress={() => openTaskQueueFromTask(task)}
+            accessibilityRole="button"
+            key={item.id}
+            onPress={() => openHomeActionItem(item)}
             style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
           >
             <View style={styles.queueRowHeader}>
               <View style={styles.queueRowPrimaryText}>
                 <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
-                  {task.title}
+                  {item.title}
                 </Text>
                 <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                  {subsystemName} - {ownerName} - due {formatDate(task.dueDate)}
+                  {item.detail}
                 </Text>
               </View>
-              <StatusPill label={task.priority} value={task.priority} />
-            </View>
-            <Text numberOfLines={2} style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
-              {task.summary}
-            </Text>
-            <View style={styles.queuePillRow}>
-              <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
-              {task.blockers.length > 0 ? (
-                <StatusPill label="Blocked" value="critical" />
-              ) : null}
+              <StatusPill label={item.label} value={item.priority} />
             </View>
           </Pressable>
-        );
-      })}
-
-      {homePriorityTasks.length === 0 ? (
-        <EmptyState text="No open tasks need attention right now." />
-      ) : null}
+        ))}
+        {homeActionItems.length === 0 ? (
+          <EmptyState text="No urgent work is visible right now." />
+        ) : null}
+      </View>
 
       <View style={styles.homeSection}>
         <Pressable
@@ -173,6 +165,62 @@ const renderScreen = () => {
         {homeInventoryNeeds.length === 0 ? (
           <EmptyState text="No purchase items need buying right now." />
         ) : null}
+      </View>
+
+      <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+        <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+          Tasks for this meeting
+        </Text>
+        <SummaryRow chips={homeTaskSummary} />
+      </View>
+
+      {homePriorityTasks.map((task) => {
+        const subsystemName = subsystemsById[task.subsystemId]?.name ?? "Unknown";
+        const ownerName = task.ownerId
+          ? (membersById[task.ownerId]?.name ?? "Unassigned")
+          : "Unassigned";
+
+        return (
+          <Pressable
+            key={task.id}
+            onPress={() => openTaskQueueFromTask(task)}
+            style={[styles.queueRowCard, appResponsiveStyles.rowCard]}
+          >
+            <View style={styles.queueRowHeader}>
+              <View style={styles.queueRowPrimaryText}>
+                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                  {task.title}
+                </Text>
+                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                  {subsystemName} - {ownerName} - due {formatDate(task.dueDate)}
+                </Text>
+              </View>
+              <StatusPill label={task.priority} value={task.priority} />
+            </View>
+            <Text numberOfLines={2} style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
+              {task.summary}
+            </Text>
+            <View style={styles.queuePillRow}>
+              <StatusPill label={STATUS_LABELS[task.status]} value={task.status} />
+              {task.blockers.length > 0 ? (
+                <StatusPill label="Blocked" value="critical" />
+              ) : null}
+            </View>
+          </Pressable>
+        );
+      })}
+
+      {homePriorityTasks.length === 0 ? (
+        <EmptyState text="No open tasks need attention right now." />
+      ) : null}
+
+      <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+        <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+          Meeting export
+        </Text>
+        <Text selectable style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
+          {homeMeetingExport}
+        </Text>
       </View>
 
       <Pressable

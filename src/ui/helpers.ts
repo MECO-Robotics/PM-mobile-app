@@ -40,6 +40,10 @@ export function buildTaskDraft(seed?: Partial<Task>): TaskDraft {
     mechanismId: seed?.mechanismId ?? null,
     partInstanceId: seed?.partInstanceId ?? null,
     targetEventId: seed?.targetEventId ?? null,
+    estimatedHours:
+      typeof seed?.estimatedHours === "number" ? String(seed.estimatedHours) : "0",
+    dependencyIdsText: seed?.dependencyIds?.join(", ") ?? "",
+    checklistItemsText: seed?.checklistItems?.join(", ") ?? "",
     blockersText: seed?.blockers?.join(", ") ?? "",
   };
 }
