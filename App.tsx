@@ -546,6 +546,10 @@ function buildLocalDevelopmentSessionUser(
   };
 }
 
+function normalizeDevelopmentSignInRole(role: MemberRole | null | undefined): DevelopmentSignInRole {
+  return role === "mentor" ? "mentor" : "student";
+}
+
 function mapMilestonesToEvents(payload: PlatformBootstrapPayload): Event[] {
   const subsystems = ensureArray(payload.subsystems);
 
@@ -955,7 +959,7 @@ export default function App() {
           buildLocalDevelopmentSessionUser(role, requiredEmailDomain),
         );
         setAuthNotice("Using a local development session.");
-      } catch (error) {
+      } catch {
         await finishSignIn(
           null,
           buildLocalDevelopmentSessionUser(role, requiredEmailDomain),
@@ -1183,7 +1187,9 @@ export default function App() {
       token = token.length > 0 ? token : "";
 
       if (!token && authConfig.devBypassAvailable) {
-        const session = await requestDevelopmentSession("student");
+        const session = await requestDevelopmentSession(
+          normalizeDevelopmentSignInRole(sessionUser?.role),
+        );
         token = session.token;
         setSessionUser(session.user);
       }
@@ -1198,7 +1204,7 @@ export default function App() {
     } finally {
       setIsSyncing(false);
     }
-  }, [apiBaseUrl, refreshWorkspaceFromServer, requestDevelopmentSession]);
+  }, [apiBaseUrl, refreshWorkspaceFromServer, requestDevelopmentSession, sessionUser?.role]);
 
   const runMutation = useCallback(
     async (path: string, init: RequestInit) => {
@@ -4491,7 +4497,7 @@ export default function App() {
   const openCreateQaReportEditor = (
     taskId = tasks[0]?.id ?? "",
     qaRequestId?: string,
-    initialResult: "pass" | "minor-fix" = "pass",
+    initialResult: QaReportDraft["result"] = "pass",
   ) => {
     if (!canMentorApprove) {
       return;
@@ -6339,16 +6345,33 @@ export default function App() {
                 onPress={() => setQaReviewDecision("minor-fix")}
                 style={[
                   styles.qaDecisionButton,
-                  qaReportDraft.result !== "pass" && styles.qaDecisionButtonFail,
+                  qaReportDraft.result === "minor-fix" && styles.qaDecisionButtonFail,
                 ]}
               >
                 <Text
                   style={[
                     styles.qaDecisionButtonText,
-                    qaReportDraft.result !== "pass" && styles.qaDecisionButtonTextActive,
+                    qaReportDraft.result === "minor-fix" && styles.qaDecisionButtonTextActive,
                   ]}
                 >
-                  Fail test
+                  Minor fix
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setQaReviewDecision("iteration-worthy")}
+                style={[
+                  styles.qaDecisionButton,
+                  qaReportDraft.result === "iteration-worthy" && styles.qaDecisionButtonFail,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.qaDecisionButtonText,
+                    qaReportDraft.result === "iteration-worthy" && styles.qaDecisionButtonTextActive,
+                  ]}
+                >
+                  Iteration
                 </Text>
               </Pressable>
             </View>
