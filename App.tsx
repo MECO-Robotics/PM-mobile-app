@@ -886,16 +886,22 @@ export default function App() {
     async (token: string | null, user: SessionUser) => {
       setApiToken(token);
       setSessionUser(user);
-      setHasAuthenticated(true);
+      setHasAuthenticated(false);
       setIsSyncing(true);
       setSyncError(null);
 
       try {
         await refreshWorkspaceFromServer(token);
         setBackendStatus("connected");
+        setHasAuthenticated(true);
       } catch (error) {
+        const errorMessage = parseClientError(error);
+        setApiToken(null);
+        setSessionUser(null);
+        setHasAuthenticated(false);
         setBackendStatus("offline");
-        setSyncError(parseClientError(error));
+        setSyncError(errorMessage);
+        setAuthError(errorMessage);
       } finally {
         setIsSyncing(false);
       }
