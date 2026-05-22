@@ -903,7 +903,7 @@ export default function App() {
         enabled: false,
         googleClientId: null,
         hostedDomain: "mecorobotics.org",
-        emailEnabled: false,
+        emailEnabled: true,
         devBypassAvailable: false,
       });
       setAuthErrorState("auth-config-unavailable");
