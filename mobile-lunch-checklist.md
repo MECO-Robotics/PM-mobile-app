@@ -84,12 +84,12 @@ environment, and owner initials for the release.
 - Tester:
 - Notes:
 
-## Current Promotion PR
+## Promotion PR
 
-- Promotion PR: [#20 Promote development to main](https://github.com/MECO-Robotics/meco-mission-control-mobile/pull/20)
-- Status as of 2026-05-20: open, not merged, mergeable.
-- Base branch: `main`
-- Head branch: `hotfix/promote-development-to-main`
+- Promotion PR:
+- Status:
+- Base branch:
+- Head branch:
 - Required before merge:
   - [ ] Checklist completed.
   - [ ] Required checks are green.
