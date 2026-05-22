@@ -3129,8 +3129,9 @@ export default function App() {
           return;
         }
 
-        await clearAuthenticatedSession();
-        if (!isUnauthorizedError(error)) {
+        if (isUnauthorizedError(error)) {
+          await clearAuthenticatedSession();
+        } else {
           setSyncError(parseClientError(error));
         }
       } finally {

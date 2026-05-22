@@ -167,13 +167,6 @@ const renderScreen = () => {
         ) : null}
       </View>
 
-      <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
-        <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
-          Tasks for this meeting
-        </Text>
-        <SummaryRow chips={homeTaskSummary} />
-      </View>
-
       {homePriorityTasks.map((task) => {
         const subsystemName = subsystemsById[task.subsystemId]?.name ?? "Unknown";
         const ownerName = task.ownerId
