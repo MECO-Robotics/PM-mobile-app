@@ -7,6 +7,7 @@ on:
       - development
       - main
     paths:
+      - "AGENTS.md"
       - ".github/workflows/ci.yml"
       - ".github/workflows/mobile-release.yml"
       - "app.json"
@@ -19,6 +20,7 @@ on:
       - "index.ts"
       - "src/**"
       - "assets/**"
+      - "skills/**"
       - "scripts/**"
       - "script/**"
   push:
@@ -29,6 +31,7 @@ on:
       - "fix/**"
       - "hotfix/**"
     paths:
+      - "AGENTS.md"
       - ".github/workflows/ci.yml"
       - ".github/workflows/mobile-release.yml"
       - "app.json"
@@ -41,6 +44,7 @@ on:
       - "index.ts"
       - "src/**"
       - "assets/**"
+      - "skills/**"
       - "scripts/**"
       - "script/**"
 
