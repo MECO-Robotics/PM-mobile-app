@@ -1079,6 +1079,7 @@ export default function App() {
           setSessionUser((current) =>
             current?.email === email ? { ...current, taskSubteamIds: serverTaskSubteams } : current,
           );
+          setActiveTaskSubteam(serverTaskSubteams[0]);
           await persistTaskSubteams(email, serverTaskSubteams);
           setIsSubteamOnboardingVisible(false);
         }
