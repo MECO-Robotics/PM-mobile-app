@@ -1044,6 +1044,9 @@ export default function App() {
     setApiToken(null);
     setSessionUser(null);
     setHasAuthenticated(false);
+    setAuthCode("");
+    setHasRequestedEmailCode(false);
+    setAuthNotice(null);
     setIsSubteamOnboardingVisible(false);
   }, []);
 
@@ -1128,6 +1131,9 @@ export default function App() {
       setApiToken(token);
       setSessionUser(userWithSubteams);
       setHasAuthenticated(false);
+      if (userTaskSubteams[0]) {
+        setActiveTaskSubteam(userTaskSubteams[0]);
+      }
       setIsSubteamOnboardingVisible(userTaskSubteams.length === 0);
       setIsSyncing(true);
       setSyncError(null);
