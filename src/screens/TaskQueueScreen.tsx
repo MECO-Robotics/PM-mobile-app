@@ -32,6 +32,7 @@ import {
   timePortion,
   timelineProgress,
 } from "../ui/helpers";
+import { getDefaultHelpMentorId } from "../data/helpRequests";
 import { styles } from "../ui/styles";
 import {
   EmptyState,
@@ -51,6 +52,7 @@ import type { Task } from "../types/domain";
 
 import type { AppScreenProps } from "./types";
 import { AttendanceStatusMark } from "./AttendanceStatusMark";
+import { NeedHelpModal } from "./help/NeedHelpModal";
 
 export function TaskQueueScreen(props: AppScreenProps) {
   const {
@@ -87,7 +89,9 @@ export function TaskQueueScreen(props: AppScreenProps) {
     openDuplicateTaskEditor,
     openEditTaskEditor,
     partInstancesById,
+    requestHelp,
     requestTaskQa,
+    rosterMentors,
     setActiveTaskSubteam,
     setMilestoneSearch,
     setMilestoneSortField,
@@ -126,12 +130,15 @@ export function TaskQueueScreen(props: AppScreenProps) {
   const [blockerResolutionTask, setBlockerResolutionTask] = useState<Task | null>(null);
   const [blockerResolutionNote, setBlockerResolutionNote] = useState("");
   const [blockerResolutionError, setBlockerResolutionError] = useState<string | null>(null);
+  const [helpRequestTask, setHelpRequestTask] = useState<Task | null>(null);
   const [isShiftDueDatesOpen, setIsShiftDueDatesOpen] = useState(false);
   const [shiftDayDelta, setShiftDayDelta] = useState("7");
   const [shiftDueDateError, setShiftDueDateError] = useState<string | null>(null);
   const shiftableTasks = canManageTasks
     ? filteredTaskQueue.filter((task) => task.status !== "complete")
     : [];
+  const mentorOptions = rosterMentors.map((mentor) => ({ id: mentor.id, name: mentor.name }));
+  const defaultHelpMentorId = getDefaultHelpMentorId(helpRequestTask, rosterMentors);
 
   const openBlockerResolution = (task: Task) => {
     setBlockerResolutionTask(task);
@@ -143,6 +150,35 @@ export function TaskQueueScreen(props: AppScreenProps) {
     setBlockerResolutionTask(null);
     setBlockerResolutionNote("");
     setBlockerResolutionError(null);
+  };
+
+  const closeHelpRequest = () => {
+    setHelpRequestTask(null);
+  };
+
+  const submitTaskHelpRequest = ({
+    mentorId,
+    reason,
+  }: {
+    mentorId: string;
+    reason: string;
+  }) => {
+    if (!helpRequestTask) {
+      return false;
+    }
+
+    const didRequestHelp = requestHelp({
+      taskId: helpRequestTask.id,
+      reason,
+      mentorId,
+      requestedById: null,
+    });
+
+    if (didRequestHelp) {
+      closeHelpRequest();
+    }
+
+    return didRequestHelp;
   };
 
   const saveBlockerResolution = async () => {
@@ -328,6 +364,7 @@ const renderScreen = () => {
           task.status === "in-progress" &&
           task.blockers.length === 0 &&
           openDependencies.length === 0;
+        const canRequestHelp = task.status === "in-progress";
         const checklistItems = task.checklistItems ?? [];
 
         return (
@@ -509,6 +546,16 @@ const renderScreen = () => {
                   Log work
                 </Text>
               </Pressable>
+              {canRequestHelp ? (
+                <Pressable
+                  onPress={() => setHelpRequestTask(task)}
+                  style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                >
+                  <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                    Need help
+                  </Text>
+                </Pressable>
+              ) : null}
               {canManageTasks ? (
                 <Pressable
                   onPress={() => openDuplicateTaskEditor(task)}
@@ -578,6 +625,15 @@ const renderScreen = () => {
       ) : null}
 
       <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.queue} />
+      <NeedHelpModal
+        appResponsiveStyles={appResponsiveStyles}
+        contextTitle={helpRequestTask?.title ?? "Task help request"}
+        defaultMentorId={defaultHelpMentorId}
+        mentorOptions={mentorOptions}
+        onCancel={closeHelpRequest}
+        onSubmit={submitTaskHelpRequest}
+        visible={Boolean(helpRequestTask)}
+      />
       <EditorModal
         onCancel={closeShiftDueDates}
         onSave={saveShiftDueDates}

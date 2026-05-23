@@ -14,6 +14,7 @@ This backlog tracks practical, function-first improvements for the robotics team
 - Task filters for blockers, due soon, overdue, ready now, dependency wait, fabrication, purchase, and unassigned work.
 - Automatic task status movement when work starts, blockers clear, dependencies complete, or QA passes.
 - Request QA action from eligible task cards.
+- Need-help requests from active tasks and work logs appear in the mentor report queue without changing task or work-log state.
 - QA request list can open a report and clears completed requests.
 - QA reports preserve exact request metadata when opened from a request.
 - Manually created QA requests can link to existing tasks.
