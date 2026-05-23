@@ -11,6 +11,7 @@ Expo/React Native mobile client for MECO Mission Control manufacturing, planning
 - QA outcomes that separate minor rework from iteration-worthy failures.
 - Role-aware mentor and student flows, including mentor-only QA decisions.
 - Planning metrics surfaced from the same operational data.
+- Mobile auth states for expired sessions, unavailable network, and backend auth configuration failures.
 
 ## Why this is separate from the hosted backend
 
@@ -34,6 +35,7 @@ npm run ios
 npm run android
 npm run test:role-permissions
 npm run typecheck
+npm test
 ```
 
 Do not run Expo or npm scripts with `sudo`. If `node_modules` or `.expo` become owned by `root`, fix ownership from the repo root before starting the app:

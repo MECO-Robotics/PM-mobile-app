@@ -13,6 +13,12 @@ module.exports = [
     },
   },
   {
+    files: ['**/__tests__/**/*.test.ts'],
+    languageOptions: {
+      globals: globals.jest,
+    },
+  },
+  {
     files: ['**/*.{js,ts,tsx}'],
     rules: {
       'no-multiple-empty-lines': ['error', { max: 1, maxBOF: 0, maxEOF: 0 }],
