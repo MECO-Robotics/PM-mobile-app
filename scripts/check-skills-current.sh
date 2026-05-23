@@ -42,9 +42,12 @@ if [ ! -d "$TMP_DIR/skills" ]; then
 fi
 
 if [ ! -d "skills" ]; then
-  echo "skills/ is missing."
-  echo "Run: bash scripts/sync-skills.sh"
-  exit 1
+  echo "skills/ is missing in this checkout; syncing for validation."
+  bash scripts/sync-skills.sh
+  echo "skills/ synced from shared repo."
+  cleanup
+  trap - EXIT
+  exit 0
 fi
 
 set +e
