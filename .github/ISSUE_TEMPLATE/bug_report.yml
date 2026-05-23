@@ -1,0 +1,155 @@
+name: Mobile Bug Report
+description: Report a mobile app bug with device testing, platform impact, and evidence.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a mobile issue. Complete the device and evidence sections so reviewers can reproduce and triage the problem across iOS and Android.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Briefly describe the mobile issue and the user impact.
+      placeholder: The task queue freezes after clearing a blocker...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: Affected area
+      description: Pick the primary workflow or screen where the issue appears.
+      options:
+        - Home dashboard
+        - Tasks
+        - Attendance or meetings
+        - Work logs
+        - Manufacturing
+        - Inventory or purchases
+        - Reports
+        - Risks
+        - Roster
+        - Subsystems
+        - Authentication or session
+        - Navigation or app shell
+        - Notifications or live activity
+        - Release, build, or configuration
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: What should happen instead?
+      placeholder: Clearing the blocker should return to the updated task details.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual behavior
+      description: What happened, including any visible error messages?
+      placeholder: The app shows a blank screen and does not recover until restarted.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro-steps
+    attributes:
+      label: Steps to reproduce
+      description: List exact steps, starting from app launch or the relevant screen.
+      placeholder: |
+        1. Open Tasks.
+        2. Filter to blocked tasks.
+        3. Open a task and clear the blocker.
+        4. Observe the result.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and build
+      description: Include app version, branch/build source, Expo/EAS build link if available, and API target.
+      placeholder: |
+        App version:
+        Branch or build:
+        EAS/GitHub Release link:
+        API target:
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform-impact
+    attributes:
+      label: Platform compatibility impact
+      description: Which platforms are affected or at risk?
+      options:
+        - iOS only
+        - Android only
+        - iOS and Android
+        - Unknown, needs both-platform verification
+        - Not platform-specific
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: device-testing
+    attributes:
+      label: Device testing checklist
+      description: Check every device category that was tested. Leave unchecked if not tested and explain below.
+      options:
+        - label: Tested on a physical iOS device.
+        - label: Tested on an iOS simulator.
+        - label: Tested on a physical Android device.
+        - label: Tested on an Android emulator.
+        - label: Tested after backgrounding and foregrounding the app.
+        - label: Tested after network loss or slow network, if relevant.
+
+  - type: textarea
+    id: device-details
+    attributes:
+      label: Device details and not-tested rationale
+      description: Name tested devices, OS versions, simulator/emulator versions, and explain any unchecked platform or device category.
+      placeholder: |
+        iOS device/simulator:
+        Android device/emulator:
+        Not tested:
+        Reason:
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots-video
+    attributes:
+      label: Screenshots or video
+      description: Attach screenshots/video or paste links. If unavailable, explain why.
+      placeholder: Drag files here or paste links to screenshots, screen recordings, or logs.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or diagnostics
+      description: Paste relevant console, Expo, device, or crash logs. Remove secrets and personal data.
+      render: shell
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Blocking release or core workflow
+        - High impact with workaround
+        - Medium impact
+        - Low impact or polish
+    validations:
+      required: true
