@@ -87,6 +87,9 @@ jobs:
         run: npm ci
 
       - name: Run verify
+        env:
+          PLATFORM_BOOTSTRAP_CONTRACT_BRANCH: development
+          CI: true
         run: npm run verify
 
   snapshot-validate:
