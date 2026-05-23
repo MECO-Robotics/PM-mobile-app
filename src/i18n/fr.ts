@@ -233,8 +233,6 @@ export const fr = {
   "Sign in with email": "Connexion par e-mail",
   Sending: "Envoi",
   "Send Code": "Envoyer le code",
-  "Signing in": "Connexion",
-  "Sign in with Google": "Connexion avec Google",
   "Robot project selector": "Sélecteur de projet robot",
   "Edit robot": "Modifier le robot",
   "Switch project": "Changer de projet",

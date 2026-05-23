@@ -22,10 +22,10 @@ environment, and owner initials for the release.
   - Status:
   - Build link:
   - Build profile:
-- [ ] Android production build is complete or queued in EAS/GitHub Actions.
-  - Status:
-  - Build link:
-  - Build profile:
+ - [ ] Android production build is complete or queued in EAS/GitHub Actions.
+   - Status:
+   - Build link:
+   - Build profile:
 - [ ] Required GitHub checks are passing before promotion.
   - `merge-requirements`:
   - `ci-validate`:

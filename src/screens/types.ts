@@ -193,6 +193,7 @@ export interface AppScreenProps {
   openDuplicateTaskEditor: (task: Task) => void;
   openInventoryPurchases: () => void;
   openMaterialRestockEditor: (row: MaterialRollup) => void;
+  openSignedInTaskQueue: () => void;
   openTaskQueueFromTask: (task: Task) => void;
   requestTaskQa: (task: Task) => Promise<void>;
   startTask: (task: Task) => Promise<void>;
