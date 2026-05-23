@@ -25,6 +25,62 @@ export class ApiRequestError extends Error {
   }
 }
 
+export class ApiNetworkError extends Error {
+  readonly cause: unknown;
+
+  constructor(cause: unknown) {
+    super("Network unavailable. Check your connection and try again.");
+    this.name = "ApiNetworkError";
+    this.cause = cause;
+  }
+}
+
+export type MobileAuthErrorState =
+  | "expired-session"
+  | "network-unavailable"
+  | "auth-config-unavailable"
+  | "unknown";
+
+export function isAuthStatus(status: number) {
+  return status === 401 || status === 403;
+}
+
+export function classifyMobileAuthError(
+  error: unknown,
+  context: "auth-config" | "authenticated" | "general" = "general",
+): MobileAuthErrorState {
+  if (context === "auth-config") {
+    return "auth-config-unavailable";
+  }
+
+  if (
+    context === "authenticated" &&
+    error instanceof ApiRequestError &&
+    isAuthStatus(error.status)
+  ) {
+    return "expired-session";
+  }
+
+  if (error instanceof ApiNetworkError) {
+    return "network-unavailable";
+  }
+
+  return "unknown";
+}
+
+export function getMobileAuthErrorMessage(state: MobileAuthErrorState) {
+  switch (state) {
+    case "expired-session":
+      return "Your session expired. Sign in again.";
+    case "network-unavailable":
+      return "Network unavailable. Check your connection and try again.";
+    case "auth-config-unavailable":
+      return "Authentication service is unavailable. Check the backend auth configuration and try again.";
+    case "unknown":
+      return "Request failed unexpectedly.";
+  }
+}
+
 function parseErrorMessage(payload: unknown): string | null {
   if (typeof payload !== "object" || payload === null) {
     return null;
@@ -61,10 +117,15 @@ export async function requestJson<T>(
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...init,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers,
+    });
+  } catch (error) {
+    throw new ApiNetworkError(error);
+  }
 
   const rawBody = await response.text();
   let parsedBody: unknown = null;
