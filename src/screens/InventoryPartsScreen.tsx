@@ -5,15 +5,6 @@ import {
   PART_STATUS_OPTIONS,
   SUBVIEW_INTERACTION_GUIDANCE,
 } from "../ui/constants";
-import {
-  capitalize,
-  datePortion,
-  formatDate,
-  formatDateTime,
-  splitList,
-  timePortion,
-  timelineProgress,
-} from "../ui/helpers";
 import { styles } from "../ui/styles";
 import {
   EmptyState,
