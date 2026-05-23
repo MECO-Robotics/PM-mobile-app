@@ -22,11 +22,12 @@ environment, and owner initials for the release.
   - Status:
   - Build link:
   - Build profile:
-- [ ] Android production build is complete or queued in EAS/GitHub Actions.
-  - Status:
-  - Build link:
-  - Build profile:
+ - [ ] Android production build is complete or queued in EAS/GitHub Actions.
+   - Status:
+   - Build link:
+   - Build profile:
 - [ ] Required GitHub checks are passing before promotion.
+  - `merge-requirements`:
   - `ci-validate`:
   - `snapshot-validate`:
   - `cross-repo-production-gate`, for `main` promotions:
@@ -84,12 +85,12 @@ environment, and owner initials for the release.
 - Tester:
 - Notes:
 
-## Current Promotion PR
+## Promotion PR
 
-- Promotion PR: [#20 Promote development to main](https://github.com/MECO-Robotics/meco-mission-control-mobile/pull/20)
-- Status as of 2026-05-20: open, not merged, mergeable.
-- Base branch: `main`
-- Head branch: `hotfix/promote-development-to-main`
+- Promotion PR:
+- Status:
+- Base branch:
+- Head branch:
 - Required before merge:
   - [ ] Checklist completed.
   - [ ] Required checks are green.
