@@ -928,7 +928,12 @@ export default function App() {
         setBackendStatus("connected");
         setHasAuthenticated(true);
       } catch (error) {
-        const errorMessage = parseClientError(error);
+        const errorMessage = getClientErrorMessage(error, "authenticated");
+        if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
+          endSessionForAuthFailure(errorMessage);
+          return;
+        }
+
         setApiToken(null);
         setSessionUser(null);
         setHasAuthenticated(false);
