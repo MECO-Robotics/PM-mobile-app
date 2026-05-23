@@ -16,6 +16,7 @@ import { STATUS_GROUPS } from "./constants";
 import type {
   ManufacturingDraft,
   MemberDraft,
+  MeetingDraft,
   MilestoneDraft,
   PartDefinitionDraft,
   PartLifecycleStatus,
@@ -103,10 +104,21 @@ export function buildPurchaseDraft(seed?: Partial<PurchaseItem>): PurchaseDraft 
   };
 }
 
-export function buildMemberDraft(seed?: Partial<{ name: string; role: MemberRole }>): MemberDraft {
+export function buildMemberDraft(
+  seed?: Partial<{ email: string; name: string; role: MemberRole }>,
+): MemberDraft {
   return {
+    email: seed?.email ?? "",
     name: seed?.name ?? "",
     role: seed?.role ?? "student",
+  };
+}
+
+export function buildMeetingDraft(seed?: Partial<MeetingDraft>): MeetingDraft {
+  return {
+    title: seed?.title ?? "",
+    date: seed?.date ?? isoToday(),
+    time: seed?.time ?? "18:00",
   };
 }
 

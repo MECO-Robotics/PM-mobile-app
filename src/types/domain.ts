@@ -282,6 +282,7 @@ export interface PlatformBootstrapPayload {
   tasks?: Task[];
   events?: Event[];
   milestones?: BootstrapMilestone[];
+  meetings?: Meeting[];
   workLogs?: WorkLog[];
   manufacturingItems?: ManufacturingItem[];
   purchaseItems?: PurchaseItem[];
@@ -314,6 +315,7 @@ export interface SessionUser {
     | "business"
     | "scouting"
   >;
+  role?: MemberRole;
 }
 
 export interface SessionResponse {

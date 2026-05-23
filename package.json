@@ -14,7 +14,7 @@
     "android": "bash ./script/build_and_run.sh --android",
     "ios": "expo start --ios --localhost --port 8081",
     "lint": "eslint .",
-    "test": "jest --runInBand",
+    "test:role-permissions": "node --test scripts/role-permissions.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

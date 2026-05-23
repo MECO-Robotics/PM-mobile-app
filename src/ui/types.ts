@@ -125,8 +125,15 @@ export type PurchaseDraft = {
 };
 
 export type MemberDraft = {
+  email: string;
   name: string;
   role: MemberRole;
+};
+
+export type MeetingDraft = {
+  title: string;
+  date: string;
+  time: string;
 };
 
 export type SubsystemDraft = {
@@ -176,6 +183,9 @@ export type QaReportDraft = {
   mentorApproved: boolean;
   notes: string;
   evidenceNotes: string;
+  fixNotes: string;
+  versionIssueNotes: string;
+  preventionNotes: string;
   followUpTaskTitle: string;
 };
 export type EventReportDraft = {
