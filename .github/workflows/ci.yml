@@ -86,11 +86,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run typecheck
-        run: npm run typecheck
-
-      - name: Run lint
-        run: npm run lint
+      - name: Run verify
+        run: npm run verify
 
   snapshot-validate:
     name: snapshot-validate
