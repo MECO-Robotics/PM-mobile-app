@@ -57,6 +57,8 @@ export function TaskQueueScreen(props: AppScreenProps) {
     activeTaskSubteam,
     activeTaskSubteamLabel,
     appResponsiveStyles,
+    canManageTasks,
+    canMentorApprove,
     clearTaskBlockers,
     disciplinesById,
     editTagStyle,
@@ -127,7 +129,9 @@ export function TaskQueueScreen(props: AppScreenProps) {
   const [isShiftDueDatesOpen, setIsShiftDueDatesOpen] = useState(false);
   const [shiftDayDelta, setShiftDayDelta] = useState("7");
   const [shiftDueDateError, setShiftDueDateError] = useState<string | null>(null);
-  const shiftableTasks = filteredTaskQueue.filter((task) => task.status !== "complete");
+  const shiftableTasks = canManageTasks
+    ? filteredTaskQueue.filter((task) => task.status !== "complete")
+    : [];
 
   const openBlockerResolution = (task: Task) => {
     setBlockerResolutionTask(task);
@@ -194,17 +198,21 @@ const renderScreen = () => {
       subtitle="Search and filter queue cards for the selected subteam's work."
       actions={
         <View style={styles.quickActionRow}>
-          <Pressable
-            onPress={() => setIsShiftDueDatesOpen(true)}
-            style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-          >
-            <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-              Shift due
-            </Text>
-          </Pressable>
-          <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
-          </Pressable>
+          {canManageTasks ? (
+            <Pressable
+              onPress={() => setIsShiftDueDatesOpen(true)}
+              style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+            >
+              <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                Shift due
+              </Text>
+            </Pressable>
+          ) : null}
+          {canManageTasks ? (
+            <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+              <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
+            </Pressable>
+          ) : null}
         </View>
       }
     >
@@ -325,7 +333,7 @@ const renderScreen = () => {
         return (
           <Pressable
             key={task.id}
-            onPress={() => openEditTaskEditor(task)}
+            onPress={canManageTasks ? () => openEditTaskEditor(task) : undefined}
             style={[
               styles.queueRowCard,
               appResponsiveStyles.rowCard,
@@ -341,7 +349,7 @@ const renderScreen = () => {
                       {subsystemName} - {disciplineName}
                     </Text>
                   </View>
-                  <Text style={editTagStyle}>EDIT</Text>
+                  {canManageTasks ? <Text style={editTagStyle}>EDIT</Text> : null}
                 </View>
 
                 <Text numberOfLines={isLandscapeCardLayout ? 3 : 2} style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{task.summary}</Text>
@@ -400,16 +408,18 @@ const renderScreen = () => {
               <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
                 <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>Blockers</Text>
                 <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>{task.blockers.join(" | ")}</Text>
-                <View style={styles.quickActionRow}>
-                  <Pressable
-                    onPress={() => openBlockerResolution(task)}
-                    style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-                  >
-                    <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                      Resolve blockers
-                    </Text>
-                  </Pressable>
-                </View>
+                {canManageTasks ? (
+                  <View style={styles.quickActionRow}>
+                    <Pressable
+                      onPress={() => openBlockerResolution(task)}
+                      style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                    >
+                      <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                        Resolve blockers
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
             ) : null}
 
@@ -445,7 +455,7 @@ const renderScreen = () => {
                       return (
                         <Pressable
                           key={dependency.id}
-                          onPress={() => openEditTaskEditor(dependency)}
+                          onPress={canManageTasks ? () => openEditTaskEditor(dependency) : undefined}
                           style={[
                             styles.quickActionButton,
                             appResponsiveStyles.quickActionButton,
@@ -479,7 +489,7 @@ const renderScreen = () => {
             ) : null}
 
             <View style={styles.quickActionRow}>
-              {canStartTask ? (
+              {canManageTasks && canStartTask ? (
                 <Pressable
                   onPress={() => {
                     void startTask(task);
@@ -499,15 +509,17 @@ const renderScreen = () => {
                   Log work
                 </Text>
               </Pressable>
-              <Pressable
-                onPress={() => openDuplicateTaskEditor(task)}
-                style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-              >
-                <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                  Copy task
-                </Text>
-              </Pressable>
-              {canRequestQa ? (
+              {canManageTasks ? (
+                <Pressable
+                  onPress={() => openDuplicateTaskEditor(task)}
+                  style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                >
+                  <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                    Copy task
+                  </Text>
+                </Pressable>
+              ) : null}
+              {canManageTasks && canRequestQa ? (
                 <Pressable
                   onPress={() => {
                     void requestTaskQa(task);
@@ -519,14 +531,16 @@ const renderScreen = () => {
                   </Text>
                 </Pressable>
               ) : null}
-              <Pressable
-                onPress={() => openCreateQaReportEditor(task.id)}
-                style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-              >
-                <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                  QA report
-                </Text>
-              </Pressable>
+              {canMentorApprove ? (
+                <Pressable
+                  onPress={() => openCreateQaReportEditor(task.id)}
+                  style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                >
+                  <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                    QA report
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
           </Pressable>
         );
@@ -549,14 +563,16 @@ const renderScreen = () => {
                 Reset filters
               </Text>
             </Pressable>
-            <Pressable
-              onPress={openCreateTaskEditor}
-              style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-            >
-              <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-                Add task
-              </Text>
-            </Pressable>
+            {canManageTasks ? (
+              <Pressable
+                onPress={openCreateTaskEditor}
+                style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+              >
+                <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                  Add task
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       ) : null}

@@ -9,6 +9,7 @@ Expo/React Native mobile client for MECO Mission Control manufacturing, planning
 - Meeting RSVP, attendance, and required work-log visibility.
 - Manufacturing and purchase queues with mentor review checkpoints.
 - QA outcomes that separate minor rework from iteration-worthy failures.
+- Role-aware mentor and student flows, including mentor-only QA decisions.
 - Planning metrics surfaced from the same operational data.
 - Google and email sign-in flows backed by the platform auth configuration.
 - Work-log timer persistence with local notification reminders.
@@ -47,6 +48,7 @@ npm run start
 npm run ios
 npm run android
 npm run lint
+npm run test:role-permissions
 npm run typecheck
 npm test
 ```
@@ -84,5 +86,5 @@ on the Windows host.
 ## Next product steps
 
 1. Replace the mock snapshot in `src/data/mockData.ts` with API calls to `meco-mission-control-platform`.
-2. Add auth and role-aware views for students, mentors, and admins.
+2. Continue role-aware polish for students, mentors, and admins.
 3. Connect meeting sign-in, work-log submission, and QA forms to the backend.
