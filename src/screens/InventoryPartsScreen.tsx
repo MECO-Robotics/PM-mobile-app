@@ -19,7 +19,6 @@ import {
 } from "../ui/ui";
 
 import type { AppScreenProps } from "./types";
-import { AttendanceStatusMark } from "./AttendanceStatusMark";
 
 export function InventoryPartsScreen(props: AppScreenProps) {
   const {
