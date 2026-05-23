@@ -317,6 +317,14 @@ export interface SessionUser {
   name: string;
   picture: string | null;
   hostedDomain: string;
+  taskSubteamIds?: Array<
+    | "programming"
+    | "mechanical"
+    | "electrical"
+    | "media-marketing"
+    | "business"
+    | "scouting"
+  >;
   role?: MemberRole;
 }
 

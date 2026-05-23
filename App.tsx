@@ -1,5 +1,7 @@
 import { StatusBar } from "expo-status-bar";
+import * as Crypto from "expo-crypto";
 import * as ScreenOrientation from "expo-screen-orientation";
+import * as SecureStore from "expo-secure-store";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -165,6 +167,12 @@ const SUBTAB_SWIPE_COMMIT_DISTANCE = 72;
 const TIMER_TICK_MS = 1000;
 const MS_PER_HOUR = 1000 * 60 * 60;
 const GOOGLE_CLIENT_ID_PLACEHOLDER = "missing-google-client-id";
+const AUTH_DEVICE_ID_STORAGE_KEY = "meco-auth-device-id";
+const AUTH_TOKEN_STORAGE_KEY = "meco-auth-token";
+const AUTH_THEME_BY_EMAIL_STORAGE_KEY = "meco-theme-by-email";
+const AUTH_SUBTEAMS_BY_EMAIL_STORAGE_KEY = "meco-subteams-by-email";
+const USER_PREFERENCES_API_ENABLED =
+  process.env.EXPO_PUBLIC_USER_PREFERENCES_API_ENABLED === "true";
 
 type DevelopmentSignInRole = Extract<MemberRole, "student" | "mentor">;
 type AttendanceStatus = "yes" | "maybe" | "no";
@@ -470,6 +478,192 @@ type EmailCodeStartResponse = {
   expiresInMinutes?: number;
 };
 
+type AuthMeResponse = {
+  enabled: boolean;
+  user: SessionUser | null;
+};
+
+type UserPreferencesResponse = {
+  taskSubteamIds?: TaskSubteamTab[];
+  themeMode: AppThemeName | null;
+};
+
+async function getOrCreateAuthDeviceId() {
+  try {
+    if (!(await SecureStore.isAvailableAsync())) {
+      return null;
+    }
+
+    const existingDeviceId = await SecureStore.getItemAsync(AUTH_DEVICE_ID_STORAGE_KEY);
+    if (existingDeviceId) {
+      return existingDeviceId;
+    }
+
+    const nextDeviceId = Crypto.randomUUID();
+    await SecureStore.setItemAsync(AUTH_DEVICE_ID_STORAGE_KEY, nextDeviceId);
+    return nextDeviceId;
+  } catch {
+    return null;
+  }
+}
+
+async function getStoredAuthToken() {
+  try {
+    if (!(await SecureStore.isAvailableAsync())) {
+      return null;
+    }
+
+    return await SecureStore.getItemAsync(AUTH_TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+async function persistAuthToken(token: string | null) {
+  try {
+    if (!(await SecureStore.isAvailableAsync())) {
+      return;
+    }
+
+    if (token) {
+      await SecureStore.setItemAsync(AUTH_TOKEN_STORAGE_KEY, token);
+    } else {
+      await SecureStore.deleteItemAsync(AUTH_TOKEN_STORAGE_KEY);
+    }
+  } catch {
+    // Keep the in-memory session usable if secure storage is unavailable.
+  }
+}
+
+function normalizeAccountEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function parseThemePreferencesByEmail(value: string | null) {
+  if (!value) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsed)
+        .filter((entry): entry is [string, AppThemeName] => entry[1] === "light" || entry[1] === "dark")
+        .map(([email, themeMode]) => [normalizeAccountEmail(email), themeMode]),
+    ) as Record<string, AppThemeName>;
+  } catch {
+    return {};
+  }
+}
+
+function isTaskSubteam(value: unknown): value is TaskSubteamTab {
+  return typeof value === "string" && value in TASK_SUBTEAM_DISCIPLINE_IDS;
+}
+
+function parseSubteamPreferencesByEmail(value: string | null) {
+  if (!value) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsed)
+        .map(([email, subteams]) => [
+          normalizeAccountEmail(email),
+          Array.isArray(subteams) ? subteams.filter(isTaskSubteam) : [],
+        ])
+        .filter(([, subteams]) => subteams.length > 0),
+    ) as Record<string, TaskSubteamTab[]>;
+  } catch {
+    return {};
+  }
+}
+
+async function getStoredTaskSubteams(email: string) {
+  try {
+    if (!(await SecureStore.isAvailableAsync())) {
+      return [];
+    }
+
+    const subteamsByEmail = parseSubteamPreferencesByEmail(
+      await SecureStore.getItemAsync(AUTH_SUBTEAMS_BY_EMAIL_STORAGE_KEY),
+    );
+    return subteamsByEmail[normalizeAccountEmail(email)] ?? [];
+  } catch {
+    return [];
+  }
+}
+
+async function persistTaskSubteams(email: string, subteams: TaskSubteamTab[]) {
+  try {
+    if (!(await SecureStore.isAvailableAsync())) {
+      return;
+    }
+
+    const subteamsByEmail = parseSubteamPreferencesByEmail(
+      await SecureStore.getItemAsync(AUTH_SUBTEAMS_BY_EMAIL_STORAGE_KEY),
+    );
+    subteamsByEmail[normalizeAccountEmail(email)] = subteams;
+    await SecureStore.setItemAsync(
+      AUTH_SUBTEAMS_BY_EMAIL_STORAGE_KEY,
+      JSON.stringify(subteamsByEmail),
+    );
+  } catch {
+    // Subteam onboarding still updates visible app state even if storage fails.
+  }
+}
+
+async function getStoredThemePreference(email: string) {
+  try {
+    if (!(await SecureStore.isAvailableAsync())) {
+      return null;
+    }
+
+    const preferencesByEmail = parseThemePreferencesByEmail(
+      await SecureStore.getItemAsync(AUTH_THEME_BY_EMAIL_STORAGE_KEY),
+    );
+    return preferencesByEmail[normalizeAccountEmail(email)] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function persistThemePreference(email: string, themeMode: AppThemeName) {
+  try {
+    if (!(await SecureStore.isAvailableAsync())) {
+      return;
+    }
+
+    const preferencesByEmail = parseThemePreferencesByEmail(
+      await SecureStore.getItemAsync(AUTH_THEME_BY_EMAIL_STORAGE_KEY),
+    );
+    preferencesByEmail[normalizeAccountEmail(email)] = themeMode;
+    await SecureStore.setItemAsync(
+      AUTH_THEME_BY_EMAIL_STORAGE_KEY,
+      JSON.stringify(preferencesByEmail),
+    );
+  } catch {
+    // Theme preference is nice-to-have; the visible app state has already changed.
+  }
+}
+
+function isUnauthorizedError(error: unknown) {
+  return error instanceof ApiRequestError && error.status === 401;
+}
+
+function isMissingUserPreferencesRoute(error: unknown) {
+  return error instanceof ApiRequestError && error.status === 404;
+}
+
 function normalizeTaskFromServer(task: ServerTask): Task {
   return {
     ...task,
@@ -624,6 +818,7 @@ export default function App() {
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [authConfig, setAuthConfig] = useState<PublicAuthConfig | null>(null);
   const [hasAuthenticated, setHasAuthenticated] = useState(false);
+  const [hasCheckedStoredSession, setHasCheckedStoredSession] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
   const [authCode, setAuthCode] = useState("");
   const [hasRequestedEmailCode, setHasRequestedEmailCode] = useState(false);
@@ -697,6 +892,7 @@ export default function App() {
   const [isNavMenuVisible, setIsNavMenuVisible] = useState(false);
   const [isProjectOverlayVisible, setIsProjectOverlayVisible] = useState(false);
   const [isPersonMenuVisible, setIsPersonMenuVisible] = useState(false);
+  const [isSubteamOnboardingVisible, setIsSubteamOnboardingVisible] = useState(false);
   const [isSeasonMenuVisible, setIsSeasonMenuVisible] = useState(false);
   const [isAttendanceModalVisible, setIsAttendanceModalVisible] = useState(false);
   const [attendanceStatusByMemberId, setAttendanceStatusByMemberId] =
@@ -918,6 +1114,59 @@ export default function App() {
     [apiBaseUrl, applyBootstrapPayload],
   );
 
+  const clearAuthenticatedSession = useCallback(async () => {
+    await persistAuthToken(null);
+    setApiToken(null);
+    setSessionUser(null);
+    setHasAuthenticated(false);
+    setAuthCode("");
+    setHasRequestedEmailCode(false);
+    setAuthNotice(null);
+    setIsSubteamOnboardingVisible(false);
+  }, []);
+
+  const loadUserPreferences = useCallback(
+    async (token: string | null, email: string) => {
+      const storedThemeMode = await getStoredThemePreference(email);
+      if (storedThemeMode) {
+        setThemeOverride(storedThemeMode);
+      }
+
+      if (!USER_PREFERENCES_API_ENABLED || !token) {
+        return;
+      }
+
+      try {
+        const preferences = await requestJson<UserPreferencesResponse>(
+          apiBaseUrl,
+          "/api/users/me/preferences",
+          undefined,
+          token,
+        );
+
+        if (preferences.themeMode) {
+          setThemeOverride(preferences.themeMode);
+          await persistThemePreference(email, preferences.themeMode);
+        }
+
+        const serverTaskSubteams = preferences.taskSubteamIds?.filter(isTaskSubteam) ?? [];
+        if (serverTaskSubteams.length > 0) {
+          setSessionUser((current) =>
+            current?.email === email ? { ...current, taskSubteamIds: serverTaskSubteams } : current,
+          );
+          setActiveTaskSubteam(serverTaskSubteams[0]);
+          await persistTaskSubteams(email, serverTaskSubteams);
+          setIsSubteamOnboardingVisible(false);
+        }
+      } catch (error) {
+        if (!isUnauthorizedError(error) && !isMissingUserPreferencesRoute(error)) {
+          setSyncError(parseClientError(error));
+        }
+      }
+    },
+    [apiBaseUrl],
+  );
+
   const loadPublicAuthConfig = useCallback(async () => {
     setBackendStatus("connecting");
     setSyncError(null);
@@ -951,26 +1200,42 @@ export default function App() {
 
   const finishSignIn = useCallback(
     async (token: string | null, user: SessionUser) => {
+      const storedTaskSubteams = await getStoredTaskSubteams(user.email);
+      const userTaskSubteams =
+        user.taskSubteamIds && user.taskSubteamIds.length > 0
+          ? user.taskSubteamIds
+          : storedTaskSubteams;
+      const userWithSubteams: SessionUser = {
+        ...user,
+        taskSubteamIds: userTaskSubteams,
+      };
+
+      await persistAuthToken(token);
       setApiToken(token);
-      setSessionUser(user);
+      setSessionUser(userWithSubteams);
       setHasAuthenticated(false);
+      if (userTaskSubteams[0]) {
+        setActiveTaskSubteam(userTaskSubteams[0]);
+      }
+      setIsSubteamOnboardingVisible(userTaskSubteams.length === 0);
       setIsSyncing(true);
       setSyncError(null);
+      setAuthError(null);
 
       try {
+        await loadUserPreferences(token, userWithSubteams.email);
         await refreshWorkspaceFromServer(token);
         setBackendStatus("connected");
         setHasAuthenticated(true);
       } catch (error) {
-        const errorMessage = getClientErrorMessage(error, "authenticated");
-        if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
-          endSessionForAuthFailure(errorMessage);
-          return;
+        const errorMessage = parseClientError(error);
+        if (isUnauthorizedError(error)) {
+          await persistAuthToken(null);
         }
-
         setApiToken(null);
         setSessionUser(null);
         setHasAuthenticated(false);
+        setIsSubteamOnboardingVisible(false);
         setBackendStatus("offline");
         setSyncError(errorMessage);
         setAuthError(errorMessage);
@@ -978,7 +1243,7 @@ export default function App() {
         setIsSyncing(false);
       }
     },
-    [endSessionForAuthFailure, refreshWorkspaceFromServer],
+    [loadUserPreferences, refreshWorkspaceFromServer],
   );
 
   const requestDevelopmentSession = useCallback(
@@ -1188,12 +1453,13 @@ export default function App() {
 
     try {
       if (hasRequestedEmailCode) {
+        const deviceId = await getOrCreateAuthDeviceId();
         const session = await requestJson<SessionResponse>(
           apiBaseUrl,
           "/api/auth/email/verify",
           {
             method: "POST",
-            body: JSON.stringify({ email, code }),
+            body: JSON.stringify({ code, deviceId, email }),
           },
         );
         setAuthCode("");
@@ -1260,7 +1526,7 @@ export default function App() {
         "/api/auth/config",
       );
 
-      let token = process.env.EXPO_PUBLIC_API_TOKEN?.trim() ?? "";
+      let token = apiToken ?? process.env.EXPO_PUBLIC_API_TOKEN?.trim() ?? "";
       token = token.length > 0 ? token : "";
 
       if (!token && authConfig.devBypassAvailable) {
@@ -1272,21 +1538,30 @@ export default function App() {
       }
 
       const resolvedToken = token || null;
+      if (resolvedToken) {
+        await persistAuthToken(resolvedToken);
+      }
       setApiToken(resolvedToken);
       await refreshWorkspaceFromServer(resolvedToken);
       setBackendStatus("connected");
     } catch (error) {
-      if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
-        endSessionForAuthFailure(getMobileAuthErrorMessage("expired-session"));
-        return;
+      if (isUnauthorizedError(error)) {
+        await clearAuthenticatedSession();
       }
-
       setBackendStatus("offline");
       setSyncError(getClientErrorMessage(error));
     } finally {
       setIsSyncing(false);
     }
-  }, [apiBaseUrl, refreshWorkspaceFromServer, requestDevelopmentSession, sessionUser?.role]);
+  }, [
+    apiBaseUrl,
+    apiToken,
+    authConfig?.devBypassAvailable,
+    clearAuthenticatedSession,
+    refreshWorkspaceFromServer,
+    requestDevelopmentSession,
+    sessionUser?.role,
+  ]);
 
   const runMutation = useCallback(
     async (path: string, init: RequestInit) => {
@@ -1299,11 +1574,9 @@ export default function App() {
         setBackendStatus("connected");
         return true;
       } catch (error) {
-        if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
-          endSessionForAuthFailure(getMobileAuthErrorMessage("expired-session"));
-          return false;
+        if (isUnauthorizedError(error)) {
+          await clearAuthenticatedSession();
         }
-
         setBackendStatus("offline");
         setSyncError(getClientErrorMessage(error));
         return false;
@@ -1311,7 +1584,7 @@ export default function App() {
         setIsSyncing(false);
       }
     },
-    [apiBaseUrl, apiToken, endSessionForAuthFailure, refreshWorkspaceFromServer],
+    [apiBaseUrl, apiToken, clearAuthenticatedSession, refreshWorkspaceFromServer],
   );
 
   const membersById = useMemo(() => {
@@ -1363,6 +1636,12 @@ export default function App() {
   const canManageRoster = canMentorApprove;
   const signedInEmailInitial =
     sessionUser?.email.trim().charAt(0).toUpperCase() || "M";
+  const signedInTaskSubteams = useMemo<TaskSubteamTab[]>(() => {
+    return sessionUser?.taskSubteamIds ?? [];
+  }, [sessionUser?.taskSubteamIds]);
+  const signedInTaskSubteamLabel =
+    TASK_SUBTEAM_OPTIONS.find((option) => option.value === signedInTaskSubteams[0])?.label ??
+    "Choose";
 
   const subsystemsById = useMemo(() => {
     return Object.fromEntries(
@@ -2980,6 +3259,73 @@ export default function App() {
   }, [loadPublicAuthConfig]);
 
   useEffect(() => {
+    if (!authConfig || hasAuthenticated || hasCheckedStoredSession) {
+      return undefined;
+    }
+
+    let isActive = true;
+
+    async function restoreStoredSession() {
+      setHasCheckedStoredSession(true);
+
+      try {
+        const token = await getStoredAuthToken();
+        if (!token) {
+          return;
+        }
+
+        setIsSyncing(true);
+        setSyncError(null);
+
+        const authMe = await requestJson<AuthMeResponse>(
+          apiBaseUrl,
+          "/api/auth/me",
+          undefined,
+          token,
+        );
+
+        if (!isActive) {
+          return;
+        }
+
+        if (!authMe.enabled || !authMe.user) {
+          await clearAuthenticatedSession();
+          return;
+        }
+
+        await finishSignIn(token, authMe.user);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        if (isUnauthorizedError(error)) {
+          await clearAuthenticatedSession();
+        } else {
+          setSyncError(parseClientError(error));
+        }
+      } finally {
+        if (isActive) {
+          setIsSyncing(false);
+        }
+      }
+    }
+
+    void restoreStoredSession();
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    apiBaseUrl,
+    authConfig,
+    clearAuthenticatedSession,
+    finishSignIn,
+    hasAuthenticated,
+    hasCheckedStoredSession,
+  ]);
+
+  useEffect(() => {
     void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.ALL).catch(
       () => undefined,
     );
@@ -3104,6 +3450,19 @@ export default function App() {
     const nextSubteam = getTaskSubteamForDiscipline(task.disciplineId, activeTaskSubteam);
 
     setActiveTaskSubteam(nextSubteam);
+    setTaskView("queue");
+    setTaskSearch("");
+    setTaskSubsystemFilter("all");
+    setTaskOwnerFilter("all");
+    setTaskStatusFilter("all");
+    setTaskPriorityFilter("all");
+    setTaskBlockerFilter("all");
+    setTaskArchiveFilter("active");
+    setActiveTab("tasks");
+  };
+
+  const openSignedInTaskQueue = () => {
+    setActiveTaskSubteam(signedInTaskSubteams[0] ?? activeTaskSubteam);
     setTaskView("queue");
     setTaskSearch("");
     setTaskSubsystemFilter("all");
@@ -4979,10 +5338,77 @@ export default function App() {
     });
   };
 
+  const selectSignedInSubteam = (subteam: TaskSubteamTab) => {
+    const email = sessionUser?.email;
+    if (!email) {
+      return;
+    }
+
+    const nextSubteams = [subteam];
+    void persistTaskSubteams(email, nextSubteams);
+    setSessionUser((current) =>
+      current ? { ...current, taskSubteamIds: nextSubteams } : current,
+    );
+    setActiveTaskSubteam(subteam);
+    setIsSubteamOnboardingVisible(false);
+
+    if (!apiToken) {
+      return;
+    }
+
+    void requestJson<UserPreferencesResponse>(
+      apiBaseUrl,
+      "/api/users/me/preferences",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ taskSubteamIds: nextSubteams }),
+      },
+      apiToken,
+    ).catch(async (error) => {
+      if (isUnauthorizedError(error)) {
+        await clearAuthenticatedSession();
+      } else if (!isMissingUserPreferencesRoute(error)) {
+        setSyncError(parseClientError(error));
+      }
+    });
+  };
+
+  const updateThemePreference = () => {
+    const nextThemeMode: AppThemeName = themeMode === "dark" ? "light" : "dark";
+    const email = sessionUser?.email;
+
+    setThemeOverride(nextThemeMode);
+    if (email) {
+      void persistThemePreference(email, nextThemeMode);
+    }
+
+    if (!apiToken) {
+      return;
+    }
+
+    void requestJson<UserPreferencesResponse>(
+      apiBaseUrl,
+      "/api/users/me/preferences",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ themeMode: nextThemeMode }),
+      },
+      apiToken,
+    ).catch(async (error) => {
+      if (isUnauthorizedError(error)) {
+        await clearAuthenticatedSession();
+      } else if (!isMissingUserPreferencesRoute(error)) {
+        setSyncError(parseClientError(error));
+      }
+    });
+  };
+
   const signOut = () => {
+    void persistAuthToken(null);
     setApiToken(null);
     setSessionUser(null);
     setHasAuthenticated(false);
+    setIsSubteamOnboardingVisible(false);
     setAuthCode("");
     setAuthEmail("");
     setAuthError(null);
@@ -4994,6 +5420,7 @@ export default function App() {
     setIsSeasonMenuVisible(false);
     setIsNavMenuVisible(false);
     setIsProjectOverlayVisible(false);
+    setThemeOverride(null);
     setActivePersonFilter("all");
     setSelectedMemberId(null);
     setSyncError(null);
@@ -5096,6 +5523,7 @@ export default function App() {
     openDuplicateTaskEditor,
     openInventoryPurchases,
     openMaterialRestockEditor,
+    openSignedInTaskQueue,
     openTaskQueueFromTask,
     partDefinitions,
     partDefinitionsById,
@@ -7197,7 +7625,7 @@ export default function App() {
           </View>
 
           <Pressable
-            onPress={() => setThemeOverride(themeMode === "dark" ? "light" : "dark")}
+            onPress={updateThemePreference}
             style={[
               styles.settingsRow,
               appResponsiveStyles.settingsRow,
@@ -7209,6 +7637,18 @@ export default function App() {
             </View>
             <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>
               {themeMode === "dark" ? "Dark" : "Light"}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setIsSubteamOnboardingVisible(true)}
+            style={[styles.settingsRow, appResponsiveStyles.settingsRow]}
+          >
+            <View>
+              <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>Subteam</Text>
+            </View>
+            <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>
+              {signedInTaskSubteamLabel}
             </Text>
           </Pressable>
 
@@ -7311,6 +7751,52 @@ export default function App() {
 
         </Pressable>
       </Pressable>
+    </Modal>
+  );
+
+  const renderSubteamOnboardingModal = () => (
+    <Modal
+      animationType="fade"
+      onRequestClose={() => undefined}
+      supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
+      transparent
+      visible={isSubteamOnboardingVisible}
+    >
+      <View style={styles.overlayScrim}>
+        <View style={[styles.overlayCard, appResponsiveStyles.overlayCard]}>
+          <View style={styles.overlayHeader}>
+            <View style={[styles.personMark, { backgroundColor: themeColors.navySurface }]}>
+              <Text style={[styles.personMarkLabel, { color: themeColors.navyInk }]}>
+                {signedInEmailInitial}
+              </Text>
+            </View>
+            <View style={styles.overlayHeaderCopy}>
+              <Text style={[styles.overlayTitle, { color: themeColors.ink }]}>Choose your subteam</Text>
+              <Text style={[styles.overlaySubtitle, { color: themeColors.subtleText }]}>
+                This sets which tasks show first on Home.
+              </Text>
+            </View>
+          </View>
+
+          {TASK_SUBTEAM_OPTIONS.map((option) => (
+            <Pressable
+              accessibilityRole="button"
+              key={option.value}
+              onPress={() => selectSignedInSubteam(option.value)}
+              style={[styles.settingsRow, appResponsiveStyles.settingsRow]}
+            >
+              <View>
+                <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>
+                  {option.label}
+                </Text>
+              </View>
+              <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>
+                Select
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
     </Modal>
   );
 
@@ -7418,6 +7904,7 @@ export default function App() {
       {renderNavigationMenu()}
       {renderProjectOverlay()}
       {renderPersonMenu()}
+      {renderSubteamOnboardingModal()}
           </SafeAreaView>
         </AppThemeProvider>
       )}

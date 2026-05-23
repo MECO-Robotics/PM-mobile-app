@@ -19,7 +19,13 @@ export type ViewTab =
   | "roster";
 
 export type TaskViewTab = "timeline" | "queue" | "milestones";
-export type TaskSubteamTab = "programming" | "mechanical" | "electrical";
+export type TaskSubteamTab =
+  | "programming"
+  | "mechanical"
+  | "electrical"
+  | "media-marketing"
+  | "business"
+  | "scouting";
 export type ManufacturingViewTab = "cnc" | "prints" | "fabrication";
 export type InventoryViewTab = "materials" | "parts" | "purchases";
 
