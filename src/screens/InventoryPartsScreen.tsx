@@ -1,4 +1,4 @@
-import { Image, Pressable, ScrollView, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { Text } from "../i18n";
 import {
