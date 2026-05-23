@@ -323,6 +323,18 @@ function parseClientError(error: unknown) {
   return "Request failed unexpectedly.";
 }
 
+function getClientErrorMessage(
+  error: unknown,
+  context: "auth-config" | "authenticated" | "general" = "general",
+) {
+  const authErrorState = classifyMobileAuthError(error, context);
+  if (authErrorState !== "unknown") {
+    return getMobileAuthErrorMessage(authErrorState);
+  }
+
+  return parseClientError(error);
+}
+
 function isValidDateInput(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return false;
@@ -589,6 +601,8 @@ export default function App() {
   const [authCode, setAuthCode] = useState("");
   const [hasRequestedEmailCode, setHasRequestedEmailCode] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authErrorState, setAuthErrorState] =
+    useState<MobileAuthErrorState | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isGoogleSignInPending, setIsGoogleSignInPending] = useState(false);
@@ -607,6 +621,7 @@ export default function App() {
   const googleWebClientId =
     process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim() || googleClientId;
   const requiredEmailDomain = normalizeRequiredEmailDomain(authConfig?.hostedDomain);
+  const isAuthConfigUnavailable = authErrorState === "auth-config-unavailable";
   const activeGoogleClientId =
     Platform.OS === "ios"
       ? googleIosClientId
@@ -624,8 +639,24 @@ export default function App() {
     });
 
   const showAuthError = useCallback((message: string) => {
+    setAuthErrorState(null);
     setAuthError(message);
     Alert.alert("Sign-in problem", message);
+  }, []);
+
+  const endSessionForAuthFailure = useCallback((message: string) => {
+    setApiToken(null);
+    setSessionUser(null);
+    setHasAuthenticated(false);
+    setAuthCode("");
+    setHasRequestedEmailCode(false);
+    setIsGoogleSignInPending(false);
+    setIsAuthenticating(false);
+    setSyncError(null);
+    setAuthNotice(null);
+    setAuthErrorState("expired-session");
+    setAuthError(message);
+    setBackendStatus("connected");
   }, []);
 
   const [activeTab, setActiveTab] = useState<ViewTab>("home");
@@ -895,7 +926,12 @@ export default function App() {
         setBackendStatus("connected");
         setHasAuthenticated(true);
       } catch (error) {
-        const errorMessage = parseClientError(error);
+        const errorMessage = getClientErrorMessage(error, "authenticated");
+        if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
+          endSessionForAuthFailure(errorMessage);
+          return;
+        }
+
         setApiToken(null);
         setSessionUser(null);
         setHasAuthenticated(false);
@@ -912,9 +948,16 @@ export default function App() {
   const signInWithGoogle = useCallback(async () => {
     setIsAuthenticating(true);
     setAuthError(null);
+    setAuthErrorState(null);
     setAuthNotice(null);
 
     try {
+      if (isAuthConfigUnavailable) {
+        setAuthErrorState("auth-config-unavailable");
+        setAuthError(getMobileAuthErrorMessage("auth-config-unavailable"));
+        return;
+      }
+
       if (!activeGoogleClientId) {
         if (!authConfig?.devBypassAvailable) {
           showAuthError(
@@ -954,7 +997,7 @@ export default function App() {
       }
     } catch (error) {
       setIsGoogleSignInPending(false);
-      showAuthError(parseClientError(error));
+      showAuthError(getClientErrorMessage(error));
     } finally {
       setIsAuthenticating(false);
     }
@@ -964,6 +1007,7 @@ export default function App() {
     authConfig?.devBypassAvailable,
     finishSignIn,
     googleRequest,
+    isAuthConfigUnavailable,
     promptGoogleSignIn,
     showAuthError,
   ]);
@@ -992,6 +1036,7 @@ export default function App() {
 
       setIsAuthenticating(true);
       setAuthError(null);
+      setAuthErrorState(null);
       setAuthNotice(null);
 
       try {
@@ -1009,7 +1054,7 @@ export default function App() {
         }
       } catch (error) {
         if (isActive) {
-          showAuthError(parseClientError(error));
+          showAuthError(getClientErrorMessage(error));
         }
       } finally {
         if (isActive) {
@@ -1031,9 +1076,24 @@ export default function App() {
     const code = authCode.trim();
 
     setAuthError(null);
+    setAuthErrorState(null);
     setAuthNotice(null);
 
-    if (authConfig?.emailEnabled === false) {
+    let currentAuthConfig = authConfig;
+    if (isAuthConfigUnavailable) {
+      setIsAuthenticating(true);
+      try {
+        currentAuthConfig = await loadPublicAuthConfig();
+      } finally {
+        setIsAuthenticating(false);
+      }
+
+      if (!currentAuthConfig) {
+        return;
+      }
+    }
+
+    if (currentAuthConfig?.emailEnabled === false) {
       setAuthError("Email sign-in is not enabled for this workspace.");
       return;
     }
@@ -1113,6 +1173,8 @@ export default function App() {
     authEmail,
     finishSignIn,
     hasRequestedEmailCode,
+    isAuthConfigUnavailable,
+    loadPublicAuthConfig,
     requiredEmailDomain,
   ]);
 
@@ -3054,9 +3116,13 @@ export default function App() {
       await refreshWorkspaceFromServer(apiToken);
       setBackendStatus("connected");
     } catch (error) {
+      if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
+        endSessionForAuthFailure(getMobileAuthErrorMessage("expired-session"));
+        return;
+      }
+
       setBackendStatus("offline");
-      setSyncError(parseClientError(error));
-      await refreshWorkspaceFromServer(apiToken);
+      setSyncError(getClientErrorMessage(error));
     } finally {
       setIsSyncing(false);
     }
@@ -3335,8 +3401,13 @@ export default function App() {
       setBackendStatus("connected");
       closeMilestoneEditor();
     } catch (error) {
+      if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
+        endSessionForAuthFailure(getMobileAuthErrorMessage("expired-session"));
+        return;
+      }
+
       setBackendStatus("offline");
-      setSyncError(parseClientError(error));
+      setSyncError(getClientErrorMessage(error));
     } finally {
       setIsSyncing(false);
     }
@@ -6526,7 +6597,11 @@ export default function App() {
                 <Text style={[styles.loginAvatarText, { fontSize: scaleLogin(12) }]}>A</Text>
               </View>
               <Text style={[styles.loginGoogleText, { fontSize: scaleLogin(13) }]}>
-                {isAuthenticating ? "Signing in" : "Sign in with Google"}
+                {isAuthConfigUnavailable
+                  ? "Auth unavailable"
+                  : isAuthenticating
+                    ? "Signing in"
+                    : "Sign in with Google"}
               </Text>
               <View
                 style={[
