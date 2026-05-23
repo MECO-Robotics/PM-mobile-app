@@ -1,4 +1,17 @@
+import { Platform } from "react-native";
+
 export const DEFAULT_API_BASE_URL = "http://localhost:8080";
+
+function resolveConfiguredApiBaseUrl() {
+  const platformConfigured =
+    Platform.OS === "ios"
+      ? process.env.EXPO_PUBLIC_IOS_API_BASE_URL?.trim()
+      : Platform.OS === "android"
+        ? process.env.EXPO_PUBLIC_ANDROID_API_BASE_URL?.trim()
+        : undefined;
+
+  return platformConfigured || process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+}
 
 export class ApiRequestError extends Error {
   readonly status: number;
@@ -82,7 +95,7 @@ function parseErrorMessage(payload: unknown): string | null {
 }
 
 export function resolveApiBaseUrl() {
-  const configured = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+  const configured = resolveConfiguredApiBaseUrl();
   const base = configured && configured.length > 0 ? configured : DEFAULT_API_BASE_URL;
   return base.replace(/\/+$/, "");
 }

@@ -222,8 +222,6 @@ export const he = {
   "Sign in with email": "כניסה עם אימייל",
   Sending: "שולח",
   "Send Code": "שלח קוד",
-  "Signing in": "מתחבר",
-  "Sign in with Google": "כניסה עם Google",
   "Robot project selector": "בחירת פרויקט רובוט",
   "Edit robot": "ערוך רובוט",
   "Switch project": "החלף פרויקט",
