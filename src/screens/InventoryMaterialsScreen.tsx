@@ -24,7 +24,6 @@ export function InventoryMaterialsScreen(props: AppScreenProps) {
   const {
     appResponsiveStyles,
     filteredMaterialRollups,
-    filteredPartDefinitions,
     filteredPartInstances,
     filteredPurchases,
     inventoryView,
