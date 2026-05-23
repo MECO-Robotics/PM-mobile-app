@@ -74,7 +74,7 @@ async function readStoredSessionRaw(): Promise<string | null> {
       return stored;
     }
 
-    return null;
+    return await AsyncStorage.getItem(SESSION_STORAGE_KEY);
   } catch {
     return AsyncStorage.getItem(SESSION_STORAGE_KEY);
   }
@@ -92,13 +92,9 @@ async function writeStoredSessionRaw(rawValue: string | null) {
   }
 
   if (rawValue === null) {
-    try {
-      await SecureStore.deleteItemAsync(SESSION_STORAGE_KEY);
-      return;
-    } catch {
-      await AsyncStorage.removeItem(SESSION_STORAGE_KEY);
-      return;
-    }
+    await AsyncStorage.removeItem(SESSION_STORAGE_KEY);
+    await SecureStore.deleteItemAsync(SESSION_STORAGE_KEY);
+    return;
   }
 
   try {

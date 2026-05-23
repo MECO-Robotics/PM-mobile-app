@@ -5424,8 +5424,6 @@ export default function App() {
   };
 
   const signOut = () => {
-    void persistAuthToken(null);
-    void clearPersistedAuthSession();
     setApiToken(null);
     setSessionUser(null);
     setHasAuthenticated(false);
@@ -5457,6 +5455,9 @@ export default function App() {
     closeQaReportEditor();
     closeEventReportEditor();
     clearWorkLogTimer();
+
+    void persistAuthToken(null);
+    void clearPersistedAuthSession().catch(() => undefined);
   };
 
   const screenProps = {
