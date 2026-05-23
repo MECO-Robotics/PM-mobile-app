@@ -9,8 +9,23 @@ Expo/React Native mobile client for MECO Mission Control manufacturing, planning
 - Meeting RSVP, attendance, and required work-log visibility.
 - Manufacturing and purchase queues with mentor review checkpoints.
 - QA outcomes that separate minor rework from iteration-worthy failures.
+- Role-aware mentor and student flows, including mentor-only QA decisions.
 - Planning metrics surfaced from the same operational data.
-- Mobile auth states for expired sessions, unavailable network, and backend auth configuration failures.
+- Google and email sign-in flows backed by the platform auth configuration.
+- Work-log timer persistence with local notification reminders.
+- Materials, parts, purchases, manufacturing, risks, roster, and subsystem management screens.
+
+## Documentation
+
+Detailed app documentation lives in [`docs/`](docs/):
+
+- [`docs/overview.md`](docs/overview.md) - product purpose, users, and core workflows.
+- [`docs/features.md`](docs/features.md) - screen-by-screen behavior and expected actions.
+- [`docs/architecture.md`](docs/architecture.md) - source layout, state ownership, UI structure, and services.
+- [`docs/api-integration.md`](docs/api-integration.md) - backend configuration, auth, bootstrap data, and mutation endpoints.
+- [`docs/data-model.md`](docs/data-model.md) - domain entities and status lifecycles.
+- [`docs/development.md`](docs/development.md) - local setup, scripts, simulators, and environment variables.
+- [`docs/release.md`](docs/release.md) - branch policy, CI, EAS release expectations, and production safety.
 
 ## Why this is separate from the hosted backend
 
@@ -32,9 +47,13 @@ npm run sim:reset
 npm run start
 npm run ios
 npm run android
+npm run lint
+npm run test:role-permissions
 npm run typecheck
 npm test
 ```
+
+`npm run dev` is an Android-focused shortcut that runs `script/build_and_run.sh --android`.
 
 Do not run Expo or npm scripts with `sudo`. If `node_modules` or `.expo` become owned by `root`, fix ownership from the repo root before starting the app:
 
@@ -62,9 +81,10 @@ on the Windows host.
 - Set GitHub repository secret `EXPO_TOKEN` before running release builds.
 - Set GitHub repository secret `EXPO_PUBLIC_API_BASE_URL` so production builds point at the hosted API.
 - Ensure `expo.ios.bundleIdentifier` and `expo.android.package` are set in `app.json` for non-interactive EAS builds.
+- Production EAS builds use `eas.json` profile `production`, with Android output as an app bundle.
 
 ## Next product steps
 
 1. Replace the mock snapshot in `src/data/mockData.ts` with API calls to `meco-mission-control-platform`.
-2. Add auth and role-aware views for students, mentors, and admins.
+2. Continue role-aware polish for students, mentors, and admins.
 3. Connect meeting sign-in, work-log submission, and QA forms to the backend.

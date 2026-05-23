@@ -19,7 +19,13 @@ export type ViewTab =
   | "roster";
 
 export type TaskViewTab = "timeline" | "queue" | "milestones";
-export type TaskSubteamTab = "programming" | "mechanical" | "electrical";
+export type TaskSubteamTab =
+  | "programming"
+  | "mechanical"
+  | "electrical"
+  | "media-marketing"
+  | "business"
+  | "scouting";
 export type ManufacturingViewTab = "cnc" | "prints" | "fabrication";
 export type InventoryViewTab = "materials" | "parts" | "purchases";
 
@@ -119,8 +125,15 @@ export type PurchaseDraft = {
 };
 
 export type MemberDraft = {
+  email: string;
   name: string;
   role: MemberRole;
+};
+
+export type MeetingDraft = {
+  title: string;
+  date: string;
+  time: string;
 };
 
 export type SubsystemDraft = {
@@ -170,6 +183,9 @@ export type QaReportDraft = {
   mentorApproved: boolean;
   notes: string;
   evidenceNotes: string;
+  fixNotes: string;
+  versionIssueNotes: string;
+  preventionNotes: string;
   followUpTaskTitle: string;
 };
 export type EventReportDraft = {
