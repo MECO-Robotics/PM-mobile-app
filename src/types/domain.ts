@@ -282,6 +282,7 @@ export interface PlatformBootstrapPayload {
   tasks?: Task[];
   events?: Event[];
   milestones?: BootstrapMilestone[];
+  meetings?: Meeting[];
   workLogs?: WorkLog[];
   manufacturingItems?: ManufacturingItem[];
   purchaseItems?: PurchaseItem[];
@@ -306,6 +307,7 @@ export interface SessionUser {
   name: string;
   picture: string | null;
   hostedDomain: string;
+  role?: MemberRole;
 }
 
 export interface SessionResponse {
