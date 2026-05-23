@@ -19,7 +19,7 @@ type Props = {
   events: Event[];
   lanes: PackedLane[];
   locale: string;
-  onTaskPress: (task: Task) => void;
+  onTaskPress?: (task: Task) => void;
   timelineStart: Date;
   todayKey: string;
 };
@@ -93,7 +93,7 @@ export function LandscapeCalendarView({
                     {visibleTasks.map(({ color, task }) => (
                       <Pressable
                         key={task.id}
-                        onPress={() => onTaskPress(task)}
+                        onPress={onTaskPress ? () => onTaskPress(task) : undefined}
                         style={[calendarStyles.itemPill, { backgroundColor: color }]}
                       >
                         <Text numberOfLines={1} style={calendarStyles.itemText}>

@@ -55,6 +55,7 @@ export function TasksScreen(props: AppScreenProps) {
     activeTaskSubteam,
     activeTaskSubteamLabel,
     appResponsiveStyles,
+    canManageTasks,
     clearTaskBlockers,
     disciplinesById,
     editTagStyle,
@@ -121,9 +122,10 @@ const renderScreen = () => {
         colors={themeColors}
         events={events}
         membersById={membersById}
+        canAddTask={canManageTasks}
         onAddDeadline={openCreateDeadlineEditor}
         onAddTask={openCreateTaskEditor}
-        onTaskPress={openEditTaskEditor}
+        onTaskPress={canManageTasks ? openEditTaskEditor : undefined}
         subsystems={subsystems}
         tasks={timelineTasks}
       />
