@@ -12,7 +12,6 @@ import {
   InteractionNote,
   OptionChipRow,
   SearchField,
-  SectionTabs,
   StatusPill,
   SummaryRow,
   WorkspacePanel,
