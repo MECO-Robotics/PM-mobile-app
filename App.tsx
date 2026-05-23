@@ -1112,7 +1112,7 @@ export default function App() {
     [apiBaseUrl, applyBootstrapPayload],
   );
 
-  const clearPersistedSessionAndSignOutState = useCallback(async () => {
+  const clearPersistedSessionAndSignOutState = useCallback(async (preserveAuthNotice = false) => {
     await clearPersistedAuthSession();
     await persistAuthToken(null);
     setApiToken(null);
@@ -1120,7 +1120,9 @@ export default function App() {
     setHasAuthenticated(false);
     setSyncError(null);
     setAuthError(null);
-    setAuthNotice(null);
+    if (!preserveAuthNotice) {
+      setAuthNotice(null);
+    }
     setAuthCode("");
     setHasRequestedEmailCode(false);
     setIsSubteamOnboardingVisible(false);
@@ -1238,7 +1240,7 @@ export default function App() {
       } catch (error) {
         if (isUnauthorizedAuthError(error)) {
           setAuthNotice("Your session is no longer valid. Sign in again to continue.");
-          await clearPersistedSessionAndSignOutState();
+          await clearPersistedSessionAndSignOutState(true);
           return;
         }
         const errorMessage = parseClientError(error);

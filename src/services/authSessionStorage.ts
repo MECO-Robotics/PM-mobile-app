@@ -74,7 +74,7 @@ async function readStoredSessionRaw(): Promise<string | null> {
       return stored;
     }
 
-    return null;
+    return AsyncStorage.getItem(SESSION_STORAGE_KEY);
   } catch {
     return AsyncStorage.getItem(SESSION_STORAGE_KEY);
   }
