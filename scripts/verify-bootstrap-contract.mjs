@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { Buffer } from "node:buffer";
 import { deepStrictEqual } from "node:assert";
 import path from "node:path";
 
