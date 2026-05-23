@@ -76,16 +76,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Check out platform contract source
-        uses: actions/checkout@v4
-        with:
-          repository: MECO-Robotics/meco-mission-control-platform
-          path: platform
-          ref: development
-          sparse-checkout: |
-            contracts/platform/bootstrap/v1/contract.json
-          sparse-checkout-cone-mode: false
-          token: ${{ github.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -98,8 +88,8 @@ jobs:
 
       - name: Run verify
         env:
-          PLATFORM_BOOTSTRAP_CONTRACT_BRANCH: development
-          PLATFORM_BOOTSTRAP_CONTRACT_SOURCE_PATH: platform/contracts/platform/bootstrap/v1/contract.json
+          GH_TOKEN: ${{ github.token }}
+          PLATFORM_BOOTSTRAP_CONTRACT_BRANCH: ${{ github.base_ref || 'development' }}
           CI: true
         run: npm run verify
 
