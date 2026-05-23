@@ -1,4 +1,4 @@
-import { StatusBar } from "expo-status-bar";
+﻿import { StatusBar } from "expo-status-bar";
 import * as Crypto from "expo-crypto";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as SecureStore from "expo-secure-store";
@@ -149,6 +149,11 @@ import {
   updateWorkLogLiveActivity,
 } from "./src/services/workLogLiveActivity";
 import {
+  clearPersistedAuthSession,
+  loadPersistedAuthSession,
+  savePersistedAuthSession,
+} from "./src/services/authSessionStorage";
+import {
   cancelWorkLogTimerReminders,
   clearPersistedWorkLogTimerState,
   persistWorkLogTimerState,
@@ -171,6 +176,7 @@ const AUTH_THEME_BY_EMAIL_STORAGE_KEY = "meco-theme-by-email";
 const AUTH_SUBTEAMS_BY_EMAIL_STORAGE_KEY = "meco-subteams-by-email";
 const USER_PREFERENCES_API_ENABLED =
   process.env.EXPO_PUBLIC_USER_PREFERENCES_API_ENABLED === "true";
+const DEFAULT_HOSTED_DOMAIN = "mecorobotics.org";
 
 type DevelopmentSignInRole = Extract<MemberRole, "student" | "mentor">;
 type AttendanceStatus = "yes" | "maybe" | "no";
@@ -244,8 +250,6 @@ const INITIAL_SEASONS: SeasonOption[] = [
   { id: "test", label: "Test Season" },
   { id: "new", label: "New Season" },
 ];
-
-const REQUIRED_EMAIL_DOMAIN = "mecorobotics.org";
 
 const REQUIRED_TASK_SUBSYSTEMS: Subsystem[] = [
   {
@@ -344,6 +348,10 @@ function getClientErrorMessage(
   }
 
   return parseClientError(error);
+}
+
+function isUnauthorizedAuthError(error: unknown) {
+  return error instanceof ApiRequestError && (error.status === 401 || error.status === 403);
 }
 
 function isValidDateInput(value: string) {
@@ -714,18 +722,10 @@ function mapEventTypeToMilestoneType(type: EventType) {
   return type === "drive-practice" ? "practice" : type;
 }
 
-function normalizeRequiredEmailDomain(domain: string | null | undefined) {
-  return domain?.trim().toLowerCase().replace(/^@/, "") || REQUIRED_EMAIL_DOMAIN;
-}
-
-function hasRequiredEmailDomain(email: string, requiredDomain: string) {
-  const [, domain = ""] = email.split("@");
-  const normalizedDomain = domain.toLowerCase();
-  return (
-    normalizedDomain === requiredDomain ||
-    normalizedDomain.endsWith(`.${requiredDomain}`)
-  );
-}
+type AuthMeResponse = {
+  enabled: boolean;
+  user: SessionUser | null;
+};
 
 function buildLocalEmailSessionUser(email: string, hostedDomain: string): SessionUser {
   const [accountName] = email.split("@");
@@ -840,7 +840,7 @@ export default function App() {
     process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID?.trim() || googleClientId;
   const googleWebClientId =
     process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim() || googleClientId;
-  const requiredEmailDomain = normalizeRequiredEmailDomain(authConfig?.hostedDomain);
+  const hostedDomain = authConfig?.hostedDomain || DEFAULT_HOSTED_DOMAIN;
   const isAuthConfigUnavailable = authErrorState === "auth-config-unavailable";
   const activeGoogleClientId =
     Platform.OS === "ios"
@@ -1112,16 +1112,20 @@ export default function App() {
     [apiBaseUrl, applyBootstrapPayload],
   );
 
-  const clearAuthenticatedSession = useCallback(async () => {
+  const clearPersistedSessionAndSignOutState = useCallback(async () => {
+    await clearPersistedAuthSession();
     await persistAuthToken(null);
     setApiToken(null);
     setSessionUser(null);
     setHasAuthenticated(false);
+    setSyncError(null);
+    setAuthError(null);
+    setAuthNotice(null);
     setAuthCode("");
     setHasRequestedEmailCode(false);
-    setAuthNotice(null);
     setIsSubteamOnboardingVisible(false);
   }, []);
+  const clearAuthenticatedSession = clearPersistedSessionAndSignOutState;
 
   const loadUserPreferences = useCallback(
     async (token: string | null, email: string) => {
@@ -1185,7 +1189,7 @@ export default function App() {
       setAuthConfig({
         enabled: false,
         googleClientId: null,
-        hostedDomain: "mecorobotics.org",
+        hostedDomain: DEFAULT_HOSTED_DOMAIN,
         emailEnabled: true,
         devBypassAvailable: false,
       });
@@ -1221,19 +1225,23 @@ export default function App() {
       setAuthError(null);
 
       try {
+        if (token) {
+          await savePersistedAuthSession({ token, user });
+        } else {
+          await clearPersistedAuthSession();
+        }
+
         await loadUserPreferences(token, userWithSubteams.email);
         await refreshWorkspaceFromServer(token);
         setBackendStatus("connected");
         setHasAuthenticated(true);
       } catch (error) {
-        const errorMessage = parseClientError(error);
-        if (isUnauthorizedError(error)) {
-          await persistAuthToken(null);
+        if (isUnauthorizedAuthError(error)) {
+          setAuthNotice("Your session is no longer valid. Sign in again to continue.");
+          await clearPersistedSessionAndSignOutState();
+          return;
         }
-        setApiToken(null);
-        setSessionUser(null);
-        setHasAuthenticated(false);
-        setIsSubteamOnboardingVisible(false);
+        const errorMessage = parseClientError(error);
         setBackendStatus("offline");
         setSyncError(errorMessage);
         setAuthError(errorMessage);
@@ -1241,7 +1249,7 @@ export default function App() {
         setIsSyncing(false);
       }
     },
-    [loadUserPreferences, refreshWorkspaceFromServer],
+    [loadUserPreferences, clearPersistedSessionAndSignOutState, refreshWorkspaceFromServer],
   );
 
   const requestDevelopmentSession = useCallback(
@@ -1272,21 +1280,54 @@ export default function App() {
 
         await finishSignIn(
           null,
-          buildLocalDevelopmentSessionUser(role, requiredEmailDomain),
+          buildLocalDevelopmentSessionUser(role, hostedDomain),
         );
         setAuthNotice("Using a local development session.");
       } catch {
         await finishSignIn(
           null,
-          buildLocalDevelopmentSessionUser(role, requiredEmailDomain),
+          buildLocalDevelopmentSessionUser(role, hostedDomain),
         );
         setAuthNotice("Server dev sign-in was unavailable, so a local development session was used.");
       } finally {
         setIsAuthenticating(false);
       }
     },
-    [authConfig?.devBypassAvailable, finishSignIn, requestDevelopmentSession, requiredEmailDomain],
+    [authConfig?.devBypassAvailable, finishSignIn, requestDevelopmentSession, hostedDomain],
   );
+
+  const restorePersistedAuthSession = useCallback(async () => {
+    const persistedSession = await loadPersistedAuthSession();
+    if (!persistedSession) {
+      return;
+    }
+
+    try {
+      const sessionStatus = await requestJson<AuthMeResponse>(
+        apiBaseUrl,
+        "/api/auth/me",
+        undefined,
+        persistedSession.token,
+      );
+
+      if (!sessionStatus.enabled || !sessionStatus.user) {
+        await clearPersistedSessionAndSignOutState();
+        setAuthNotice("Session expired. Please sign in again.");
+        return;
+      }
+
+      await finishSignIn(persistedSession.token, sessionStatus.user);
+    } catch (error) {
+      if (isUnauthorizedAuthError(error)) {
+        await clearPersistedSessionAndSignOutState();
+        setAuthNotice("Session expired. Please sign in again.");
+        return;
+      }
+
+      setBackendStatus("offline");
+      setSyncError(parseClientError(error));
+    }
+  }, [apiBaseUrl, clearPersistedSessionAndSignOutState, finishSignIn]);
 
   const signInWithGoogle = useCallback(async () => {
     setIsAuthenticating(true);
@@ -1437,8 +1478,8 @@ export default function App() {
       return;
     }
 
-    if (!email || !hasRequiredEmailDomain(email, requiredEmailDomain)) {
-      setAuthError(`Use an @${requiredEmailDomain} email.`);
+    if (!email) {
+      setAuthError("Enter an email address.");
       return;
     }
 
@@ -1476,7 +1517,7 @@ export default function App() {
       }
 
       if (authConfig?.enabled === false) {
-        await finishSignIn(null, buildLocalEmailSessionUser(email, requiredEmailDomain));
+        await finishSignIn(null, buildLocalEmailSessionUser(email, hostedDomain));
         setAuthNotice(
           "Authentication service is unavailable. Continuing with a local session.",
         );
@@ -1510,7 +1551,7 @@ export default function App() {
     finishSignIn,
     hasRequestedEmailCode,
     requestDevelopmentSession,
-    requiredEmailDomain,
+    hostedDomain,
   ]);
 
   const syncFromBackend = useCallback(async () => {
@@ -1543,8 +1584,10 @@ export default function App() {
       await refreshWorkspaceFromServer(resolvedToken);
       setBackendStatus("connected");
     } catch (error) {
-      if (isUnauthorizedError(error)) {
-        await clearAuthenticatedSession();
+      if (isUnauthorizedAuthError(error) || isUnauthorizedError(error)) {
+        await clearPersistedSessionAndSignOutState();
+        setAuthNotice("Session expired. Please sign in again.");
+        return;
       }
       setBackendStatus("offline");
       setSyncError(getClientErrorMessage(error));
@@ -1555,7 +1598,7 @@ export default function App() {
     apiBaseUrl,
     apiToken,
     authConfig?.devBypassAvailable,
-    clearAuthenticatedSession,
+    clearPersistedSessionAndSignOutState,
     refreshWorkspaceFromServer,
     requestDevelopmentSession,
     sessionUser?.role,
@@ -1572,8 +1615,10 @@ export default function App() {
         setBackendStatus("connected");
         return true;
       } catch (error) {
-        if (isUnauthorizedError(error)) {
-          await clearAuthenticatedSession();
+        if (isUnauthorizedAuthError(error) || isUnauthorizedError(error)) {
+          await clearPersistedSessionAndSignOutState();
+          setAuthNotice("Session expired. Please sign in again.");
+          return false;
         }
         setBackendStatus("offline");
         setSyncError(getClientErrorMessage(error));
@@ -1582,7 +1627,7 @@ export default function App() {
         setIsSyncing(false);
       }
     },
-    [apiBaseUrl, apiToken, clearAuthenticatedSession, refreshWorkspaceFromServer],
+    [apiBaseUrl, apiToken, clearPersistedSessionAndSignOutState, refreshWorkspaceFromServer],
   );
 
   const membersById = useMemo(() => {
@@ -3253,8 +3298,28 @@ export default function App() {
   );
 
   useEffect(() => {
-    void loadPublicAuthConfig();
-  }, [loadPublicAuthConfig]);
+    let didCancel = false;
+
+    const bootstrap = async () => {
+      if (didCancel) {
+        return;
+      }
+
+      await loadPublicAuthConfig();
+
+      if (didCancel) {
+        return;
+      }
+
+      await restorePersistedAuthSession();
+    };
+
+    void bootstrap();
+
+    return () => {
+      didCancel = true;
+    };
+  }, [loadPublicAuthConfig, restorePersistedAuthSession]);
 
   useEffect(() => {
     if (!authConfig || hasAuthenticated || hasCheckedStoredSession) {
@@ -5402,15 +5467,10 @@ export default function App() {
   };
 
   const signOut = () => {
-    void persistAuthToken(null);
-    setApiToken(null);
-    setSessionUser(null);
-    setHasAuthenticated(false);
-    setIsSubteamOnboardingVisible(false);
+    void clearPersistedSessionAndSignOutState();
+    setAuthError(null);
     setAuthCode("");
     setAuthEmail("");
-    setAuthError(null);
-    setAuthNotice(null);
     setIsAuthenticating(false);
     setIsGoogleSignInPending(false);
     setHasRequestedEmailCode(false);
