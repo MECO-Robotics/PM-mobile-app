@@ -1038,7 +1038,7 @@ export default function App() {
       }
 
       if (!activeGoogleClientId) {
-        if (!authConfig?.devBypassAvailable) {
+      if (!authConfig?.devBypassAvailable) {
           showAuthError(
             Platform.OS === "ios"
               ? "Google sign-in needs a configured Google client ID, then Expo must be restarted."
@@ -1204,7 +1204,7 @@ export default function App() {
         return;
       }
 
-      if (authConfig?.devBypassAvailable) {
+      if (currentAuthConfig?.devBypassAvailable) {
         const session = await requestJson<SessionResponse>(
           apiBaseUrl,
           "/api/auth/email/verify",
@@ -1228,7 +1228,7 @@ export default function App() {
         return;
       }
 
-      if (authConfig?.enabled === false) {
+      if (currentAuthConfig?.enabled === false) {
         await finishSignIn(null, buildLocalEmailSessionUser(email, requiredEmailDomain));
         setAuthNotice(
           "Authentication service is unavailable. Continuing with a local session.",
