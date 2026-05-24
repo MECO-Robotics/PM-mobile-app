@@ -74,6 +74,19 @@ The local Android simulator uses `.env.local` with
 `EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:8080` so it can reach a backend running
 on the Windows host.
 
+## Auth configuration (no secrets in source)
+
+- `EXPO_PUBLIC_API_BASE_URL` (required): platform API base URL for auth/bootstrap and data calls.
+- `EXPO_PUBLIC_GOOGLE_CLIENT_ID`: fallback Google client ID for sign-in.
+- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`: optional Google web override.
+- `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`: optional iOS override.
+- `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`: optional Android override.
+- `EXPO_PUBLIC_API_TOKEN`: optional static token for dev-only bootstrap paths.
+
+Keep OAuth client IDs and any tokens in environment/config files only and never commit raw secrets.
+
+Refer to `mobile-auth-smoke-tests.md` for the mobile-auth smoke checklist before shipping.
+
 ## Release automation
 
 - `CI` workflow runs `npm run typecheck` on pull requests and `main`.
