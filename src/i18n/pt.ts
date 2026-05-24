@@ -222,6 +222,8 @@ export const pt = {
   "Sign in with email": "Entrar com e-mail",
   Sending: "Enviando",
   "Send Code": "Enviar código",
+  "Signing in": "Entrando",
+  "Sign in with Google": "Entrar com Google",
   "Robot project selector": "Seletor de projeto do robô",
   "Edit robot": "Editar robô",
   "Switch project": "Trocar projeto",

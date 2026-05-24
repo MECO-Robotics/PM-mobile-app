@@ -30,33 +30,9 @@ export const TASK_SUBTEAM_DISCIPLINE_IDS: Record<TaskSubteamTab, string[]> = {
   programming: ["software", "programming", "integration", "testing"],
   mechanical: ["mechanical", "design", "manufacturing", "assembly"],
   electrical: ["electrical"],
-  "media-marketing": [
-    "photography",
-    "video",
-    "graphics",
-    "writing",
-    "web",
-    "social_media",
-    "media_production",
-    "engagement",
-    "presentation",
-  ],
-  business: [
-    "communications",
-    "finance",
-    "research",
-    "documentation",
-    "planning",
-    "partnerships",
-  ],
-  scouting: [
-    "game_analysis",
-    "scouting",
-    "data_analysis",
-    "risk_review",
-    "planning",
-    "documentation",
-  ],
+  "media-marketing": ["media-marketing"],
+  business: ["business"],
+  scouting: ["scouting"],
 };
 
 export const MANUFACTURING_VIEW_OPTIONS: { value: ManufacturingViewTab; label: string }[] = [
