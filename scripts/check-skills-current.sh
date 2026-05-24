@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SKILLS_REPO="${SKILLS_REPO:-https://github.com/MECO-Robotics/mission-control-skills.git}"
 TMP_DIR="${TMP_DIR:-$(mktemp -d)}"
 
@@ -31,8 +30,6 @@ require_repo_root
 trap cleanup EXIT
 
 echo "Checking skills against: $SKILLS_REPO"
-cd "$SCRIPT_DIR"
-bash ./sync-skills.sh
 
 if ! git clone --depth 1 "$SKILLS_REPO" "$TMP_DIR"; then
   fail "failed to clone shared skills repo: $SKILLS_REPO"
