@@ -11,6 +11,7 @@ jobs:
       SKILLS_REPO: ${{ vars.SKILLS_REPO || secrets.SKILLS_REPO || 'https://github.com/MECO-Robotics/mission-control-skills.git' }}
       SKILLS_REPO_DEPLOY_KEY: ${{ secrets.SKILLS_REPO_DEPLOY_KEY }}
       SKILLS_REPO_TOKEN: ${{ secrets.SKILLS_REPO_TOKEN }}
+      SYNC_MISSING_SKILLS: "true"
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
