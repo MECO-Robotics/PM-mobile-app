@@ -88,11 +88,16 @@ jobs:
         run: npm ci
 
       - name: Run verify
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         env:
           GH_TOKEN: ${{ secrets.MECO_PLATFORM_CONTRACT_READ_TOKEN }}
           PLATFORM_BOOTSTRAP_CONTRACT_BRANCH: ${{ github.base_ref || (github.ref_name == 'main' && 'main') || 'development' }}
           CI: true
         run: npm run verify
+
+      - name: Run verify without private contract source
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: npm run verify:core
 
   snapshot-validate:
     name: snapshot-validate
