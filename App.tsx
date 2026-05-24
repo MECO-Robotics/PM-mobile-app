@@ -1488,7 +1488,7 @@ export default function App() {
         return;
       }
 
-      if (authConfig?.devBypassAvailable) {
+      if (currentAuthConfig?.devBypassAvailable) {
         const session = await requestDevelopmentSession("student");
         await finishSignIn(session.token, {
           ...session.user,
@@ -1498,7 +1498,7 @@ export default function App() {
         return;
       }
 
-      if (authConfig?.enabled === false) {
+      if (currentAuthConfig?.enabled === false) {
         await finishSignIn(null, buildLocalEmailSessionUser(email, requiredEmailDomain));
         setAuthNotice(
           "Authentication service is unavailable. Continuing with a local session.",
