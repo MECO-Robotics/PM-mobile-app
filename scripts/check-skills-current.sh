@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SKILLS_REPO="${SKILLS_REPO:-https://github.com/MECO-Robotics/mission-control-skills.git}"
 TMP_DIR="${TMP_DIR:-$(mktemp -d)}"
 
@@ -21,15 +22,18 @@ require_repo_root() {
   repo_root="$(cd "$repo_root" && pwd -P)"
   current_dir="$(pwd -P)"
 
-  if [ "$current_dir" != "$repo_root" ]; then
-    fail "run this script from the repository root: $repo_root"
+  if [ "$current_dir" != "$repo_root" ] && [[ "$current_dir" != "$repo_root"/* ]]; then
+    fail "run this script from within the repository: $repo_root"
   fi
+
+  cd "$repo_root"
 }
 
 require_repo_root
 trap cleanup EXIT
 
 echo "Checking skills against: $SKILLS_REPO"
+bash "$SCRIPT_DIR/sync-skills.sh"
 
 if ! git clone --depth 1 "$SKILLS_REPO" "$TMP_DIR"; then
   fail "failed to clone shared skills repo: $SKILLS_REPO"
@@ -41,7 +45,7 @@ fi
 
 if [ ! -d "skills" ]; then
   echo "skills/ is missing in this checkout; syncing for validation."
-  bash scripts/sync-skills.sh
+  bash "$SCRIPT_DIR/sync-skills.sh"
   echo "skills/ synced from shared repo."
   exit 0
 fi
