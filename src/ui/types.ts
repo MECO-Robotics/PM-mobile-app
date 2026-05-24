@@ -126,8 +126,14 @@ export type PurchaseDraft = {
 
 export type MemberDraft = {
   email: string;
+  photoUrl: string;
   name: string;
   role: MemberRole;
+  elevated: boolean;
+  disciplineId: string;
+  plannedWeeklyAttendanceHours: string;
+  plannedAttendanceDays: string[];
+  plannedAttendanceNotes: string;
 };
 
 export type MeetingDraft = {
