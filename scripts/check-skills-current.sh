@@ -4,7 +4,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SKILLS_REPO="${SKILLS_REPO:-https://github.com/MECO-Robotics/mission-control-skills.git}"
 SYNC_MISSING_SKILLS="${SYNC_MISSING_SKILLS:-false}"
-TMP_DIR="${TMP_DIR:-$(mktemp -d)}"
+TMP_PARENT="${TMP_DIR:-}"
+if [ -n "$TMP_PARENT" ]; then
+  mkdir -p "$TMP_PARENT"
+  TMP_DIR="$(mktemp -d "$TMP_PARENT/check-skills.XXXXXX")"
+else
+  TMP_DIR="$(mktemp -d)"
+fi
 
 fail() {
   echo "check-skills-current: $*" >&2
