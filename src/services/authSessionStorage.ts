@@ -69,14 +69,17 @@ async function readStoredSessionRaw(): Promise<string | null> {
   }
 
   try {
-    const stored = await SecureStore.getItemAsync(SESSION_STORAGE_KEY);
-    if (stored !== null) {
-      return stored;
-    }
-
-    return await AsyncStorage.getItem(SESSION_STORAGE_KEY);
+    return await SecureStore.getItemAsync(SESSION_STORAGE_KEY);
   } catch {
-    return AsyncStorage.getItem(SESSION_STORAGE_KEY);
+    return null;
+  }
+}
+
+async function clearLegacyAsyncStorageSession() {
+  try {
+    await AsyncStorage.removeItem(SESSION_STORAGE_KEY);
+  } catch {
+    // Legacy fallback cleanup is best-effort; native reads never trust AsyncStorage.
   }
 }
 
@@ -92,16 +95,13 @@ async function writeStoredSessionRaw(rawValue: string | null) {
   }
 
   if (rawValue === null) {
-    await AsyncStorage.removeItem(SESSION_STORAGE_KEY);
+    await clearLegacyAsyncStorageSession();
     await SecureStore.deleteItemAsync(SESSION_STORAGE_KEY);
     return;
   }
 
-  try {
-    await SecureStore.setItemAsync(SESSION_STORAGE_KEY, rawValue);
-  } catch {
-    await AsyncStorage.setItem(SESSION_STORAGE_KEY, rawValue);
-  }
+  await SecureStore.setItemAsync(SESSION_STORAGE_KEY, rawValue);
+  await clearLegacyAsyncStorageSession();
 }
 
 export async function loadPersistedAuthSession() {
