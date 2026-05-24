@@ -28,7 +28,6 @@ export function InventoryMaterialsScreen(props: AppScreenProps) {
     materialsCategoryFilter,
     materialsSearch,
     materialsStockFilter,
-    openCreatePurchaseEditor,
     openMaterialRestockEditor,
     partInstancesWithStatus,
     partsSearch,
@@ -159,3 +158,4 @@ const renderScreen = () => {
 
   return renderScreen();
 }
+
