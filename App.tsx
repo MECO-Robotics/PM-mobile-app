@@ -1,7 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import * as Crypto from "expo-crypto";
 import * as ScreenOrientation from "expo-screen-orientation";
-import * as SecureStore from "expo-secure-store";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -29,6 +27,7 @@ import {
   ACQUISITION_METHOD_OPTIONS,
   PART_SOURCE_OPTIONS,
   PURCHASE_STATUS_OPTIONS,
+  QA_RESULT_OPTIONS,
   STATUS_LABELS,
   TASK_PRIORITY_OPTIONS,
   TASK_STATUS_OPTIONS,
@@ -40,7 +39,6 @@ import {
 import {
   buildDateTime,
   buildManufacturingDraft,
-  buildMeetingDraft,
   buildMemberDraft,
   buildMilestoneDraft,
   buildPartDefinitionDraft,
@@ -72,7 +70,6 @@ import type {
   ManufacturingDraft,
   ManufacturingViewTab,
   MaterialRollup,
-  MeetingDraft,
   MemberDraft,
   MilestoneDraft,
   MilestoneSortField,
@@ -112,7 +109,6 @@ import { tasks as seededTasks } from "./src/data/tasks";
 import type {
   MemberRole,
   ManufacturingItem,
-  Meeting,
   BootstrapMilestone,
   Event,
   EventType,
@@ -149,11 +145,6 @@ import {
   updateWorkLogLiveActivity,
 } from "./src/services/workLogLiveActivity";
 import {
-  clearPersistedAuthSession,
-  loadPersistedAuthSession,
-  savePersistedAuthSession,
-} from "./src/services/authSessionStorage";
-import {
   cancelWorkLogTimerReminders,
   clearPersistedWorkLogTimerState,
   persistWorkLogTimerState,
@@ -170,14 +161,7 @@ const SUBTAB_SWIPE_COMMIT_DISTANCE = 72;
 const TIMER_TICK_MS = 1000;
 const MS_PER_HOUR = 1000 * 60 * 60;
 const GOOGLE_CLIENT_ID_PLACEHOLDER = "missing-google-client-id";
-const AUTH_DEVICE_ID_STORAGE_KEY = "meco-auth-device-id";
-const AUTH_TOKEN_STORAGE_KEY = "meco-auth-token";
-const AUTH_THEME_BY_EMAIL_STORAGE_KEY = "meco-theme-by-email";
-const AUTH_SUBTEAMS_BY_EMAIL_STORAGE_KEY = "meco-subteams-by-email";
-const USER_PREFERENCES_API_ENABLED =
-  process.env.EXPO_PUBLIC_USER_PREFERENCES_API_ENABLED === "true";
 
-type DevelopmentSignInRole = Extract<MemberRole, "student" | "mentor">;
 type AttendanceStatus = "yes" | "maybe" | "no";
 type SeasonOption = {
   id: string;
@@ -481,201 +465,6 @@ type EmailCodeStartResponse = {
   expiresInMinutes?: number;
 };
 
-type AuthMeResponse = {
-  enabled: boolean;
-  user: SessionUser | null;
-};
-
-type UserPreferencesResponse = {
-  taskSubteamIds?: TaskSubteamTab[];
-  themeMode: AppThemeName | null;
-};
-
-async function getOrCreateAuthDeviceId() {
-  try {
-    if (!(await SecureStore.isAvailableAsync())) {
-      return null;
-    }
-
-    const existingDeviceId = await SecureStore.getItemAsync(AUTH_DEVICE_ID_STORAGE_KEY);
-    if (existingDeviceId) {
-      return existingDeviceId;
-    }
-
-    const nextDeviceId = Crypto.randomUUID();
-    await SecureStore.setItemAsync(AUTH_DEVICE_ID_STORAGE_KEY, nextDeviceId);
-    return nextDeviceId;
-  } catch {
-    return null;
-  }
-}
-
-async function getStoredAuthToken() {
-  const persistedSession = await loadPersistedAuthSession().catch(() => null);
-  if (persistedSession?.token) {
-    return persistedSession.token;
-  }
-
-  try {
-    if (!(await SecureStore.isAvailableAsync())) {
-      return null;
-    }
-
-    return await SecureStore.getItemAsync(AUTH_TOKEN_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-async function persistAuthToken(token: string | null) {
-  if (!token) {
-    await clearPersistedAuthSession().catch(() => undefined);
-  }
-
-  try {
-    if (!(await SecureStore.isAvailableAsync())) {
-      return;
-    }
-
-    if (token) {
-      await SecureStore.setItemAsync(AUTH_TOKEN_STORAGE_KEY, token);
-    } else {
-      await SecureStore.deleteItemAsync(AUTH_TOKEN_STORAGE_KEY);
-    }
-  } catch {
-    // Keep the in-memory session usable if secure storage is unavailable.
-  }
-}
-
-function normalizeAccountEmail(email: string) {
-  return email.trim().toLowerCase();
-}
-
-function parseThemePreferencesByEmail(value: string | null) {
-  if (!value) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      return {};
-    }
-
-    return Object.fromEntries(
-      Object.entries(parsed)
-        .filter((entry): entry is [string, AppThemeName] => entry[1] === "light" || entry[1] === "dark")
-        .map(([email, themeMode]) => [normalizeAccountEmail(email), themeMode]),
-    ) as Record<string, AppThemeName>;
-  } catch {
-    return {};
-  }
-}
-
-function isTaskSubteam(value: unknown): value is TaskSubteamTab {
-  return typeof value === "string" && value in TASK_SUBTEAM_DISCIPLINE_IDS;
-}
-
-function parseSubteamPreferencesByEmail(value: string | null) {
-  if (!value) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      return {};
-    }
-
-    return Object.fromEntries(
-      Object.entries(parsed)
-        .map(([email, subteams]) => [
-          normalizeAccountEmail(email),
-          Array.isArray(subteams) ? subteams.filter(isTaskSubteam) : [],
-        ])
-        .filter(([, subteams]) => subteams.length > 0),
-    ) as Record<string, TaskSubteamTab[]>;
-  } catch {
-    return {};
-  }
-}
-
-async function getStoredTaskSubteams(email: string) {
-  try {
-    if (!(await SecureStore.isAvailableAsync())) {
-      return [];
-    }
-
-    const subteamsByEmail = parseSubteamPreferencesByEmail(
-      await SecureStore.getItemAsync(AUTH_SUBTEAMS_BY_EMAIL_STORAGE_KEY),
-    );
-    return subteamsByEmail[normalizeAccountEmail(email)] ?? [];
-  } catch {
-    return [];
-  }
-}
-
-async function persistTaskSubteams(email: string, subteams: TaskSubteamTab[]) {
-  try {
-    if (!(await SecureStore.isAvailableAsync())) {
-      return;
-    }
-
-    const subteamsByEmail = parseSubteamPreferencesByEmail(
-      await SecureStore.getItemAsync(AUTH_SUBTEAMS_BY_EMAIL_STORAGE_KEY),
-    );
-    subteamsByEmail[normalizeAccountEmail(email)] = subteams;
-    await SecureStore.setItemAsync(
-      AUTH_SUBTEAMS_BY_EMAIL_STORAGE_KEY,
-      JSON.stringify(subteamsByEmail),
-    );
-  } catch {
-    // Subteam onboarding still updates visible app state even if storage fails.
-  }
-}
-
-async function getStoredThemePreference(email: string) {
-  try {
-    if (!(await SecureStore.isAvailableAsync())) {
-      return null;
-    }
-
-    const preferencesByEmail = parseThemePreferencesByEmail(
-      await SecureStore.getItemAsync(AUTH_THEME_BY_EMAIL_STORAGE_KEY),
-    );
-    return preferencesByEmail[normalizeAccountEmail(email)] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-async function persistThemePreference(email: string, themeMode: AppThemeName) {
-  try {
-    if (!(await SecureStore.isAvailableAsync())) {
-      return;
-    }
-
-    const preferencesByEmail = parseThemePreferencesByEmail(
-      await SecureStore.getItemAsync(AUTH_THEME_BY_EMAIL_STORAGE_KEY),
-    );
-    preferencesByEmail[normalizeAccountEmail(email)] = themeMode;
-    await SecureStore.setItemAsync(
-      AUTH_THEME_BY_EMAIL_STORAGE_KEY,
-      JSON.stringify(preferencesByEmail),
-    );
-  } catch {
-    // Theme preference is nice-to-have; the visible app state has already changed.
-  }
-}
-
-function isUnauthorizedError(error: unknown) {
-  return error instanceof ApiRequestError && (error.status === 401 || error.status === 403);
-}
-
-function isMissingUserPreferencesRoute(error: unknown) {
-  return error instanceof ApiRequestError && error.status === 404;
-}
-
 function normalizeTaskFromServer(task: ServerTask): Task {
   return {
     ...task,
@@ -753,29 +542,7 @@ function buildLocalEmailSessionUser(email: string, hostedDomain: string): Sessio
     hostedDomain,
     name: name || email,
     picture: null,
-    role: "student",
   };
-}
-
-function buildLocalDevelopmentSessionUser(
-  role: DevelopmentSignInRole,
-  hostedDomain: string,
-): SessionUser {
-  const email = role === "mentor" ? `dev.mentor@${hostedDomain}` : `dev.student@${hostedDomain}`;
-
-  return {
-    accountId: `local-dev-${role}`,
-    authProvider: "email",
-    email,
-    hostedDomain,
-    name: role === "mentor" ? "Local Dev Mentor" : "Local Dev Student",
-    picture: null,
-    role,
-  };
-}
-
-function normalizeDevelopmentSignInRole(role: MemberRole | null | undefined): DevelopmentSignInRole {
-  return role === "mentor" ? "mentor" : "student";
 }
 
 function mapMilestonesToEvents(payload: PlatformBootstrapPayload): Event[] {
@@ -830,7 +597,6 @@ export default function App() {
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [authConfig, setAuthConfig] = useState<PublicAuthConfig | null>(null);
   const [hasAuthenticated, setHasAuthenticated] = useState(false);
-  const [hasCheckedStoredSession, setHasCheckedStoredSession] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
   const [authCode, setAuthCode] = useState("");
   const [hasRequestedEmailCode, setHasRequestedEmailCode] = useState(false);
@@ -862,7 +628,6 @@ export default function App() {
       : Platform.OS === "android"
         ? googleAndroidClientId
         : googleWebClientId;
-  const showDevelopmentSignIn = process.env.NODE_ENV !== "production";
 
   const [googleRequest, googleResponse, promptGoogleSignIn] =
     Google.useIdTokenAuthRequest({
@@ -904,7 +669,6 @@ export default function App() {
   const [isNavMenuVisible, setIsNavMenuVisible] = useState(false);
   const [isProjectOverlayVisible, setIsProjectOverlayVisible] = useState(false);
   const [isPersonMenuVisible, setIsPersonMenuVisible] = useState(false);
-  const [isSubteamOnboardingVisible, setIsSubteamOnboardingVisible] = useState(false);
   const [isSeasonMenuVisible, setIsSeasonMenuVisible] = useState(false);
   const [isAttendanceModalVisible, setIsAttendanceModalVisible] = useState(false);
   const [attendanceStatusByMemberId, setAttendanceStatusByMemberId] =
@@ -920,7 +684,6 @@ export default function App() {
   const [disciplines, setDisciplines] = useState(() => mecoSnapshot.disciplines);
   const [mechanisms, setMechanisms] = useState(() => mecoSnapshot.mechanisms);
   const [tasks, setTasks] = useState(() => withSeededSubteamTasks(mecoSnapshot.tasks));
-  const [meetings, setMeetings] = useState<Meeting[]>(() => mecoSnapshot.meetings ?? []);
   const [events, setEvents] = useState(() => mecoSnapshot.events);
   const [workLogs, setWorkLogs] = useState(() => mecoSnapshot.workLogs);
   const [manufacturingItems, setManufacturingItems] = useState(
@@ -1049,9 +812,6 @@ export default function App() {
   const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
   const [memberDraft, setMemberDraft] = useState<MemberDraft>(buildMemberDraft());
   const [memberError, setMemberError] = useState<string | null>(null);
-  const [meetingEditorMode, setMeetingEditorMode] = useState<EditorMode | null>(null);
-  const [meetingDraft, setMeetingDraft] = useState<MeetingDraft>(buildMeetingDraft());
-  const [meetingError, setMeetingError] = useState<string | null>(null);
 
   const [subsystemEditorMode, setSubsystemEditorMode] = useState<EditorMode | null>(null);
   const [activeSubsystemId, setActiveSubsystemId] = useState<string | null>(null);
@@ -1077,9 +837,6 @@ export default function App() {
     mentorApproved: false,
     notes: "",
     evidenceNotes: "",
-    fixNotes: "",
-    versionIssueNotes: "",
-    preventionNotes: "",
     followUpTaskTitle: "",
   });
   const [qaReportError, setQaReportError] = useState<string | null>(null);
@@ -1103,7 +860,6 @@ export default function App() {
     setDisciplines(ensureArray(payload.disciplines));
     setMechanisms(ensureArray(payload.mechanisms));
     setTasks(tasks);
-    setMeetings(ensureArray(payload.meetings));
     setEvents(events.length > 0 ? events : mapMilestonesToEvents(payload));
     setWorkLogs(ensureArray(payload.workLogs));
     setManufacturingItems(ensureArray(payload.manufacturingItems));
@@ -1124,60 +880,6 @@ export default function App() {
       applyBootstrapPayload(payload);
     },
     [apiBaseUrl, applyBootstrapPayload],
-  );
-
-  const clearAuthenticatedSession = useCallback(async () => {
-    await persistAuthToken(null);
-    setApiToken(null);
-    setSessionUser(null);
-    setHasAuthenticated(false);
-    setAuthCode("");
-    setHasRequestedEmailCode(false);
-    setAuthNotice(null);
-    setSyncError(null);
-    setIsSubteamOnboardingVisible(false);
-  }, []);
-
-  const loadUserPreferences = useCallback(
-    async (token: string | null, email: string) => {
-      const storedThemeMode = await getStoredThemePreference(email);
-      if (storedThemeMode) {
-        setThemeOverride(storedThemeMode);
-      }
-
-      if (!USER_PREFERENCES_API_ENABLED || !token) {
-        return;
-      }
-
-      try {
-        const preferences = await requestJson<UserPreferencesResponse>(
-          apiBaseUrl,
-          "/api/users/me/preferences",
-          undefined,
-          token,
-        );
-
-        if (preferences.themeMode) {
-          setThemeOverride(preferences.themeMode);
-          await persistThemePreference(email, preferences.themeMode);
-        }
-
-        const serverTaskSubteams = preferences.taskSubteamIds?.filter(isTaskSubteam) ?? [];
-        if (serverTaskSubteams.length > 0) {
-          setSessionUser((current) =>
-            current?.email === email ? { ...current, taskSubteamIds: serverTaskSubteams } : current,
-          );
-          setActiveTaskSubteam(serverTaskSubteams[0]);
-          await persistTaskSubteams(email, serverTaskSubteams);
-          setIsSubteamOnboardingVisible(false);
-        }
-      } catch (error) {
-        if (!isUnauthorizedError(error) && !isMissingUserPreferencesRoute(error)) {
-          setSyncError(parseClientError(error));
-        }
-      }
-    },
-    [apiBaseUrl],
   );
 
   const loadPublicAuthConfig = useCallback(async () => {
@@ -1213,100 +915,23 @@ export default function App() {
 
   const finishSignIn = useCallback(
     async (token: string | null, user: SessionUser) => {
-      const storedTaskSubteams = await getStoredTaskSubteams(user.email);
-      const userTaskSubteams =
-        user.taskSubteamIds && user.taskSubteamIds.length > 0
-          ? user.taskSubteamIds
-          : storedTaskSubteams;
-      const userWithSubteams: SessionUser = {
-        ...user,
-        taskSubteamIds: userTaskSubteams,
-      };
-
-      await persistAuthToken(token);
-      if (token) {
-        await savePersistedAuthSession({ token, user }).catch(() => undefined);
-      } else {
-        await clearPersistedAuthSession().catch(() => undefined);
-      }
       setApiToken(token);
-      setSessionUser(userWithSubteams);
-      setHasAuthenticated(false);
-      if (userTaskSubteams[0]) {
-        setActiveTaskSubteam(userTaskSubteams[0]);
-      }
-      setIsSubteamOnboardingVisible(userTaskSubteams.length === 0);
+      setSessionUser(user);
+      setHasAuthenticated(true);
       setIsSyncing(true);
       setSyncError(null);
-      setAuthError(null);
 
       try {
-        await loadUserPreferences(token, userWithSubteams.email);
         await refreshWorkspaceFromServer(token);
         setBackendStatus("connected");
-        setHasAuthenticated(true);
       } catch (error) {
-        const errorMessage = parseClientError(error);
-        if (isUnauthorizedError(error)) {
-          await persistAuthToken(null);
-          setAuthNotice("Session expired. Please sign in again.");
-        }
-        setApiToken(null);
-        setSessionUser(null);
-        setHasAuthenticated(false);
-        setIsSubteamOnboardingVisible(false);
         setBackendStatus("offline");
-        setSyncError(errorMessage);
-        setAuthError(errorMessage);
+        setSyncError(parseClientError(error));
       } finally {
         setIsSyncing(false);
       }
     },
-    [loadUserPreferences, refreshWorkspaceFromServer],
-  );
-
-  const requestDevelopmentSession = useCallback(
-    (role: DevelopmentSignInRole) =>
-      requestJson<SessionResponse>(
-        apiBaseUrl,
-        "/api/auth/dev-bypass",
-        {
-          method: "POST",
-          body: JSON.stringify({ role }),
-        },
-      ),
-    [apiBaseUrl],
-  );
-
-  const signInWithDevelopmentRole = useCallback(
-    async (role: DevelopmentSignInRole) => {
-      setIsAuthenticating(true);
-      setAuthError(null);
-      setAuthNotice(null);
-
-      try {
-        if (authConfig?.devBypassAvailable) {
-          const session = await requestDevelopmentSession(role);
-          await finishSignIn(session.token, session.user);
-          return;
-        }
-
-        await finishSignIn(
-          null,
-          buildLocalDevelopmentSessionUser(role, requiredEmailDomain),
-        );
-        setAuthNotice("Using a local development session.");
-      } catch {
-        await finishSignIn(
-          null,
-          buildLocalDevelopmentSessionUser(role, requiredEmailDomain),
-        );
-        setAuthNotice("Server dev sign-in was unavailable, so a local development session was used.");
-      } finally {
-        setIsAuthenticating(false);
-      }
-    },
-    [authConfig?.devBypassAvailable, finishSignIn, requestDevelopmentSession, requiredEmailDomain],
+    [endSessionForAuthFailure, refreshWorkspaceFromServer],
   );
 
   const signInWithGoogle = useCallback(async () => {
@@ -1334,7 +959,11 @@ export default function App() {
           return;
         }
 
-        const session = await requestDevelopmentSession("student");
+        const session = await requestJson<SessionResponse>(
+          apiBaseUrl,
+          "/api/auth/dev-bypass",
+          { method: "POST" },
+        );
         await finishSignIn(session.token, session.user);
         return;
       }
@@ -1362,13 +991,13 @@ export default function App() {
       setIsAuthenticating(false);
     }
   }, [
+    apiBaseUrl,
     activeGoogleClientId,
     authConfig?.devBypassAvailable,
     finishSignIn,
     googleRequest,
     isAuthConfigUnavailable,
     promptGoogleSignIn,
-    requestDevelopmentSession,
     showAuthError,
   ]);
 
@@ -1472,13 +1101,12 @@ export default function App() {
 
     try {
       if (hasRequestedEmailCode) {
-        const deviceId = await getOrCreateAuthDeviceId();
         const session = await requestJson<SessionResponse>(
           apiBaseUrl,
           "/api/auth/email/verify",
           {
             method: "POST",
-            body: JSON.stringify({ code, deviceId, email }),
+            body: JSON.stringify({ email, code }),
           },
         );
         setAuthCode("");
@@ -1486,8 +1114,12 @@ export default function App() {
         return;
       }
 
-      if (currentAuthConfig?.devBypassAvailable) {
-        const session = await requestDevelopmentSession("student");
+      if (authConfig?.devBypassAvailable) {
+        const session = await requestJson<SessionResponse>(
+          apiBaseUrl,
+          "/api/auth/dev-bypass",
+          { method: "POST" },
+        );
         await finishSignIn(session.token, {
           ...session.user,
           authProvider: "email",
@@ -1496,7 +1128,7 @@ export default function App() {
         return;
       }
 
-      if (currentAuthConfig?.enabled === false) {
+      if (authConfig?.enabled === false) {
         await finishSignIn(null, buildLocalEmailSessionUser(email, requiredEmailDomain));
         setAuthNotice(
           "Authentication service is unavailable. Continuing with a local session.",
@@ -1530,7 +1162,8 @@ export default function App() {
     authEmail,
     finishSignIn,
     hasRequestedEmailCode,
-    requestDevelopmentSession,
+    isAuthConfigUnavailable,
+    loadPublicAuthConfig,
     requiredEmailDomain,
   ]);
 
@@ -1545,43 +1178,35 @@ export default function App() {
         "/api/auth/config",
       );
 
-      let token = apiToken ?? process.env.EXPO_PUBLIC_API_TOKEN?.trim() ?? "";
+      let token = process.env.EXPO_PUBLIC_API_TOKEN?.trim() ?? "";
       token = token.length > 0 ? token : "";
 
       if (!token && authConfig.devBypassAvailable) {
-        const session = await requestDevelopmentSession(
-          normalizeDevelopmentSignInRole(sessionUser?.role),
+        const session = await requestJson<SessionResponse>(
+          apiBaseUrl,
+          "/api/auth/dev-bypass",
+          { method: "POST" },
         );
         token = session.token;
         setSessionUser(session.user);
       }
 
       const resolvedToken = token || null;
-      if (resolvedToken) {
-        await persistAuthToken(resolvedToken);
-      }
       setApiToken(resolvedToken);
       await refreshWorkspaceFromServer(resolvedToken);
       setBackendStatus("connected");
     } catch (error) {
-      if (isUnauthorizedError(error)) {
-        await clearAuthenticatedSession();
-        setAuthNotice("Session expired. Please sign in again.");
+      if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
+        endSessionForAuthFailure(getMobileAuthErrorMessage("expired-session"));
+        return;
       }
+
       setBackendStatus("offline");
       setSyncError(getClientErrorMessage(error));
     } finally {
       setIsSyncing(false);
     }
-  }, [
-    apiBaseUrl,
-    apiToken,
-    authConfig?.devBypassAvailable,
-    clearAuthenticatedSession,
-    refreshWorkspaceFromServer,
-    requestDevelopmentSession,
-    sessionUser?.role,
-  ]);
+  }, [apiBaseUrl, endSessionForAuthFailure, refreshWorkspaceFromServer]);
 
   const runMutation = useCallback(
     async (path: string, init: RequestInit) => {
@@ -1594,10 +1219,11 @@ export default function App() {
         setBackendStatus("connected");
         return true;
       } catch (error) {
-        if (isUnauthorizedError(error)) {
-          await clearAuthenticatedSession();
-          setAuthNotice("Session expired. Please sign in again.");
+        if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
+          endSessionForAuthFailure(getMobileAuthErrorMessage("expired-session"));
+          return false;
         }
+
         setBackendStatus("offline");
         setSyncError(getClientErrorMessage(error));
         return false;
@@ -1605,7 +1231,7 @@ export default function App() {
         setIsSyncing(false);
       }
     },
-    [apiBaseUrl, apiToken, clearAuthenticatedSession, refreshWorkspaceFromServer],
+    [apiBaseUrl, apiToken, endSessionForAuthFailure, refreshWorkspaceFromServer],
   );
 
   const membersById = useMemo(() => {
@@ -1613,26 +1239,20 @@ export default function App() {
       members.map((member) => [member.id, member]),
     ) as Record<string, (typeof members)[number]>;
   }, [members]);
-  const signedInRosterMember = useMemo(() => {
+  const signedInMember = useMemo(() => {
     const sessionName = sessionUser?.name.trim().toLowerCase();
     const sessionEmail = sessionUser?.email.trim().toLowerCase();
     const sessionAccount = sessionUser?.accountId.trim().toLowerCase();
-    return members.find((member) => {
+    const sessionMatch = members.find((member) => {
       return (
         member.id.toLowerCase() === sessionAccount ||
         member.name.trim().toLowerCase() === sessionName ||
         member.email?.trim().toLowerCase() === sessionEmail
       );
     });
-  }, [members, sessionUser]);
 
-  const signedInMember = useMemo(() => {
-    if (signedInRosterMember) {
-      return signedInRosterMember;
-    }
-
-    if (sessionUser) {
-      return null;
+    if (sessionMatch) {
+      return sessionMatch;
     }
 
     if (selectedMemberId && membersById[selectedMemberId]) {
@@ -1644,25 +1264,13 @@ export default function App() {
     }
 
     return members[0] ?? null;
-  }, [activePersonFilter, members, membersById, selectedMemberId, sessionUser, signedInRosterMember]);
+  }, [activePersonFilter, members, membersById, selectedMemberId, sessionUser]);
   const canMentorApprove =
-    signedInRosterMember?.role === "mentor" ||
-    signedInRosterMember?.role === "lead" ||
-    signedInRosterMember?.role === "admin" ||
-    sessionUser?.role === "mentor" ||
-    sessionUser?.role === "lead" ||
-    sessionUser?.role === "admin";
-  const canManageTasks = canMentorApprove;
-  const canManageMeetings = canMentorApprove;
-  const canManageRoster = canMentorApprove;
+    signedInMember?.role === "mentor" ||
+    signedInMember?.role === "lead" ||
+    signedInMember?.role === "admin";
   const signedInEmailInitial =
     sessionUser?.email.trim().charAt(0).toUpperCase() || "M";
-  const signedInTaskSubteams = useMemo<TaskSubteamTab[]>(() => {
-    return sessionUser?.taskSubteamIds ?? [];
-  }, [sessionUser?.taskSubteamIds]);
-  const signedInTaskSubteamLabel =
-    TASK_SUBTEAM_OPTIONS.find((option) => option.value === signedInTaskSubteams[0])?.label ??
-    "Choose";
 
   const subsystemsById = useMemo(() => {
     return Object.fromEntries(
@@ -3280,75 +2888,6 @@ export default function App() {
   }, [loadPublicAuthConfig]);
 
   useEffect(() => {
-    if (!authConfig || hasAuthenticated || hasCheckedStoredSession) {
-      return undefined;
-    }
-
-    let isActive = true;
-
-    async function restoreStoredSession() {
-      setHasCheckedStoredSession(true);
-
-      try {
-        const token = await getStoredAuthToken();
-        if (!token) {
-          return;
-        }
-
-        setIsSyncing(true);
-        setSyncError(null);
-
-        const authMe = await requestJson<AuthMeResponse>(
-          apiBaseUrl,
-          "/api/auth/me",
-          undefined,
-          token,
-        );
-
-        if (!isActive) {
-          return;
-        }
-
-        if (!authMe.enabled || !authMe.user) {
-          await clearAuthenticatedSession();
-          setAuthNotice("Session expired. Please sign in again.");
-          return;
-        }
-
-        await finishSignIn(token, authMe.user);
-      } catch (error) {
-        if (!isActive) {
-          return;
-        }
-
-        if (isUnauthorizedError(error)) {
-          await clearAuthenticatedSession();
-          setAuthNotice("Session expired. Please sign in again.");
-        } else {
-          setSyncError(parseClientError(error));
-        }
-      } finally {
-        if (isActive) {
-          setIsSyncing(false);
-        }
-      }
-    }
-
-    void restoreStoredSession();
-
-    return () => {
-      isActive = false;
-    };
-  }, [
-    apiBaseUrl,
-    authConfig,
-    clearAuthenticatedSession,
-    finishSignIn,
-    hasAuthenticated,
-    hasCheckedStoredSession,
-  ]);
-
-  useEffect(() => {
     void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.ALL).catch(
       () => undefined,
     );
@@ -3443,10 +2982,6 @@ export default function App() {
   const workTimerElapsedLabel = formatTimerElapsed(workLogTimerElapsedMs);
 
   const openCreateTaskEditor = () => {
-    if (!canManageTasks) {
-      return;
-    }
-
     const today = localTodayDate();
 
     setActiveTaskId(null);
@@ -3484,29 +3019,12 @@ export default function App() {
     setActiveTab("tasks");
   };
 
-  const openSignedInTaskQueue = () => {
-    setActiveTaskSubteam(signedInTaskSubteams[0] ?? activeTaskSubteam);
-    setTaskView("queue");
-    setTaskSearch("");
-    setTaskSubsystemFilter("all");
-    setTaskOwnerFilter("all");
-    setTaskStatusFilter("all");
-    setTaskPriorityFilter("all");
-    setTaskBlockerFilter("all");
-    setTaskArchiveFilter("active");
-    setActiveTab("tasks");
-  };
-
   const openInventoryPurchases = () => {
     setInventoryView("purchases");
     setActiveTab("inventory");
   };
 
   const openEditTaskEditor = (task: Task) => {
-    if (!canManageTasks) {
-      return;
-    }
-
     setActiveTaskId(task.id);
     setTaskDraft(buildTaskDraft(task));
     setTaskEditorError(null);
@@ -3515,10 +3033,6 @@ export default function App() {
   };
 
   const openDuplicateTaskEditor = (task: Task) => {
-    if (!canManageTasks) {
-      return;
-    }
-
     setActiveTaskId(null);
     setTaskDraft(
       buildTaskDraft({
@@ -3538,10 +3052,6 @@ export default function App() {
   };
 
   const shiftTaskDueDates = async (tasksToShift: Task[], dayDelta: number) => {
-    if (!canManageTasks) {
-      return;
-    }
-
     const openTasksToShift = tasksToShift.filter((task) => task.status !== "complete");
 
     if (openTasksToShift.length === 0 || dayDelta === 0) {
@@ -3652,11 +3162,6 @@ export default function App() {
   };
 
   const saveTaskDraft = async () => {
-    if (!canManageTasks) {
-      setTaskEditorError("Only mentors can create or edit tasks.");
-      return;
-    }
-
     const isEdit = taskEditorMode === "edit" && activeTaskId;
     const existingTask = isEdit ? taskById[activeTaskId] : null;
     const blockers = splitList(taskDraft.blockersText);
@@ -3938,7 +3443,7 @@ export default function App() {
   };
 
   const deleteTaskDraft = async () => {
-    if (!activeTaskId || !canManageTasks) {
+    if (!activeTaskId) {
       return;
     }
 
@@ -3952,10 +3457,6 @@ export default function App() {
   };
 
   const clearTaskBlockers = async (task: Task, resolutionNote: string) => {
-    if (!canManageTasks) {
-      return;
-    }
-
     const trimmedNote = resolutionNote.trim();
     if (!trimmedNote) {
       return;
@@ -4003,10 +3504,6 @@ export default function App() {
   };
 
   const startTask = async (task: Task) => {
-    if (!canManageTasks) {
-      return;
-    }
-
     const status = getAutoTaskStatus(task, taskById);
 
     if (status !== "in-progress" || task.status === "in-progress") {
@@ -4047,10 +3544,6 @@ export default function App() {
   };
 
   const requestTaskQa = async (task: Task) => {
-    if (!canManageTasks) {
-      return;
-    }
-
     const mentorId =
       task.mentorId ||
       members.find((member) => member.role === "mentor" || member.role === "lead")?.id ||
@@ -4576,10 +4069,6 @@ export default function App() {
   };
 
   const openCreateMemberEditor = () => {
-    if (!canManageRoster) {
-      return;
-    }
-
     setActiveMemberId(null);
     setMemberError(null);
     setMemberDraft(buildMemberDraft());
@@ -4587,10 +4076,6 @@ export default function App() {
   };
 
   const openEditMemberEditor = (memberId: string) => {
-    if (!canManageRoster) {
-      return;
-    }
-
     const member = members.find((candidate) => candidate.id === memberId);
     if (!member) {
       return;
@@ -4609,13 +4094,7 @@ export default function App() {
   };
 
   const saveMemberDraft = async () => {
-    if (!canManageRoster) {
-      setMemberError("Only mentors can invite or edit people.");
-      return;
-    }
-
     const name = memberDraft.name.trim();
-    const email = memberDraft.email.trim().toLowerCase();
     const duplicateName = members.some(
       (member) =>
         member.id !== activeMemberId &&
@@ -4635,7 +4114,6 @@ export default function App() {
     setMemberError(null);
 
     const payload = {
-      email,
       name,
       role: memberDraft.role,
     };
@@ -4655,7 +4133,7 @@ export default function App() {
   };
 
   const deleteMemberDraft = async () => {
-    if (!activeMemberId || !canManageRoster) {
+    if (!activeMemberId) {
       return;
     }
 
@@ -4665,58 +4143,6 @@ export default function App() {
 
     if (ok) {
       closeMemberEditor();
-    }
-  };
-
-  const openCreateMeetingEditor = () => {
-    if (!canManageMeetings) {
-      return;
-    }
-
-    setMeetingError(null);
-    setMeetingDraft(buildMeetingDraft());
-    setMeetingEditorMode("create");
-  };
-
-  const closeMeetingEditor = () => {
-    setMeetingEditorMode(null);
-    setMeetingError(null);
-  };
-
-  const saveMeetingDraft = async () => {
-    if (!canManageMeetings) {
-      setMeetingError("Only mentors can add meetings.");
-      return;
-    }
-
-    const title = meetingDraft.title.trim();
-    const date = meetingDraft.date.trim();
-    const time = meetingDraft.time.trim();
-    const missingFields = [
-      !title ? "title" : null,
-      !isValidDateInput(date) ? "date" : null,
-      !time ? "time" : null,
-    ].filter((field): field is string => Boolean(field));
-
-    if (missingFields.length > 0) {
-      setMeetingError(`Add valid ${missingFields.join(", ")} before saving this meeting.`);
-      return;
-    }
-
-    const ok = await runMutation("/api/meetings", {
-      method: "POST",
-      body: JSON.stringify({
-        title,
-        date,
-        time,
-        rsvpsYes: 0,
-        rsvpsMaybe: 0,
-        openSignIns: members.length,
-      }),
-    });
-
-    if (ok) {
-      closeMeetingEditor();
     }
   };
 
@@ -4832,7 +4258,7 @@ export default function App() {
     partName: string,
     acquisitionMethod: AcquisitionMethod,
   ) => {
-    if (acquisitionMethod === "stock" || !canManageTasks) {
+    if (acquisitionMethod === "stock") {
       return;
     }
 
@@ -4974,27 +4400,16 @@ export default function App() {
     }
   };
 
-  const openCreateQaReportEditor = (
-    taskId = tasks[0]?.id ?? "",
-    qaRequestId?: string,
-    initialResult: QaReportDraft["result"] = "pass",
-  ) => {
-    if (!canMentorApprove) {
-      return;
-    }
-
+  const openCreateQaReportEditor = (taskId = tasks[0]?.id ?? "", qaRequestId?: string) => {
     const request = qaRequestId ? qaRequests.find((candidate) => candidate.id === qaRequestId) : null;
 
     setQaReportDraft({
       taskId,
       participantIdsText: request?.requestedById ?? signedInMember?.id ?? members[0]?.id ?? "",
-      result: initialResult,
-      mentorApproved: initialResult === "pass" && Boolean(canMentorApprove),
+      result: "pass",
+      mentorApproved: Boolean(canMentorApprove),
       notes: "",
       evidenceNotes: "",
-      fixNotes: "",
-      versionIssueNotes: "",
-      preventionNotes: "",
       followUpTaskTitle: "",
     });
     setActiveQaRequestId(request?.id ?? null);
@@ -5031,46 +4446,16 @@ export default function App() {
     ]);
   };
 
-  const setQaReviewDecision = (result: QaReportDraft["result"]) => {
-    setQaReportError(null);
-    setQaReportDraft((current) => ({
-      ...current,
-      result,
-      mentorApproved: result === "pass",
-    }));
-  };
-
   const saveQaReportDraft = async () => {
-    if (!canMentorApprove) {
-      setQaReportError("Only mentors can approve QA.");
-      return;
-    }
-
     const task = taskById[qaReportDraft.taskId];
     const participants = splitList(qaReportDraft.participantIdsText).filter(
       (participantId) => membersById[participantId],
     );
-    const isFailReport = qaReportDraft.result !== "pass";
-    const trimmedNotes = qaReportDraft.notes.trim();
-    const trimmedFixNotes = qaReportDraft.fixNotes.trim();
-    const trimmedVersionIssueNotes = qaReportDraft.versionIssueNotes.trim();
-    const trimmedPreventionNotes = qaReportDraft.preventionNotes.trim();
-    const structuredFailNotes = [
-      `What to fix: ${trimmedFixNotes}`,
-      `What was wrong with this version: ${trimmedVersionIssueNotes}`,
-      `How to prevent this in the future: ${trimmedPreventionNotes}`,
-      trimmedNotes ? `Additional mentor note: ${trimmedNotes}` : "",
-    ]
-      .filter(Boolean)
-      .join("\n");
-    const reportNotes = isFailReport ? structuredFailNotes : trimmedNotes;
 
     const missingFields = [
       !task ? "task" : null,
       participants.length === 0 ? "participants" : null,
-      isFailReport && !trimmedFixNotes ? "what to fix" : null,
-      isFailReport && !trimmedVersionIssueNotes ? "what was wrong with this version" : null,
-      isFailReport && !trimmedPreventionNotes ? "how to prevent this in the future" : null,
+      !qaReportDraft.notes.trim() ? "notes" : null,
     ].filter((field): field is string => Boolean(field));
 
     if (missingFields.length > 0) {
@@ -5099,12 +4484,12 @@ export default function App() {
       subjectTitle: task.title,
       participantIds: participants,
       requestedById: linkedQaRequest?.requestedById ?? null,
-        mentorId: linkedQaRequest?.mentorId ?? task.mentorId,
-        result: qaReportDraft.result,
-        mentorApproved: qaReportDraft.mentorApproved,
-        notes: reportNotes,
-        evidenceNotes: qaReportDraft.evidenceNotes.trim(),
-      };
+      mentorId: linkedQaRequest?.mentorId ?? task.mentorId,
+      result: qaReportDraft.result,
+      mentorApproved: qaReportDraft.mentorApproved,
+      notes: qaReportDraft.notes.trim(),
+      evidenceNotes: qaReportDraft.evidenceNotes.trim(),
+    };
 
     if (qaReportDraft.result !== "pass") {
       const followUpTitle =
@@ -5113,11 +4498,11 @@ export default function App() {
           ? `Iterate after QA: ${task.title}`
           : `Fix QA finding: ${task.title}`);
       const followUpSummary = [
-          `Created from QA on "${task.title}".`,
-          `Result: ${qaReportDraft.result}.`,
-          reportNotes,
-          qaReportDraft.evidenceNotes.trim() ? `Evidence: ${qaReportDraft.evidenceNotes.trim()}` : "",
-        ]
+        `Created from QA on "${task.title}".`,
+        `Result: ${qaReportDraft.result}.`,
+        qaReportDraft.notes.trim(),
+        qaReportDraft.evidenceNotes.trim() ? `Evidence: ${qaReportDraft.evidenceNotes.trim()}` : "",
+      ]
         .filter(Boolean)
         .join("\n");
       const followUpTask = {
@@ -5250,7 +4635,7 @@ export default function App() {
     };
 
     const followUpTitle = eventReportDraft.followUpTaskTitle.trim();
-    if (followUpTitle && canManageTasks) {
+    if (followUpTitle) {
       const subsystemId = event.relatedSubsystemIds[0] ?? subsystems[0]?.id ?? "";
       const ownerId = signedInMember?.id ?? members[0]?.id ?? "";
       const mentorId =
@@ -5308,7 +4693,6 @@ export default function App() {
     closeManufacturingEditor();
     closePurchaseEditor();
     closeMemberEditor();
-    closeMeetingEditor();
     closeSubsystemEditor();
     closePartDefinitionEditor();
     closeQaReportEditor();
@@ -5323,7 +4707,6 @@ export default function App() {
     setDisciplines([]);
     setMechanisms([]);
     setTasks([]);
-    setMeetings([]);
     setEvents([]);
     setWorkLogs([]);
     setManufacturingItems([]);
@@ -5361,76 +4744,10 @@ export default function App() {
     });
   };
 
-  const selectSignedInSubteam = (subteam: TaskSubteamTab) => {
-    const email = sessionUser?.email;
-    if (!email) {
-      return;
-    }
-
-    const nextSubteams = [subteam];
-    void persistTaskSubteams(email, nextSubteams);
-    setSessionUser((current) =>
-      current ? { ...current, taskSubteamIds: nextSubteams } : current,
-    );
-    setActiveTaskSubteam(subteam);
-    setIsSubteamOnboardingVisible(false);
-
-    if (!apiToken) {
-      return;
-    }
-
-    void requestJson<UserPreferencesResponse>(
-      apiBaseUrl,
-      "/api/users/me/preferences",
-      {
-        method: "PATCH",
-        body: JSON.stringify({ taskSubteamIds: nextSubteams }),
-      },
-      apiToken,
-    ).catch(async (error) => {
-      if (isUnauthorizedError(error)) {
-        await clearAuthenticatedSession();
-      } else if (!isMissingUserPreferencesRoute(error)) {
-        setSyncError(parseClientError(error));
-      }
-    });
-  };
-
-  const updateThemePreference = () => {
-    const nextThemeMode: AppThemeName = themeMode === "dark" ? "light" : "dark";
-    const email = sessionUser?.email;
-
-    setThemeOverride(nextThemeMode);
-    if (email) {
-      void persistThemePreference(email, nextThemeMode);
-    }
-
-    if (!apiToken) {
-      return;
-    }
-
-    void requestJson<UserPreferencesResponse>(
-      apiBaseUrl,
-      "/api/users/me/preferences",
-      {
-        method: "PATCH",
-        body: JSON.stringify({ themeMode: nextThemeMode }),
-      },
-      apiToken,
-    ).catch(async (error) => {
-      if (isUnauthorizedError(error)) {
-        await clearAuthenticatedSession();
-      } else if (!isMissingUserPreferencesRoute(error)) {
-        setSyncError(parseClientError(error));
-      }
-    });
-  };
-
   const signOut = () => {
     setApiToken(null);
     setSessionUser(null);
     setHasAuthenticated(false);
-    setIsSubteamOnboardingVisible(false);
     setAuthCode("");
     setAuthEmail("");
     setAuthError(null);
@@ -5442,7 +4759,6 @@ export default function App() {
     setIsSeasonMenuVisible(false);
     setIsNavMenuVisible(false);
     setIsProjectOverlayVisible(false);
-    setThemeOverride(null);
     setActivePersonFilter("all");
     setSelectedMemberId(null);
     setSyncError(null);
@@ -5458,9 +4774,6 @@ export default function App() {
     closeQaReportEditor();
     closeEventReportEditor();
     clearWorkLogTimer();
-
-    void persistAuthToken(null);
-    void clearPersistedAuthSession().catch(() => undefined);
   };
 
   const screenProps = {
@@ -5469,10 +4782,7 @@ export default function App() {
     appResponsiveStyles,
     attendancePreview,
     attendanceSummary,
-    canManageMeetings,
-    canManageRoster,
     canMentorApprove,
-    canManageTasks,
     clearTaskBlockers,
     disciplinesById,
     editTagStyle,
@@ -5515,7 +4825,6 @@ export default function App() {
     mechanisms,
     mechanismsById,
     meetingAttendance,
-    meetings,
     members,
     membersById,
     milestoneSearch,
@@ -5528,7 +4837,6 @@ export default function App() {
     openCreateEventReportEditor,
     openCreateManufacturingEditor,
     openCreateMemberEditor,
-    openCreateMeetingEditor,
     openCreateMilestoneEditor,
     openCreatePartDefinitionEditor,
     openCreatePurchaseEditor,
@@ -5548,7 +4856,6 @@ export default function App() {
     openDuplicateTaskEditor,
     openInventoryPurchases,
     openMaterialRestockEditor,
-    openSignedInTaskQueue,
     openTaskQueueFromTask,
     partDefinitions,
     partDefinitionsById,
@@ -6695,16 +6002,6 @@ export default function App() {
             placeholder="Person name"
             value={memberDraft.name}
           />
-          <ModalField
-            keyboardType="email-address"
-            label="Email"
-            onChangeText={(value) => {
-              setMemberError(null);
-              setMemberDraft((current) => ({ ...current, email: value }));
-            }}
-            placeholder="person@mecorobotics.org"
-            value={memberDraft.email}
-          />
           <DropdownField
             label="Role"
             onChange={(value) => {
@@ -6721,52 +6018,6 @@ export default function App() {
               { id: "admin", name: "Admin" },
             ]}
             value={memberDraft.role}
-          />
-        </EditorModal>
-
-        <EditorModal
-          onCancel={closeMeetingEditor}
-          onSave={saveMeetingDraft}
-          saveLabel="Create meeting"
-          title="Create meeting"
-          visible={Boolean(meetingEditorMode)}
-        >
-          {meetingError ? (
-            <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
-              <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
-                Missing meeting details
-              </Text>
-              <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
-                {meetingError}
-              </Text>
-            </View>
-          ) : null}
-          <ModalField
-            label="Title"
-            onChangeText={(value) => {
-              setMeetingError(null);
-              setMeetingDraft((current) => ({ ...current, title: value }));
-            }}
-            placeholder="Build meeting"
-            value={meetingDraft.title}
-          />
-          <ModalField
-            label="Date"
-            onChangeText={(value) => {
-              setMeetingError(null);
-              setMeetingDraft((current) => ({ ...current, date: value }));
-            }}
-            placeholder="2026-05-22"
-            value={meetingDraft.date}
-          />
-          <ModalField
-            label="Time"
-            onChangeText={(value) => {
-              setMeetingError(null);
-              setMeetingDraft((current) => ({ ...current, time: value }));
-            }}
-            placeholder="18:00"
-            value={meetingDraft.time}
           />
         </EditorModal>
 
@@ -6872,62 +6123,18 @@ export default function App() {
             placeholder="Select task"
             value={qaReportDraft.taskId}
           />
-          <View style={styles.qaDecisionPanel}>
-            <Text style={styles.qaDecisionLabel}>Review decision</Text>
-            <View style={styles.qaDecisionRow}>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setQaReviewDecision("pass")}
-                style={[
-                  styles.qaDecisionButton,
-                  qaReportDraft.result === "pass" && styles.qaDecisionButtonPass,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.qaDecisionButtonText,
-                    qaReportDraft.result === "pass" && styles.qaDecisionButtonTextActive,
-                  ]}
-                >
-                  Approve
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setQaReviewDecision("minor-fix")}
-                style={[
-                  styles.qaDecisionButton,
-                  qaReportDraft.result === "minor-fix" && styles.qaDecisionButtonFail,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.qaDecisionButtonText,
-                    qaReportDraft.result === "minor-fix" && styles.qaDecisionButtonTextActive,
-                  ]}
-                >
-                  Minor fix
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setQaReviewDecision("iteration-worthy")}
-                style={[
-                  styles.qaDecisionButton,
-                  qaReportDraft.result === "iteration-worthy" && styles.qaDecisionButtonFail,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.qaDecisionButtonText,
-                    qaReportDraft.result === "iteration-worthy" && styles.qaDecisionButtonTextActive,
-                  ]}
-                >
-                  Iteration
-                </Text>
-              </Pressable>
-            </View>
-          </View>
+          <DropdownField
+            label="Result"
+            onChange={(value) => {
+              setQaReportError(null);
+              setQaReportDraft((current) => ({
+                ...current,
+                result: value as QaReportDraft["result"],
+              }));
+            }}
+            options={QA_RESULT_OPTIONS}
+            value={qaReportDraft.result}
+          />
           <ModalField
             label="Participants (member IDs, comma separated)"
             onChangeText={(value) => {
@@ -6937,52 +6144,14 @@ export default function App() {
             placeholder="ava,jordan"
             value={qaReportDraft.participantIdsText}
           />
-          {qaReportDraft.result !== "pass" ? (
-            <>
-              <ModalField
-                label="What to fix"
-                multiline
-                onChangeText={(value) => {
-                  setQaReportDraft((current) => ({ ...current, fixNotes: value }));
-                  setQaReportError(null);
-                }}
-                placeholder="Specific changes needed before this can pass"
-                value={qaReportDraft.fixNotes}
-              />
-              <ModalField
-                label="What was wrong with this version"
-                multiline
-                onChangeText={(value) => {
-                  setQaReportDraft((current) => ({ ...current, versionIssueNotes: value }));
-                  setQaReportError(null);
-                }}
-                placeholder="What failed, broke, was unsafe, or did not meet the requirement"
-                value={qaReportDraft.versionIssueNotes}
-              />
-              <ModalField
-                label="How to prevent this in the future"
-                multiline
-                onChangeText={(value) => {
-                  setQaReportDraft((current) => ({ ...current, preventionNotes: value }));
-                  setQaReportError(null);
-                }}
-                placeholder="Process, checklist, design, or testing change to prevent this next time"
-                value={qaReportDraft.preventionNotes}
-              />
-            </>
-          ) : null}
           <ModalField
-            label={qaReportDraft.result === "pass" ? "Optional note" : "Additional note"}
+            label="Notes"
             multiline
             onChangeText={(value) => {
               setQaReportDraft((current) => ({ ...current, notes: value }));
               setQaReportError(null);
             }}
-            placeholder={
-              qaReportDraft.result === "pass"
-                ? "Optional pass note"
-                : "Optional extra context for the failed test"
-            }
+            placeholder="Inspection result, evidence, and follow-up"
             value={qaReportDraft.notes}
           />
           <ModalField
@@ -7004,6 +6173,14 @@ export default function App() {
               }}
               placeholder="Leave blank to create one automatically"
               value={qaReportDraft.followUpTaskTitle}
+            />
+            <ToggleField
+              label="Mentor approved"
+              onToggle={(value) => {
+                setQaReportError(null);
+                setQaReportDraft((current) => ({ ...current, mentorApproved: value }));
+              }}
+              value={qaReportDraft.mentorApproved}
             />
           </AdvancedOptions>
         </EditorModal>
@@ -7366,56 +6543,6 @@ export default function App() {
               </>
             ) : null}
 
-            {showDevelopmentSignIn ? (
-              <View style={{ marginTop: scaleLogin(12), width: "100%", gap: scaleLogin(8) }}>
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={isAuthenticating}
-                  onPress={() => void signInWithDevelopmentRole("mentor")}
-                  style={({ pressed }) => [
-                    styles.loginDevPrimaryButton,
-                    { minHeight: scaleLogin(42), paddingHorizontal: scaleLogin(12) },
-                    pressed && styles.loginGoogleButtonPressed,
-                  ]}
-                >
-                  <Text style={[styles.loginDevPrimaryButtonText, { fontSize: scaleLogin(13) }]}>
-                    Run as Dev
-                  </Text>
-                </Pressable>
-                <View style={[styles.loginDevButtonRow, { gap: scaleLogin(8) }]}>
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={isAuthenticating}
-                    onPress={() => void signInWithDevelopmentRole("student")}
-                    style={({ pressed }) => [
-                      styles.loginDevButton,
-                      { minHeight: scaleLogin(38), paddingHorizontal: scaleLogin(10) },
-                      pressed && styles.loginGoogleButtonPressed,
-                    ]}
-                  >
-                    <Text style={[styles.loginDevButtonText, { fontSize: scaleLogin(12) }]}>
-                      Dev Student
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={isAuthenticating}
-                    onPress={() => void signInWithDevelopmentRole("mentor")}
-                    style={({ pressed }) => [
-                      styles.loginDevButton,
-                      styles.loginDevButtonPrimary,
-                      { minHeight: scaleLogin(38), paddingHorizontal: scaleLogin(10) },
-                      pressed && styles.loginGoogleButtonPressed,
-                    ]}
-                  >
-                    <Text style={[styles.loginDevButtonText, { fontSize: scaleLogin(12) }]}>
-                      Dev Mentor
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : null}
-
             {authNotice ? (
               <Text style={[styles.loginNoticeText, { fontSize: scaleLogin(14) }]}>
                 {authNotice}
@@ -7650,7 +6777,7 @@ export default function App() {
           </View>
 
           <Pressable
-            onPress={updateThemePreference}
+            onPress={() => setThemeOverride(themeMode === "dark" ? "light" : "dark")}
             style={[
               styles.settingsRow,
               appResponsiveStyles.settingsRow,
@@ -7662,18 +6789,6 @@ export default function App() {
             </View>
             <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>
               {themeMode === "dark" ? "Dark" : "Light"}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setIsSubteamOnboardingVisible(true)}
-            style={[styles.settingsRow, appResponsiveStyles.settingsRow]}
-          >
-            <View>
-              <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>Subteam</Text>
-            </View>
-            <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>
-              {signedInTaskSubteamLabel}
             </Text>
           </Pressable>
 
@@ -7776,52 +6891,6 @@ export default function App() {
 
         </Pressable>
       </Pressable>
-    </Modal>
-  );
-
-  const renderSubteamOnboardingModal = () => (
-    <Modal
-      animationType="fade"
-      onRequestClose={() => undefined}
-      supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
-      transparent
-      visible={isSubteamOnboardingVisible}
-    >
-      <View style={styles.overlayScrim}>
-        <View style={[styles.overlayCard, appResponsiveStyles.overlayCard]}>
-          <View style={styles.overlayHeader}>
-            <View style={[styles.personMark, { backgroundColor: themeColors.navySurface }]}>
-              <Text style={[styles.personMarkLabel, { color: themeColors.navyInk }]}>
-                {signedInEmailInitial}
-              </Text>
-            </View>
-            <View style={styles.overlayHeaderCopy}>
-              <Text style={[styles.overlayTitle, { color: themeColors.ink }]}>Choose your subteam</Text>
-              <Text style={[styles.overlaySubtitle, { color: themeColors.subtleText }]}>
-                This sets which tasks show first on Home.
-              </Text>
-            </View>
-          </View>
-
-          {TASK_SUBTEAM_OPTIONS.map((option) => (
-            <Pressable
-              accessibilityRole="button"
-              key={option.value}
-              onPress={() => selectSignedInSubteam(option.value)}
-              style={[styles.settingsRow, appResponsiveStyles.settingsRow]}
-            >
-              <View>
-                <Text style={[styles.settingsRowTitle, { color: themeColors.ink }]}>
-                  {option.label}
-                </Text>
-              </View>
-              <Text style={[styles.settingsRowValue, { color: themeColors.navyInk }]}>
-                Select
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
     </Modal>
   );
 
@@ -7929,7 +6998,6 @@ export default function App() {
       {renderNavigationMenu()}
       {renderProjectOverlay()}
       {renderPersonMenu()}
-      {renderSubteamOnboardingModal()}
           </SafeAreaView>
         </AppThemeProvider>
       )}
