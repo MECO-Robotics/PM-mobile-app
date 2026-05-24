@@ -157,4 +157,3 @@ const renderScreen = () => {
 };
   return renderScreen();
 }
-
