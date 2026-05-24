@@ -41,7 +41,7 @@ fi
 
 if [ ! -d "skills" ]; then
   echo "skills/ is missing in this checkout; syncing for validation."
-  bash ./sync-skills.sh
+  bash scripts/sync-skills.sh
   echo "skills/ synced from shared repo."
   exit 0
 fi
