@@ -6,7 +6,6 @@ import { styles } from "../ui/styles";
 import {
   EmptyState,
   SummaryRow,
-  StatusPill,
   WorkspacePanel,
 } from "../ui/ui";
 
@@ -22,12 +21,9 @@ export function AttendanceScreen(props: AppScreenProps) {
   const {
     appResponsiveStyles,
     attendanceSummary,
-    canManageMeetings,
     isSyncing,
     meetingAttendance,
-    meetings,
     members,
-    openCreateMeetingEditor,
     setAttendanceStatusByMemberId,
     syncFromBackend,
     themeColors,
@@ -39,53 +35,14 @@ const renderScreen = () => {
       title="Attendance"
       subtitle={`${members.length} people loaded from the workspace server.`}
       actions={
-        <View style={styles.quickActionRow}>
-          <Pressable onPress={syncFromBackend} style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}>
-            <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-              {isSyncing ? "Refreshing" : "Refresh"}
-            </Text>
-          </Pressable>
-          {canManageMeetings ? (
-            <Pressable onPress={openCreateMeetingEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-              <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>
-                Add meeting
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
+        <Pressable onPress={syncFromBackend} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+          <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>
+            {isSyncing ? "Refreshing" : "Refresh"}
+          </Text>
+        </Pressable>
       }
     >
       <SummaryRow chips={attendanceSummary} />
-
-      <View style={styles.homeSection}>
-        <View style={styles.homeSectionHeader}>
-          <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>
-            Meetings
-          </Text>
-          <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-            Upcoming sessions loaded from the server.
-          </Text>
-        </View>
-        {meetings.map((meeting) => (
-          <View key={meeting.id} style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
-            <View style={styles.queueRowHeader}>
-              <View style={styles.queueRowPrimaryText}>
-                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
-                  {meeting.title}
-                </Text>
-                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
-                  {meeting.date} - {meeting.time}
-                </Text>
-              </View>
-              <StatusPill label={`${meeting.openSignIns} open`} value="waiting" />
-            </View>
-            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
-              RSVPs: {meeting.rsvpsYes} yes / {meeting.rsvpsMaybe} maybe
-            </Text>
-          </View>
-        ))}
-        {meetings.length === 0 ? <EmptyState text="No meetings were returned by the server." /> : null}
-      </View>
 
       <View style={styles.homeSection}>
         <View style={styles.homeSectionHeader}>

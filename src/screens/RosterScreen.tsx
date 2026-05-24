@@ -25,8 +25,7 @@ function formatRole(role: string) {
 export function RosterScreen(props: AppScreenProps) {
   const {
     appResponsiveStyles,
-    canManageRoster,
-    disciplinesById,
+    editTagStyle,
     members,
     openCreateMemberEditor,
     openEditMemberEditor,
@@ -76,52 +75,43 @@ export function RosterScreen(props: AppScreenProps) {
             ? disciplinesById[member.disciplineId]?.name
             : null;
 
-          return (
-            <Pressable
-              key={member.id}
-              onPress={() => setSelectedMemberId(member.id)}
-              onLongPress={canManageRoster ? () => openEditMemberEditor(member.id) : undefined}
-              style={[
-                styles.memberRow,
-                appResponsiveStyles.memberRow,
-                isSelected && [styles.memberRowSelected, appResponsiveStyles.memberRowSelected],
-              ]}
-            >
-              <View style={[styles.memberAvatar, appResponsiveStyles.memberAvatar]}>
-                {member.photoUrl ? (
-                  <Image source={{ uri: member.photoUrl }} style={styles.memberAvatarImage} />
-                ) : (
-                  <Text style={[styles.memberAvatarLabel, { color: themeColors.navyInk }]}>
-                    {getInitials(member.name)}
-                  </Text>
-                )}
-              </View>
-              <View style={styles.memberCopy}>
-                <Text style={[styles.memberName, { color: themeColors.ink }]}>
-                  {member.name}
-                </Text>
-                <Text style={[styles.memberRole, { color: themeColors.subtleText }]}>
-                  {member.email || disciplineName || formatRole(member.role)}
-                </Text>
-              </View>
-              {member.role === "lead" || member.role === "admin" ? (
-                <View style={styles.memberRoleBadge}>
-                  <Text style={[styles.memberRoleBadgeLabel, { color: themeColors.navyInk }]}>
-                    {member.role === "admin" ? "A" : "L"}
-                  </Text>
-                </View>
-              ) : null}
+        return (
+          <Pressable
+            key={member.id}
+            onPress={() => setSelectedMemberId(member.id)}
+            onLongPress={() => openEditMemberEditor(member.id)}
+            style={[
+              styles.memberRow,
+              appResponsiveStyles.memberRow,
+              isSelected && [styles.memberRowSelected, appResponsiveStyles.memberRowSelected],
+            ]}
+          >
+            <View style={[styles.memberAvatar, appResponsiveStyles.memberAvatar]}>
+              <Text style={[styles.memberAvatarLabel, { color: themeColors.navyInk }]}>{member.name.slice(0, 1).toUpperCase()}</Text>
+            </View>
+            <View style={styles.memberCopy}>
+              <Text style={[styles.memberName, { color: themeColors.ink }]}>{member.name}</Text>
+              <Text style={[styles.memberRole, { color: themeColors.subtleText }]}>{capitalize(member.role)}</Text>
+            </View>
+            <Pressable onPress={() => openEditMemberEditor(member.id)} style={styles.editTagButton}>
+              <Text style={editTagStyle}>EDIT</Text>
             </Pressable>
-          );
-        })}
-      </View>
-    );
-  };
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+};
 
   return (
     <WorkspacePanel
-      title="Directory"
-      subtitle="Manage team members, external access, and roles."
+      title="Roster"
+      subtitle="Role-grouped people lists with quick selection for ownership and mentorship updates."
+      actions={
+        <Pressable onPress={openCreateMemberEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+          <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add person</Text>
+        </Pressable>
+      }
     >
       <SummaryRow
         chips={[

@@ -22,7 +22,7 @@ type Props = {
   laneHeight: number;
   lanes: PackedLane[];
   locale: string;
-  onTaskPress?: (task: Task) => void;
+  onTaskPress: (task: Task) => void;
   subsystemsById: Record<string, Subsystem>;
   timelineDays: Date[];
   timelineStart: Date;
@@ -173,7 +173,7 @@ export function LandscapeTimelineBoard({
                     return (
                       <Pressable
                         key={task.id}
-                        onPress={onTaskPress ? () => onTaskPress(task) : undefined}
+                        onPress={() => onTaskPress(task)}
                         style={[
                           chartStyles.taskBar,
                           { left: range.left, top, width: range.width, backgroundColor: color },
