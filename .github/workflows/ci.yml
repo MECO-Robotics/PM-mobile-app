@@ -89,7 +89,7 @@ jobs:
       - name: Run verify
         env:
           GH_TOKEN: ${{ github.token }}
-          PLATFORM_BOOTSTRAP_CONTRACT_BRANCH: ${{ github.base_ref || github.ref_name || 'development' }}
+          PLATFORM_BOOTSTRAP_CONTRACT_BRANCH: ${{ github.base_ref || (github.ref_name == 'main' && 'main') || (startsWith(github.ref_name, 'hotfix/') && 'main') || 'development' }}
           CI: true
         run: npm run verify
 
