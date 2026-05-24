@@ -149,6 +149,11 @@ import {
   updateWorkLogLiveActivity,
 } from "./src/services/workLogLiveActivity";
 import {
+  clearPersistedAuthSession,
+  loadPersistedAuthSession,
+  savePersistedAuthSession,
+} from "./src/services/authSessionStorage";
+import {
   cancelWorkLogTimerReminders,
   clearPersistedWorkLogTimerState,
   persistWorkLogTimerState,
@@ -506,6 +511,11 @@ async function getOrCreateAuthDeviceId() {
 }
 
 async function getStoredAuthToken() {
+  const persistedSession = await loadPersistedAuthSession().catch(() => null);
+  if (persistedSession?.token) {
+    return persistedSession.token;
+  }
+
   try {
     if (!(await SecureStore.isAvailableAsync())) {
       return null;
@@ -518,6 +528,10 @@ async function getStoredAuthToken() {
 }
 
 async function persistAuthToken(token: string | null) {
+  if (!token) {
+    await clearPersistedAuthSession().catch(() => undefined);
+  }
+
   try {
     if (!(await SecureStore.isAvailableAsync())) {
       return;
@@ -655,7 +669,7 @@ async function persistThemePreference(email: string, themeMode: AppThemeName) {
 }
 
 function isUnauthorizedError(error: unknown) {
-  return error instanceof ApiRequestError && error.status === 401;
+  return error instanceof ApiRequestError && (error.status === 401 || error.status === 403);
 }
 
 function isMissingUserPreferencesRoute(error: unknown) {
@@ -1120,6 +1134,7 @@ export default function App() {
     setAuthCode("");
     setHasRequestedEmailCode(false);
     setAuthNotice(null);
+    setSyncError(null);
     setIsSubteamOnboardingVisible(false);
   }, []);
 
@@ -1209,6 +1224,11 @@ export default function App() {
       };
 
       await persistAuthToken(token);
+      if (token) {
+        await savePersistedAuthSession({ token, user }).catch(() => undefined);
+      } else {
+        await clearPersistedAuthSession().catch(() => undefined);
+      }
       setApiToken(token);
       setSessionUser(userWithSubteams);
       setHasAuthenticated(false);
@@ -1229,6 +1249,7 @@ export default function App() {
         const errorMessage = parseClientError(error);
         if (isUnauthorizedError(error)) {
           await persistAuthToken(null);
+          setAuthNotice("Session expired. Please sign in again.");
         }
         setApiToken(null);
         setSessionUser(null);
@@ -1545,6 +1566,7 @@ export default function App() {
     } catch (error) {
       if (isUnauthorizedError(error)) {
         await clearAuthenticatedSession();
+        setAuthNotice("Session expired. Please sign in again.");
       }
       setBackendStatus("offline");
       setSyncError(getClientErrorMessage(error));
@@ -1574,6 +1596,7 @@ export default function App() {
       } catch (error) {
         if (isUnauthorizedError(error)) {
           await clearAuthenticatedSession();
+          setAuthNotice("Session expired. Please sign in again.");
         }
         setBackendStatus("offline");
         setSyncError(getClientErrorMessage(error));
@@ -3288,6 +3311,7 @@ export default function App() {
 
         if (!authMe.enabled || !authMe.user) {
           await clearAuthenticatedSession();
+          setAuthNotice("Session expired. Please sign in again.");
           return;
         }
 
@@ -3299,6 +3323,7 @@ export default function App() {
 
         if (isUnauthorizedError(error)) {
           await clearAuthenticatedSession();
+          setAuthNotice("Session expired. Please sign in again.");
         } else {
           setSyncError(parseClientError(error));
         }
@@ -5402,7 +5427,6 @@ export default function App() {
   };
 
   const signOut = () => {
-    void persistAuthToken(null);
     setApiToken(null);
     setSessionUser(null);
     setHasAuthenticated(false);
@@ -5434,6 +5458,9 @@ export default function App() {
     closeQaReportEditor();
     closeEventReportEditor();
     clearWorkLogTimer();
+
+    void persistAuthToken(null);
+    void clearPersistedAuthSession().catch(() => undefined);
   };
 
   const screenProps = {
