@@ -1,4 +1,4 @@
-import { Image, Pressable, ScrollView, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { Text } from "../i18n";
 import {
@@ -10,7 +10,6 @@ import {
   MANUFACTURING_STATUS_OPTIONS,
   MANUFACTURING_VIEW_OPTIONS,
   MATERIAL_CATEGORY_OPTIONS,
-  PART_STATUS_OPTIONS,
   PURCHASE_APPROVAL_OPTIONS,
   PURCHASE_STATUS_OPTIONS,
   STATUS_LABELS,
@@ -21,15 +20,6 @@ import {
   TASK_VIEW_OPTIONS,
   WORKLOG_SORT_OPTIONS,
 } from "../ui/constants";
-import {
-  capitalize,
-  datePortion,
-  formatDate,
-  formatDateTime,
-  splitList,
-  timePortion,
-  timelineProgress,
-} from "../ui/helpers";
 import { styles } from "../ui/styles";
 import {
   EmptyState,
@@ -37,64 +27,34 @@ import {
   InteractionNote,
   OptionChipRow,
   SearchField,
-  SectionTabs,
   StatusPill,
   SummaryRow,
   WorkspacePanel,
 } from "../ui/ui";
+import { PART_STATUS_OPTIONS } from "../ui/constants";
 
 import type { AppScreenProps } from "./types";
-import { AttendanceStatusMark } from "./AttendanceStatusMark";
 
 export function InventoryPartsScreen(props: AppScreenProps) {
   const {
     appResponsiveStyles,
     editTagStyle,
-    filteredMaterialRollups,
     filteredPartDefinitions,
     filteredPartInstances,
-    filteredPurchases,
-    inventoryView,
-    materialsCategoryFilter,
-    materialsSearch,
-    materialsStockFilter,
-    mechanismsById,
-    members,
-    membersById,
     openCreatePartDefinitionEditor,
-    openCreatePurchaseEditor,
     openEditPartDefinitionEditor,
-    openEditPurchaseEditor,
-    openMaterialRestockEditor,
     partDefinitions,
     partDefinitionsById,
     partInstancesWithStatus,
     partsSearch,
     partsStatusFilter,
     partsSubsystemFilter,
-    purchaseApprovalFilter,
-    purchaseArchiveFilter,
-    purchaseRequesterFilter,
-    purchaseSearch,
-    purchaseStatusFilter,
-    purchaseSubsystemFilter,
-    purchaseVendorFilter,
-    purchaseVendorOptions,
-    setMaterialsCategoryFilter,
-    setMaterialsSearch,
-    setMaterialsStockFilter,
+    mechanismsById,
+    subsystems,
+    subsystemsById,
     setPartsSearch,
     setPartsStatusFilter,
     setPartsSubsystemFilter,
-    setPurchaseApprovalFilter,
-    setPurchaseArchiveFilter,
-    setPurchaseRequesterFilter,
-    setPurchaseSearch,
-    setPurchaseStatusFilter,
-    setPurchaseSubsystemFilter,
-    setPurchaseVendorFilter,
-    subsystems,
-    subsystemsById,
   } = props;
 
 const renderScreen = () => {
