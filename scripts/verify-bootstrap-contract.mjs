@@ -5,6 +5,17 @@ import path from "node:path";
 
 const contractPath = path.resolve(process.cwd(), "contracts/platform/bootstrap/v1/contract.json");
 
+class ContractSourceUnavailableError extends Error {}
+
+function hasConfiguredPlatformContractSource() {
+  return Boolean(
+    process.env.PLATFORM_BOOTSTRAP_CONTRACT_SOURCE_PATH ||
+      process.env.PLATFORM_BOOTSTRAP_CONTRACT_URL ||
+      process.env.GITHUB_TOKEN ||
+      process.env.GH_TOKEN,
+  );
+}
+
 async function readJson(filePath) {
   const content = await readFile(filePath, "utf8");
   return JSON.parse(content);
@@ -94,6 +105,10 @@ async function resolvePlatformSourceContract() {
     // Continue to remote source resolution.
   }
 
+  if (process.env.CI === "true" && !hasConfiguredPlatformContractSource()) {
+    throw new ContractSourceUnavailableError("No CI platform contract source token, path, or URL is configured.");
+  }
+
   const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
   const remoteContractUrlTemplate =
     process.env.PLATFORM_BOOTSTRAP_CONTRACT_URL ??
@@ -128,6 +143,13 @@ async function main() {
   try {
     source = await resolvePlatformSourceContract();
   } catch (error) {
+    if (error instanceof ContractSourceUnavailableError) {
+      console.warn(
+        "Cannot load platform contract source (skipping strict remote contract drift check because no CI contract source token, path, or URL is configured).",
+      );
+      return;
+    }
+
     if (process.env.CI === "true") {
       throw error;
     }
