@@ -30,33 +30,9 @@ export function InventoryMaterialsScreen(props: AppScreenProps) {
     materialsStockFilter,
     openCreatePurchaseEditor,
     openMaterialRestockEditor,
-    partInstancesWithStatus,
-    partsSearch,
-    partsStatusFilter,
-    partsSubsystemFilter,
-    purchaseApprovalFilter,
-    purchaseArchiveFilter,
-    purchaseRequesterFilter,
-    purchaseSearch,
-    purchaseStatusFilter,
-    purchaseSubsystemFilter,
-    purchaseVendorFilter,
-    purchaseVendorOptions,
     setMaterialsCategoryFilter,
     setMaterialsSearch,
     setMaterialsStockFilter,
-    setPartsSearch,
-    setPartsStatusFilter,
-    setPartsSubsystemFilter,
-    setPurchaseApprovalFilter,
-    setPurchaseArchiveFilter,
-    setPurchaseRequesterFilter,
-    setPurchaseSearch,
-    setPurchaseStatusFilter,
-    setPurchaseSubsystemFilter,
-    setPurchaseVendorFilter,
-    subsystems,
-    subsystemsById,
   } = props;
 
 const renderScreen = () => {
@@ -156,6 +132,5 @@ const renderScreen = () => {
     </WorkspacePanel>
   );
 };
-
   return renderScreen();
 }

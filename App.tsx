@@ -27,6 +27,7 @@ import {
   ACQUISITION_METHOD_OPTIONS,
   PART_SOURCE_OPTIONS,
   PURCHASE_STATUS_OPTIONS,
+  QA_RESULT_OPTIONS,
   STATUS_LABELS,
   TASK_PRIORITY_OPTIONS,
   TASK_STATUS_OPTIONS,
@@ -38,7 +39,6 @@ import {
 import {
   buildDateTime,
   buildManufacturingDraft,
-  buildMeetingDraft,
   buildMemberDraft,
   buildMilestoneDraft,
   buildPartDefinitionDraft,
@@ -70,7 +70,6 @@ import type {
   ManufacturingDraft,
   ManufacturingViewTab,
   MaterialRollup,
-  MeetingDraft,
   MemberDraft,
   MilestoneDraft,
   MilestoneSortField,
@@ -163,7 +162,6 @@ const TIMER_TICK_MS = 1000;
 const MS_PER_HOUR = 1000 * 60 * 60;
 const GOOGLE_CLIENT_ID_PLACEHOLDER = "missing-google-client-id";
 
-type DevelopmentSignInRole = Extract<MemberRole, "student" | "mentor">;
 type AttendanceStatus = "yes" | "maybe" | "no";
 type SeasonOption = {
   id: string;
@@ -599,7 +597,6 @@ export default function App() {
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [authConfig, setAuthConfig] = useState<PublicAuthConfig | null>(null);
   const [hasAuthenticated, setHasAuthenticated] = useState(false);
-  const [hasCheckedStoredSession, setHasCheckedStoredSession] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
   const [authCode, setAuthCode] = useState("");
   const [hasRequestedEmailCode, setHasRequestedEmailCode] = useState(false);
@@ -885,60 +882,6 @@ export default function App() {
     [apiBaseUrl, applyBootstrapPayload],
   );
 
-  const clearAuthenticatedSession = useCallback(async () => {
-    await persistAuthToken(null);
-    setApiToken(null);
-    setSessionUser(null);
-    setHasAuthenticated(false);
-    setAuthCode("");
-    setHasRequestedEmailCode(false);
-    setAuthNotice(null);
-    setSyncError(null);
-    setIsSubteamOnboardingVisible(false);
-  }, []);
-
-  const loadUserPreferences = useCallback(
-    async (token: string | null, email: string) => {
-      const storedThemeMode = await getStoredThemePreference(email);
-      if (storedThemeMode) {
-        setThemeOverride(storedThemeMode);
-      }
-
-      if (!USER_PREFERENCES_API_ENABLED || !token) {
-        return;
-      }
-
-      try {
-        const preferences = await requestJson<UserPreferencesResponse>(
-          apiBaseUrl,
-          "/api/users/me/preferences",
-          undefined,
-          token,
-        );
-
-        if (preferences.themeMode) {
-          setThemeOverride(preferences.themeMode);
-          await persistThemePreference(email, preferences.themeMode);
-        }
-
-        const serverTaskSubteams = preferences.taskSubteamIds?.filter(isTaskSubteam) ?? [];
-        if (serverTaskSubteams.length > 0) {
-          setSessionUser((current) =>
-            current?.email === email ? { ...current, taskSubteamIds: serverTaskSubteams } : current,
-          );
-          setActiveTaskSubteam(serverTaskSubteams[0]);
-          await persistTaskSubteams(email, serverTaskSubteams);
-          setIsSubteamOnboardingVisible(false);
-        }
-      } catch (error) {
-        if (!isUnauthorizedError(error) && !isMissingUserPreferencesRoute(error)) {
-          setSyncError(parseClientError(error));
-        }
-      }
-    },
-    [apiBaseUrl],
-  );
-
   const loadPublicAuthConfig = useCallback(async () => {
     setBackendStatus("connecting");
     setSyncError(null);
@@ -972,51 +915,18 @@ export default function App() {
 
   const finishSignIn = useCallback(
     async (token: string | null, user: SessionUser) => {
-      const storedTaskSubteams = await getStoredTaskSubteams(user.email);
-      const userTaskSubteams =
-        user.taskSubteamIds && user.taskSubteamIds.length > 0
-          ? user.taskSubteamIds
-          : storedTaskSubteams;
-      const userWithSubteams: SessionUser = {
-        ...user,
-        taskSubteamIds: userTaskSubteams,
-      };
-
-      await persistAuthToken(token);
-      if (token) {
-        await savePersistedAuthSession({ token, user }).catch(() => undefined);
-      } else {
-        await clearPersistedAuthSession().catch(() => undefined);
-      }
       setApiToken(token);
-      setSessionUser(userWithSubteams);
-      setHasAuthenticated(false);
-      if (userTaskSubteams[0]) {
-        setActiveTaskSubteam(userTaskSubteams[0]);
-      }
-      setIsSubteamOnboardingVisible(userTaskSubteams.length === 0);
+      setSessionUser(user);
+      setHasAuthenticated(true);
       setIsSyncing(true);
       setSyncError(null);
-      setAuthError(null);
 
       try {
-        await loadUserPreferences(token, userWithSubteams.email);
         await refreshWorkspaceFromServer(token);
         setBackendStatus("connected");
-        setHasAuthenticated(true);
       } catch (error) {
-        const errorMessage = parseClientError(error);
-        if (isUnauthorizedError(error)) {
-          await persistAuthToken(null);
-          setAuthNotice("Session expired. Please sign in again.");
-        }
-        setApiToken(null);
-        setSessionUser(null);
-        setHasAuthenticated(false);
-        setIsSubteamOnboardingVisible(false);
         setBackendStatus("offline");
-        setSyncError(errorMessage);
-        setAuthError(errorMessage);
+        setSyncError(parseClientError(error));
       } finally {
         setIsSyncing(false);
       }
@@ -1207,19 +1117,9 @@ export default function App() {
       if (currentAuthConfig?.devBypassAvailable) {
         const session = await requestJson<SessionResponse>(
           apiBaseUrl,
-          "/api/auth/email/verify",
-          {
-            method: "POST",
-            body: JSON.stringify({ code, deviceId, email }),
-          },
+          "/api/auth/dev-bypass",
+          { method: "POST" },
         );
-        setAuthCode("");
-        await finishSignIn(session.token, session.user);
-        return;
-      }
-
-      if (currentAuthConfig?.devBypassAvailable) {
-        const session = await requestDevelopmentSession("student");
         await finishSignIn(session.token, {
           ...session.user,
           authProvider: "email",
@@ -1278,21 +1178,20 @@ export default function App() {
         "/api/auth/config",
       );
 
-      let token = apiToken ?? process.env.EXPO_PUBLIC_API_TOKEN?.trim() ?? "";
+      let token = process.env.EXPO_PUBLIC_API_TOKEN?.trim() ?? "";
       token = token.length > 0 ? token : "";
 
       if (!token && authConfig.devBypassAvailable) {
-        const session = await requestDevelopmentSession(
-          normalizeDevelopmentSignInRole(sessionUser?.role),
+        const session = await requestJson<SessionResponse>(
+          apiBaseUrl,
+          "/api/auth/dev-bypass",
+          { method: "POST" },
         );
         token = session.token;
         setSessionUser(session.user);
       }
 
       const resolvedToken = token || null;
-      if (resolvedToken) {
-        await persistAuthToken(resolvedToken);
-      }
       setApiToken(resolvedToken);
       await refreshWorkspaceFromServer(resolvedToken);
       setBackendStatus("connected");
@@ -1340,26 +1239,20 @@ export default function App() {
       members.map((member) => [member.id, member]),
     ) as Record<string, (typeof members)[number]>;
   }, [members]);
-  const signedInRosterMember = useMemo(() => {
+  const signedInMember = useMemo(() => {
     const sessionName = sessionUser?.name.trim().toLowerCase();
     const sessionEmail = sessionUser?.email.trim().toLowerCase();
     const sessionAccount = sessionUser?.accountId.trim().toLowerCase();
-    return members.find((member) => {
+    const sessionMatch = members.find((member) => {
       return (
         member.id.toLowerCase() === sessionAccount ||
         member.name.trim().toLowerCase() === sessionName ||
         member.email?.trim().toLowerCase() === sessionEmail
       );
     });
-  }, [members, sessionUser]);
 
-  const signedInMember = useMemo(() => {
-    if (signedInRosterMember) {
-      return signedInRosterMember;
-    }
-
-    if (sessionUser) {
-      return null;
+    if (sessionMatch) {
+      return sessionMatch;
     }
 
     if (selectedMemberId && membersById[selectedMemberId]) {
@@ -1371,7 +1264,7 @@ export default function App() {
     }
 
     return members[0] ?? null;
-  }, [activePersonFilter, members, membersById, selectedMemberId, sessionUser, signedInRosterMember]);
+  }, [activePersonFilter, members, membersById, selectedMemberId, sessionUser]);
   const canMentorApprove =
     signedInMember?.role === "mentor" ||
     signedInMember?.role === "lead" ||
@@ -3132,10 +3025,6 @@ export default function App() {
   };
 
   const openEditTaskEditor = (task: Task) => {
-    if (!canManageTasks) {
-      return;
-    }
-
     setActiveTaskId(task.id);
     setTaskDraft(buildTaskDraft(task));
     setTaskEditorError(null);
@@ -3554,7 +3443,7 @@ export default function App() {
   };
 
   const deleteTaskDraft = async () => {
-    if (!activeTaskId || !canManageTasks) {
+    if (!activeTaskId) {
       return;
     }
 
@@ -4180,10 +4069,6 @@ export default function App() {
   };
 
   const openCreateMemberEditor = () => {
-    if (!canManageRoster) {
-      return;
-    }
-
     setActiveMemberId(null);
     setMemberError(null);
     setMemberDraft(buildMemberDraft());
@@ -4191,10 +4076,6 @@ export default function App() {
   };
 
   const openEditMemberEditor = (memberId: string) => {
-    if (!canManageRoster) {
-      return;
-    }
-
     const member = members.find((candidate) => candidate.id === memberId);
     if (!member) {
       return;
@@ -4252,7 +4133,7 @@ export default function App() {
   };
 
   const deleteMemberDraft = async () => {
-    if (!activeMemberId || !canManageRoster) {
+    if (!activeMemberId) {
       return;
     }
 
@@ -4262,58 +4143,6 @@ export default function App() {
 
     if (ok) {
       closeMemberEditor();
-    }
-  };
-
-  const openCreateMeetingEditor = () => {
-    if (!canManageMeetings) {
-      return;
-    }
-
-    setMeetingError(null);
-    setMeetingDraft(buildMeetingDraft());
-    setMeetingEditorMode("create");
-  };
-
-  const closeMeetingEditor = () => {
-    setMeetingEditorMode(null);
-    setMeetingError(null);
-  };
-
-  const saveMeetingDraft = async () => {
-    if (!canManageMeetings) {
-      setMeetingError("Only mentors can add meetings.");
-      return;
-    }
-
-    const title = meetingDraft.title.trim();
-    const date = meetingDraft.date.trim();
-    const time = meetingDraft.time.trim();
-    const missingFields = [
-      !title ? "title" : null,
-      !isValidDateInput(date) ? "date" : null,
-      !time ? "time" : null,
-    ].filter((field): field is string => Boolean(field));
-
-    if (missingFields.length > 0) {
-      setMeetingError(`Add valid ${missingFields.join(", ")} before saving this meeting.`);
-      return;
-    }
-
-    const ok = await runMutation("/api/meetings", {
-      method: "POST",
-      body: JSON.stringify({
-        title,
-        date,
-        time,
-        rsvpsYes: 0,
-        rsvpsMaybe: 0,
-        openSignIns: members.length,
-      }),
-    });
-
-    if (ok) {
-      closeMeetingEditor();
     }
   };
 
@@ -4429,7 +4258,7 @@ export default function App() {
     partName: string,
     acquisitionMethod: AcquisitionMethod,
   ) => {
-    if (acquisitionMethod === "stock" || !canManageTasks) {
+    if (acquisitionMethod === "stock") {
       return;
     }
 
@@ -4622,20 +4451,6 @@ export default function App() {
     const participants = splitList(qaReportDraft.participantIdsText).filter(
       (participantId) => membersById[participantId],
     );
-    const isFailReport = qaReportDraft.result !== "pass";
-    const trimmedNotes = qaReportDraft.notes.trim();
-    const trimmedFixNotes = qaReportDraft.fixNotes.trim();
-    const trimmedVersionIssueNotes = qaReportDraft.versionIssueNotes.trim();
-    const trimmedPreventionNotes = qaReportDraft.preventionNotes.trim();
-    const structuredFailNotes = [
-      `What to fix: ${trimmedFixNotes}`,
-      `What was wrong with this version: ${trimmedVersionIssueNotes}`,
-      `How to prevent this in the future: ${trimmedPreventionNotes}`,
-      trimmedNotes ? `Additional mentor note: ${trimmedNotes}` : "",
-    ]
-      .filter(Boolean)
-      .join("\n");
-    const reportNotes = isFailReport ? structuredFailNotes : trimmedNotes;
 
     const missingFields = [
       !task ? "task" : null,
@@ -4820,7 +4635,7 @@ export default function App() {
     };
 
     const followUpTitle = eventReportDraft.followUpTaskTitle.trim();
-    if (followUpTitle && canManageTasks) {
+    if (followUpTitle) {
       const subsystemId = event.relatedSubsystemIds[0] ?? subsystems[0]?.id ?? "";
       const ownerId = signedInMember?.id ?? members[0]?.id ?? "";
       const mentorId =
@@ -6187,16 +6002,6 @@ export default function App() {
             placeholder="Person name"
             value={memberDraft.name}
           />
-          <ModalField
-            keyboardType="email-address"
-            label="Email"
-            onChangeText={(value) => {
-              setMemberError(null);
-              setMemberDraft((current) => ({ ...current, email: value }));
-            }}
-            placeholder="person@mecorobotics.org"
-            value={memberDraft.email}
-          />
           <DropdownField
             label="Role"
             onChange={(value) => {
@@ -6213,52 +6018,6 @@ export default function App() {
               { id: "admin", name: "Admin" },
             ]}
             value={memberDraft.role}
-          />
-        </EditorModal>
-
-        <EditorModal
-          onCancel={closeMeetingEditor}
-          onSave={saveMeetingDraft}
-          saveLabel="Create meeting"
-          title="Create meeting"
-          visible={Boolean(meetingEditorMode)}
-        >
-          {meetingError ? (
-            <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
-              <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
-                Missing meeting details
-              </Text>
-              <Text style={[styles.calloutBody, appResponsiveStyles.calloutBody]}>
-                {meetingError}
-              </Text>
-            </View>
-          ) : null}
-          <ModalField
-            label="Title"
-            onChangeText={(value) => {
-              setMeetingError(null);
-              setMeetingDraft((current) => ({ ...current, title: value }));
-            }}
-            placeholder="Build meeting"
-            value={meetingDraft.title}
-          />
-          <ModalField
-            label="Date"
-            onChangeText={(value) => {
-              setMeetingError(null);
-              setMeetingDraft((current) => ({ ...current, date: value }));
-            }}
-            placeholder="2026-05-22"
-            value={meetingDraft.date}
-          />
-          <ModalField
-            label="Time"
-            onChangeText={(value) => {
-              setMeetingError(null);
-              setMeetingDraft((current) => ({ ...current, time: value }));
-            }}
-            placeholder="18:00"
-            value={meetingDraft.time}
           />
         </EditorModal>
 
@@ -6385,42 +6144,8 @@ export default function App() {
             placeholder="ava,jordan"
             value={qaReportDraft.participantIdsText}
           />
-          {qaReportDraft.result !== "pass" ? (
-            <>
-              <ModalField
-                label="What to fix"
-                multiline
-                onChangeText={(value) => {
-                  setQaReportDraft((current) => ({ ...current, fixNotes: value }));
-                  setQaReportError(null);
-                }}
-                placeholder="Specific changes needed before this can pass"
-                value={qaReportDraft.fixNotes}
-              />
-              <ModalField
-                label="What was wrong with this version"
-                multiline
-                onChangeText={(value) => {
-                  setQaReportDraft((current) => ({ ...current, versionIssueNotes: value }));
-                  setQaReportError(null);
-                }}
-                placeholder="What failed, broke, was unsafe, or did not meet the requirement"
-                value={qaReportDraft.versionIssueNotes}
-              />
-              <ModalField
-                label="How to prevent this in the future"
-                multiline
-                onChangeText={(value) => {
-                  setQaReportDraft((current) => ({ ...current, preventionNotes: value }));
-                  setQaReportError(null);
-                }}
-                placeholder="Process, checklist, design, or testing change to prevent this next time"
-                value={qaReportDraft.preventionNotes}
-              />
-            </>
-          ) : null}
           <ModalField
-            label={qaReportDraft.result === "pass" ? "Optional note" : "Additional note"}
+            label="Notes"
             multiline
             onChangeText={(value) => {
               setQaReportDraft((current) => ({ ...current, notes: value }));
@@ -7052,7 +6777,7 @@ export default function App() {
           </View>
 
           <Pressable
-            onPress={updateThemePreference}
+            onPress={() => setThemeOverride(themeMode === "dark" ? "light" : "dark")}
             style={[
               styles.settingsRow,
               appResponsiveStyles.settingsRow,

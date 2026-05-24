@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SKILLS_REPO="${SKILLS_REPO:-https://github.com/MECO-Robotics/mission-control-skills.git}"
-TMP_DIR=".tmp-skills-sync"
+SYNC_MISSING_SKILLS="${SYNC_MISSING_SKILLS:-false}"
+TMP_PARENT="${TMP_DIR:-}"
+if [ -n "$TMP_PARENT" ]; then
+  mkdir -p "$TMP_PARENT"
+  TMP_DIR="$(mktemp -d "$TMP_PARENT/check-skills.XXXXXX")"
+else
+  TMP_DIR="$(mktemp -d)"
+fi
 
 fail() {
-  echo "Error: $*" >&2
+  echo "check-skills-current: $*" >&2
   exit 1
 }
 
@@ -21,17 +29,17 @@ require_repo_root() {
   repo_root="$(cd "$repo_root" && pwd -P)"
   current_dir="$(pwd -P)"
 
-  if [ "$current_dir" != "$repo_root" ]; then
-    fail "run this script from the repository root: $repo_root"
+  if [ "$current_dir" != "$repo_root" ] && [[ "$current_dir" != "$repo_root"/* ]]; then
+    fail "run this script from within the repository: $repo_root"
   fi
+
+  cd "$repo_root"
 }
 
 require_repo_root
 trap cleanup EXIT
 
 echo "Checking skills against: $SKILLS_REPO"
-
-cleanup
 
 if ! git clone --depth 1 "$SKILLS_REPO" "$TMP_DIR"; then
   fail "failed to clone shared skills repo: $SKILLS_REPO"
@@ -42,12 +50,16 @@ if [ ! -d "$TMP_DIR/skills" ]; then
 fi
 
 if [ ! -d "skills" ]; then
-  echo "skills/ is missing in this checkout; syncing for validation."
-  bash scripts/sync-skills.sh
-  echo "skills/ synced from shared repo."
-  cleanup
-  trap - EXIT
-  exit 0
+  if [ "$SYNC_MISSING_SKILLS" = "true" ]; then
+    echo "skills/ is missing in this checkout; syncing for validation."
+    bash "$SCRIPT_DIR/sync-skills.sh"
+    echo "skills/ synced from shared repo."
+    exit 0
+  fi
+
+  echo "skills/ is missing in this checkout."
+  echo "Run: bash scripts/sync-skills.sh"
+  exit 1
 fi
 
 set +e
@@ -56,8 +68,6 @@ DIFF_STATUS=$?
 set -e
 
 if [ "$DIFF_STATUS" -eq 0 ]; then
-  cleanup
-  trap - EXIT
   echo "skills/ is current."
   exit 0
 fi
