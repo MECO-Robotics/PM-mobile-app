@@ -2,10 +2,10 @@
 set -euo pipefail
 
 SKILLS_REPO="${SKILLS_REPO:-https://github.com/MECO-Robotics/mission-control-skills.git}"
-TMP_DIR=".tmp-skills-sync"
+TMP_DIR="${TMP_DIR:-$(mktemp -d)}"
 
 fail() {
-  echo "Error: $*" >&2
+  echo "check-skills-current: $*" >&2
   exit 1
 }
 
@@ -31,8 +31,6 @@ trap cleanup EXIT
 
 echo "Checking skills against: $SKILLS_REPO"
 
-cleanup
-
 if ! git clone --depth 1 "$SKILLS_REPO" "$TMP_DIR"; then
   fail "failed to clone shared skills repo: $SKILLS_REPO"
 fi
@@ -45,8 +43,6 @@ if [ ! -d "skills" ]; then
   echo "skills/ is missing in this checkout; syncing for validation."
   bash scripts/sync-skills.sh
   echo "skills/ synced from shared repo."
-  cleanup
-  trap - EXIT
   exit 0
 fi
 
@@ -56,8 +52,6 @@ DIFF_STATUS=$?
 set -e
 
 if [ "$DIFF_STATUS" -eq 0 ]; then
-  cleanup
-  trap - EXIT
   echo "skills/ is current."
   exit 0
 fi
