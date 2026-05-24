@@ -9,14 +9,15 @@
     "postinstall": "node scripts/patch-freeport-async.js",
     "sim:reset": "node scripts/reset-ios-sim.js",
     "preios": "node scripts/reset-ios-sim.js",
-    "verify": "npm run lint && npm run test && npm run typecheck",
+    "verify": "npm run lint && npm run test && npm run typecheck && npm run verify:bootstrap-contract",
     "dev": "bash ./script/build_and_run.sh --android",
     "start": "expo start",
     "android": "bash ./script/build_and_run.sh --android",
     "ios": "expo start --ios --localhost --port 8081",
     "lint": "eslint .",
     "test": "jest --runInBand",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:bootstrap-contract": "node scripts/verify-bootstrap-contract.mjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
