@@ -52,7 +52,7 @@ npm run test:role-permissions
 npm run typecheck
 ```
 
-`npm run dev` is an Android-focused shortcut that runs `script/build_and_run.sh --android`.
+`npm run dev` is an Android-focused shortcut that runs `powershell -ExecutionPolicy Bypass -File ./script/build_and_run.ps1 --android`.
 
 Do not run Expo or npm scripts with `sudo`. If `node_modules` or `.expo` become owned by `root`, fix ownership from the repo root before starting the app:
 

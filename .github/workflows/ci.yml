@@ -33,6 +33,7 @@ on:
 
 permissions:
   contents: read
+  checks: read
 
 concurrency:
   group: meco-mission-control-mobile-ci-${{ github.workflow }}-${{ github.ref }}
@@ -156,7 +157,7 @@ jobs:
     steps:
       - name: Validate development integration health across all repos
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.MECO_PLATFORM_CONTRACT_READ_TOKEN }}
         run: |
           node <<'NODE'
           const owner = 'MECO-Robotics';
@@ -169,7 +170,7 @@ jobs:
 
           const token = process.env.GH_TOKEN;
           if (!token) {
-            throw new Error('github.token is required for cross-repo validation.');
+            throw new Error('MECO_PLATFORM_CONTRACT_READ_TOKEN is required for cross-repo validation.');
           }
 
           async function gh(path) {
