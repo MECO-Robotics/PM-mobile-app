@@ -1114,7 +1114,7 @@ export default function App() {
         return;
       }
 
-      if (authConfig?.devBypassAvailable) {
+      if (currentAuthConfig?.devBypassAvailable) {
         const session = await requestJson<SessionResponse>(
           apiBaseUrl,
           "/api/auth/dev-bypass",
