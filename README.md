@@ -50,7 +50,6 @@ npm run android
 npm run lint
 npm run test:role-permissions
 npm run typecheck
-npm test
 ```
 
 `npm run dev` is an Android-focused shortcut that runs `script/build_and_run.sh --android`.
