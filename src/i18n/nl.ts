@@ -222,6 +222,8 @@ export const nl = {
   "Sign in with email": "Inloggen met e-mail",
   Sending: "Verzenden",
   "Send Code": "Code verzenden",
+  "Signing in": "Inloggen",
+  "Sign in with Google": "Inloggen met Google",
   "Robot project selector": "Robotprojectkiezer",
   "Edit robot": "Robot bewerken",
   "Switch project": "Project wisselen",

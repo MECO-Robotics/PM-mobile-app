@@ -222,6 +222,8 @@ export const de = {
   "Sign in with email": "Mit E-Mail anmelden",
   Sending: "Senden",
   "Send Code": "Code senden",
+  "Signing in": "Anmeldung läuft",
+  "Sign in with Google": "Mit Google anmelden",
   "Robot project selector": "Robot-Projektauswahl",
   "Edit robot": "Robot bearbeiten",
   "Switch project": "Projekt wechseln",
