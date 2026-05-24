@@ -9,6 +9,7 @@
     "postinstall": "node scripts/patch-freeport-async.js",
     "sim:reset": "node scripts/reset-ios-sim.js",
     "preios": "node scripts/reset-ios-sim.js",
+    "verify": "npm run lint && npm run test && npm run typecheck",
     "dev": "bash ./script/build_and_run.sh --android",
     "start": "expo start",
     "android": "bash ./script/build_and_run.sh --android",
@@ -42,3 +43,4 @@
   },
   "private": true
 }
+
