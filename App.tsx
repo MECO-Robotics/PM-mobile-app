@@ -528,6 +528,10 @@ async function getStoredAuthToken() {
 }
 
 async function persistAuthToken(token: string | null) {
+  if (!token) {
+    await clearPersistedAuthSession().catch(() => undefined);
+  }
+
   try {
     if (!(await SecureStore.isAvailableAsync())) {
       return;
@@ -537,7 +541,6 @@ async function persistAuthToken(token: string | null) {
       await SecureStore.setItemAsync(AUTH_TOKEN_STORAGE_KEY, token);
     } else {
       await SecureStore.deleteItemAsync(AUTH_TOKEN_STORAGE_KEY);
-      await clearPersistedAuthSession();
     }
   } catch {
     // Keep the in-memory session usable if secure storage is unavailable.
@@ -1222,9 +1225,9 @@ export default function App() {
 
       await persistAuthToken(token);
       if (token) {
-        await savePersistedAuthSession({ token, user });
+        await savePersistedAuthSession({ token, user }).catch(() => undefined);
       } else {
-        await clearPersistedAuthSession();
+        await clearPersistedAuthSession().catch(() => undefined);
       }
       setApiToken(token);
       setSessionUser(userWithSubteams);
