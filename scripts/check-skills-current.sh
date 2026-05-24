@@ -2,11 +2,10 @@
 set -euo pipefail
 
 SKILLS_REPO="${SKILLS_REPO:-https://github.com/MECO-Robotics/mission-control-skills.git}"
-TMP_DIR="${TMP_DIR:-$(mktemp -d)}"
-REPO_ROOT="$(cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)" && pwd -P)"
+TMP_DIR=".tmp-skills-sync"
 
 fail() {
-  echo "check-skills-current: $*" >&2
+  echo "Error: $*" >&2
   exit 1
 }
 
@@ -18,20 +17,21 @@ require_repo_root() {
   local repo_root
   local current_dir
 
-  repo_root="$REPO_ROOT"
-  current_dir="$(cd "$(pwd -P)" && pwd -P)"
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || fail "not a git repository. Run this script from the app repo root."
+  repo_root="$(cd "$repo_root" && pwd -P)"
+  current_dir="$(pwd -P)"
 
   if [ "$current_dir" != "$repo_root" ]; then
     fail "run this script from the repository root: $repo_root"
   fi
 }
 
-cd "$REPO_ROOT"
 require_repo_root
 trap cleanup EXIT
 
 echo "Checking skills against: $SKILLS_REPO"
-bash ./scripts/sync-skills.sh
+
+cleanup
 
 if ! git clone --depth 1 "$SKILLS_REPO" "$TMP_DIR"; then
   fail "failed to clone shared skills repo: $SKILLS_REPO"
@@ -43,8 +43,10 @@ fi
 
 if [ ! -d "skills" ]; then
   echo "skills/ is missing in this checkout; syncing for validation."
-  bash ./scripts/sync-skills.sh
+  bash scripts/sync-skills.sh
   echo "skills/ synced from shared repo."
+  cleanup
+  trap - EXIT
   exit 0
 fi
 
@@ -54,6 +56,8 @@ DIFF_STATUS=$?
 set -e
 
 if [ "$DIFF_STATUS" -eq 0 ]; then
+  cleanup
+  trap - EXIT
   echo "skills/ is current."
   exit 0
 fi

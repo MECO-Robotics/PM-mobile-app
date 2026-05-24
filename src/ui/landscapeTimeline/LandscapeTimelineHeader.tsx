@@ -9,7 +9,6 @@ import { landscapeTimelineHeaderStyles as styles } from "./landscapeTimelineHead
 export type LandscapeTaskViewMode = "timeline" | "calendar";
 
 type Props = {
-  canAddTask?: boolean;
   colors: AppThemeColors;
   locale: string;
   onAddDeadline: () => void;
@@ -27,7 +26,6 @@ const VIEW_OPTIONS: { id: LandscapeTaskViewMode; label: string }[] = [
 ];
 
 export function LandscapeTimelineHeader({
-  canAddTask = true,
   colors,
   locale,
   onAddDeadline,
@@ -80,17 +78,15 @@ export function LandscapeTimelineHeader({
           </Pressable>
           {isAddMenuOpen ? (
             <View style={[styles.addMenu, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              {canAddTask ? (
-                <Pressable
-                  onPress={() => {
-                    setIsAddMenuOpen(false);
-                    onAddTask();
-                  }}
-                  style={styles.addMenuItem}
-                >
-                  <Text style={[styles.addMenuItemText, { color: colors.ink }]}>Add task</Text>
-                </Pressable>
-              ) : null}
+              <Pressable
+                onPress={() => {
+                  setIsAddMenuOpen(false);
+                  onAddTask();
+                }}
+                style={styles.addMenuItem}
+              >
+                <Text style={[styles.addMenuItemText, { color: colors.ink }]}>Add task</Text>
+              </Pressable>
               <Pressable
                 onPress={() => {
                   setIsAddMenuOpen(false);

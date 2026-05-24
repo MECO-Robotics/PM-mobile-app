@@ -49,7 +49,6 @@ import { AttendanceStatusMark } from "./AttendanceStatusMark";
 export function RosterScreen(props: AppScreenProps) {
   const {
     appResponsiveStyles,
-    canManageRoster,
     editTagStyle,
     members,
     openCreateMemberEditor,
@@ -82,7 +81,7 @@ const renderRosterSection = (
           <Pressable
             key={member.id}
             onPress={() => setSelectedMemberId(member.id)}
-            onLongPress={canManageRoster ? () => openEditMemberEditor(member.id) : undefined}
+            onLongPress={() => openEditMemberEditor(member.id)}
             style={[
               styles.memberRow,
               appResponsiveStyles.memberRow,
@@ -96,11 +95,9 @@ const renderRosterSection = (
               <Text style={[styles.memberName, { color: themeColors.ink }]}>{member.name}</Text>
               <Text style={[styles.memberRole, { color: themeColors.subtleText }]}>{capitalize(member.role)}</Text>
             </View>
-            {canManageRoster ? (
-              <Pressable onPress={() => openEditMemberEditor(member.id)} style={styles.editTagButton}>
-                <Text style={editTagStyle}>EDIT</Text>
-              </Pressable>
-            ) : null}
+            <Pressable onPress={() => openEditMemberEditor(member.id)} style={styles.editTagButton}>
+              <Text style={editTagStyle}>EDIT</Text>
+            </Pressable>
           </Pressable>
         );
       })}
@@ -114,11 +111,9 @@ const renderScreen = () => {
       title="Roster"
       subtitle="Role-grouped people lists with quick selection for ownership and mentorship updates."
       actions={
-        canManageRoster ? (
-          <Pressable onPress={openCreateMemberEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
-            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add person</Text>
-          </Pressable>
-        ) : null
+        <Pressable onPress={openCreateMemberEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
+          <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add person</Text>
+        </Pressable>
       }
     >
       <SummaryRow
