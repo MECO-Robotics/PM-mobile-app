@@ -90,7 +90,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PLATFORM_BOOTSTRAP_CONTRACT_BRANCH: ${{ github.base_ref || 'development' }}
-          PLATFORM_BOOTSTRAP_CONTRACT_SOURCE_PATH: contracts/platform/bootstrap/v1/contract.json
           CI: true
         run: npm run verify
 
