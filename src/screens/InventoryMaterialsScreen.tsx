@@ -28,6 +28,7 @@ export function InventoryMaterialsScreen(props: AppScreenProps) {
     materialsCategoryFilter,
     materialsSearch,
     materialsStockFilter,
+    openCreatePurchaseEditor,
     openMaterialRestockEditor,
     partInstancesWithStatus,
     partsSearch,
