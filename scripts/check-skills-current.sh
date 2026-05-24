@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+TMP_DIR="${TMP_DIR:-$(mktemp -d)}"
 
 fail() {
   echo "Error: $*" >&2
