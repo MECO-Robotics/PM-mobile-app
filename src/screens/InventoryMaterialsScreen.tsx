@@ -29,14 +29,9 @@ export function InventoryMaterialsScreen(props: AppScreenProps) {
     materialsSearch,
     materialsStockFilter,
     openMaterialRestockEditor,
-    purchaseVendorFilter,
-    purchaseVendorOptions,
     setMaterialsCategoryFilter,
     setMaterialsSearch,
     setMaterialsStockFilter,
-    setPurchaseVendorFilter,
-    subsystems,
-    subsystemsById,
   } = props;
 
 const renderScreen = () => {
