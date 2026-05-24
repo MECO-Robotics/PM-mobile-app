@@ -1678,22 +1678,6 @@ export const styles = StyleSheet.create({
     marginTop: 10,
     textAlign: "center",
   },
-  loginNoticeText: {
-    alignSelf: "stretch",
-    color: "#dbeafe",
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 10,
-    textAlign: "center",
-  },
-  loginNoticeText: {
-    alignSelf: "stretch",
-    color: "#dbeafe",
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 10,
-    textAlign: "center",
-  },
   loginDevButtonRow: {
     width: "100%",
     flexDirection: "row",
