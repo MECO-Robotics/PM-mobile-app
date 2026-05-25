@@ -29,7 +29,6 @@ export function HomeScreen(props: AppScreenProps) {
     openEditManufacturingEditor,
     openEditPurchaseEditor,
     openInventoryPurchases,
-    openSignedInTaskQueue,
     openTaskQueueFromTask,
     purchaseItems,
     setActiveTab,
@@ -76,17 +75,6 @@ const renderScreen = () => {
         </Pressable>
       }
     >
-      <Pressable
-        accessibilityRole="button"
-        onPress={openSignedInTaskQueue}
-        style={[styles.calloutBox, appResponsiveStyles.calloutBox]}
-      >
-        <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
-          Tasks for this meeting
-        </Text>
-        <SummaryRow chips={homeTaskSummary} />
-      </Pressable>
-
       <View style={styles.homeSection}>
         <View style={styles.homeSectionHeader}>
           <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>
@@ -165,6 +153,13 @@ const renderScreen = () => {
         {homeInventoryNeeds.length === 0 ? (
           <EmptyState text="No purchase items need buying right now." />
         ) : null}
+      </View>
+
+      <View style={[styles.calloutBox, appResponsiveStyles.calloutBox]}>
+        <Text style={[styles.calloutTitle, appResponsiveStyles.calloutTitle]}>
+          Tasks for this meeting
+        </Text>
+        <SummaryRow chips={homeTaskSummary} />
       </View>
 
       {homePriorityTasks.map((task) => {

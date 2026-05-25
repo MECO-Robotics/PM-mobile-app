@@ -9,7 +9,6 @@ import type {
   HelpRequest,
   ManufacturingItem,
   Mechanism,
-  Meeting,
   Member,
   PartDefinition,
   PartInstance,
@@ -112,9 +111,6 @@ export interface AppScreenProps {
   appResponsiveStyles: ResponsiveScreenStyles;
   attendancePreview: AttendanceRow[];
   attendanceSummary: SummaryChipData[];
-  canManageMeetings: boolean;
-  canManageRoster: boolean;
-  canManageTasks: boolean;
   canMentorApprove: boolean;
   clearTaskBlockers: (task: Task, resolutionNote: string) => Promise<void>;
   disciplinesById: Record<string, Discipline>;
@@ -159,7 +155,6 @@ export interface AppScreenProps {
   mechanisms: Mechanism[];
   mechanismsById: Record<string, Mechanism>;
   meetingAttendance: AttendanceRow[];
-  meetings: Meeting[];
   members: Member[];
   membersById: Record<string, Member>;
   milestoneSearch: string;
@@ -171,15 +166,10 @@ export interface AppScreenProps {
   openCreateEventReportEditor: (eventId?: string) => void;
   openCreateManufacturingEditor: () => void;
   openCreateMemberEditor: () => void;
-  openCreateMeetingEditor: () => void;
   openCreateMilestoneEditor: () => void;
   openCreatePartDefinitionEditor: () => void;
   openCreatePurchaseEditor: () => void;
-  openCreateQaReportEditor: (
-    taskId?: string,
-    qaRequestId?: string,
-    initialResult?: "pass" | "minor-fix",
-  ) => void;
+  openCreateQaReportEditor: (taskId?: string, qaRequestId?: string) => void;
   openCreateSubsystemEditor: () => void;
   openCreateTaskEditor: () => void;
   openCreateWorkLogEditor: (taskId?: string) => void;
@@ -196,7 +186,6 @@ export interface AppScreenProps {
   openDuplicateTaskEditor: (task: Task) => void;
   openInventoryPurchases: () => void;
   openMaterialRestockEditor: (row: MaterialRollup) => void;
-  openSignedInTaskQueue: () => void;
   openTaskQueueFromTask: (task: Task) => void;
   requestTaskQa: (task: Task) => Promise<void>;
   startTask: (task: Task) => Promise<void>;

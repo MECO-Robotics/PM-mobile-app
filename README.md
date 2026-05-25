@@ -11,21 +11,7 @@ Expo/React Native mobile client for MECO Mission Control manufacturing, planning
 - QA outcomes that separate minor rework from iteration-worthy failures.
 - Role-aware mentor and student flows, including mentor-only QA decisions.
 - Planning metrics surfaced from the same operational data.
-- Google and email sign-in flows backed by the platform auth configuration.
-- Work-log timer persistence with local notification reminders.
-- Materials, parts, purchases, manufacturing, risks, roster, and subsystem management screens.
-
-## Documentation
-
-Detailed app documentation lives in [`docs/`](docs/):
-
-- [`docs/overview.md`](docs/overview.md) - product purpose, users, and core workflows.
-- [`docs/features.md`](docs/features.md) - screen-by-screen behavior and expected actions.
-- [`docs/architecture.md`](docs/architecture.md) - source layout, state ownership, UI structure, and services.
-- [`docs/api-integration.md`](docs/api-integration.md) - backend configuration, auth, bootstrap data, and mutation endpoints.
-- [`docs/data-model.md`](docs/data-model.md) - domain entities and status lifecycles.
-- [`docs/development.md`](docs/development.md) - local setup, scripts, simulators, and environment variables.
-- [`docs/release.md`](docs/release.md) - branch policy, CI, EAS release expectations, and production safety.
+- Mobile auth states for expired sessions, unavailable network, and backend auth configuration failures.
 
 ## Why this is separate from the hosted backend
 
@@ -53,7 +39,7 @@ npm run typecheck
 npm test
 ```
 
-`npm run dev` is an Android-focused shortcut that runs `script/build_and_run.sh --android`.
+`npm run dev` is an Android-focused shortcut that runs `powershell -ExecutionPolicy Bypass -File ./script/build_and_run.ps1 --android`.
 
 Do not run Expo or npm scripts with `sudo`. If `node_modules` or `.expo` become owned by `root`, fix ownership from the repo root before starting the app:
 
@@ -73,6 +59,19 @@ host and keeps `adb reverse tcp:8081 tcp:8081` refreshed before Expo opens.
 The local Android simulator uses `.env.local` with
 `EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:8080` so it can reach a backend running
 on the Windows host.
+
+## Auth configuration (no secrets in source)
+
+- `EXPO_PUBLIC_API_BASE_URL` (required): platform API base URL for auth/bootstrap and data calls.
+- `EXPO_PUBLIC_GOOGLE_CLIENT_ID`: fallback Google client ID for sign-in.
+- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`: optional Google web override.
+- `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`: optional iOS override.
+- `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`: optional Android override.
+- `EXPO_PUBLIC_API_TOKEN`: optional static token for dev-only bootstrap paths.
+
+Keep OAuth client IDs and any tokens in environment/config files only and never commit raw secrets.
+
+Refer to `mobile-auth-smoke-tests.md` for the mobile-auth smoke checklist before shipping.
 
 ## Release automation
 

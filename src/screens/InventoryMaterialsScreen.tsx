@@ -23,52 +23,15 @@ import type { AppScreenProps } from "./types";
 export function InventoryMaterialsScreen(props: AppScreenProps) {
   const {
     appResponsiveStyles,
-    editTagStyle,
     filteredMaterialRollups,
-    filteredPartDefinitions,
-    filteredPartInstances,
-    filteredPurchases,
-    inventoryView,
+    openCreatePurchaseEditor,
     materialsCategoryFilter,
     materialsSearch,
     materialsStockFilter,
-    mechanismsById,
-    members,
-    membersById,
-    openCreatePartDefinitionEditor,
-    openCreatePurchaseEditor,
-    openEditPartDefinitionEditor,
-    openEditPurchaseEditor,
     openMaterialRestockEditor,
-    partDefinitions,
-    partDefinitionsById,
-    partInstancesWithStatus,
-    partsSearch,
-    partsStatusFilter,
-    partsSubsystemFilter,
-    purchaseApprovalFilter,
-    purchaseArchiveFilter,
-    purchaseRequesterFilter,
-    purchaseSearch,
-    purchaseStatusFilter,
-    purchaseSubsystemFilter,
-    purchaseVendorFilter,
-    purchaseVendorOptions,
     setMaterialsCategoryFilter,
     setMaterialsSearch,
     setMaterialsStockFilter,
-    setPartsSearch,
-    setPartsStatusFilter,
-    setPartsSubsystemFilter,
-    setPurchaseApprovalFilter,
-    setPurchaseArchiveFilter,
-    setPurchaseRequesterFilter,
-    setPurchaseSearch,
-    setPurchaseStatusFilter,
-    setPurchaseSubsystemFilter,
-    setPurchaseVendorFilter,
-    subsystems,
-    subsystemsById,
   } = props;
 
 const renderScreen = () => {
@@ -168,6 +131,5 @@ const renderScreen = () => {
     </WorkspacePanel>
   );
 };
-
   return renderScreen();
 }
