@@ -105,12 +105,32 @@ export function buildPurchaseDraft(seed?: Partial<PurchaseItem>): PurchaseDraft 
 }
 
 export function buildMemberDraft(
-  seed?: Partial<{ email: string; name: string; role: MemberRole }>,
+  seed?: Partial<{
+    email: string;
+    photoUrl: string;
+    name: string;
+    role: MemberRole;
+    elevated: boolean;
+    disciplineId: string | null;
+    plannedWeeklyAttendanceHours: number;
+    plannedAttendanceDays: string[];
+    plannedAttendanceNotes: string;
+  }>,
 ): MemberDraft {
   return {
     email: seed?.email ?? "",
+    photoUrl: seed?.photoUrl ?? "",
     name: seed?.name ?? "",
     role: seed?.role ?? "student",
+    elevated:
+      seed?.elevated ?? (seed?.role === "lead" || seed?.role === "admin"),
+    disciplineId: seed?.disciplineId ?? "",
+    plannedWeeklyAttendanceHours:
+      typeof seed?.plannedWeeklyAttendanceHours === "number"
+        ? String(seed.plannedWeeklyAttendanceHours)
+        : "0",
+    plannedAttendanceDays: seed?.plannedAttendanceDays ?? [],
+    plannedAttendanceNotes: seed?.plannedAttendanceNotes ?? "",
   };
 }
 
