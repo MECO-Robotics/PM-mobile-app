@@ -1006,6 +1006,27 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 4,
   },
+  rosterSectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  rosterAddButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rosterAddButtonLabel: {
+    color: colors.navyInk,
+    fontSize: 22,
+    fontWeight: "300",
+    lineHeight: 24,
+  },
   memberRow: {
     borderRadius: radii.md,
     borderWidth: 1,
@@ -1033,6 +1054,11 @@ export const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
   },
+  memberAvatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 999,
+  },
   memberCopy: {
     flex: 1,
   },
@@ -1044,6 +1070,21 @@ export const styles = StyleSheet.create({
     color: colors.subtleText,
     marginTop: 2,
     fontSize: 12,
+  },
+  memberRoleBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.navySurface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  memberRoleBadgeLabel: {
+    color: colors.navyInk,
+    fontSize: 11,
+    fontWeight: "900",
   },
   modalScrim: {
     flex: 1,
@@ -1119,6 +1160,73 @@ export const styles = StyleSheet.create({
   },
   modalFieldInputMultiline: {
     minHeight: 92,
+  },
+  profilePhotoField: {
+    gap: spacing.sm,
+  },
+  profilePhotoPicker: {
+    minHeight: 48,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+    paddingHorizontal: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  profilePhotoChooseButton: {
+    borderRadius: 4,
+    backgroundColor: "#6b7280",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
+  profilePhotoChooseButtonLabel: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  profilePhotoFileName: {
+    color: colors.ink,
+    flex: 1,
+  },
+  profilePhotoClearButton: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  profilePhotoClearButtonLabel: {
+    color: colors.ink,
+    fontWeight: "800",
+  },
+  plannedDaysField: {
+    gap: spacing.sm,
+  },
+  plannedDaysRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.md,
+  },
+  plannedDayOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  plannedDayCheckbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.canvas,
+  },
+  plannedDayLabel: {
+    color: colors.ink,
+    fontWeight: "700",
   },
   toggleField: {
     borderRadius: radii.md,
@@ -1285,6 +1393,15 @@ export const styles = StyleSheet.create({
   },
   navDrawerList: {
     gap: spacing.sm,
+  },
+  navDrawerSection: {
+    gap: spacing.xs,
+  },
+  navDrawerSectionLabel: {
+    color: colors.subtleText,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
   },
   navDrawerItem: {
     minHeight: 48,

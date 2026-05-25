@@ -165,7 +165,7 @@ export interface AppScreenProps {
   openCreateDeadlineEditor: () => void;
   openCreateEventReportEditor: (eventId?: string) => void;
   openCreateManufacturingEditor: () => void;
-  openCreateMemberEditor: () => void;
+  openCreateMemberEditor: (role?: Member["role"]) => void;
   openCreateMilestoneEditor: () => void;
   openCreatePartDefinitionEditor: () => void;
   openCreatePurchaseEditor: () => void;
@@ -216,6 +216,7 @@ export interface AppScreenProps {
   riskRows: RiskRow[];
   riskSummary: SummaryChipData[];
   rosterAdmins: Member[];
+  rosterExternal: Member[];
   rosterMentors: Member[];
   rosterStudents: Member[];
   selectedMemberId: string | null;

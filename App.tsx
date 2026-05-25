@@ -236,6 +236,16 @@ const INITIAL_SEASONS: SeasonOption[] = [
   { id: "new", label: "New Season" },
 ];
 
+const PLANNED_ATTENDANCE_DAY_OPTIONS = [
+  { id: "monday", label: "Mon" },
+  { id: "tuesday", label: "Tue" },
+  { id: "wednesday", label: "Wed" },
+  { id: "thursday", label: "Thu" },
+  { id: "friday", label: "Fri" },
+  { id: "saturday", label: "Sat" },
+  { id: "sunday", label: "Sun" },
+] as const;
+
 const REQUIRED_EMAIL_DOMAIN = "mecorobotics.org";
 
 const REQUIRED_TASK_SUBSYSTEMS: Subsystem[] = [
@@ -1470,6 +1480,12 @@ export default function App() {
         count: helpRequests.length + qaRequests.length + qaReviews.length + eventReports.length,
       },
       {
+        key: "roster",
+        label: "Directory",
+        shortLabel: "DR",
+        count: members.length,
+      },
+      {
         key: "risks",
         label: "Risks",
         shortLabel: "RK",
@@ -1488,6 +1504,32 @@ export default function App() {
     qaReviews,
     eventReports,
   ]);
+
+  const navigationSections = useMemo(
+    () => [
+      {
+        title: "Dashboard",
+        items: navigationItems.filter((item) =>
+          item.key === "home" || item.key === "attendance",
+        ),
+      },
+      {
+        title: "Work",
+        items: navigationItems.filter((item) =>
+          item.key === "tasks" ||
+          item.key === "worklogs" ||
+          item.key === "inventory" ||
+          item.key === "reports" ||
+          item.key === "risks",
+        ),
+      },
+      {
+        title: "Config",
+        items: navigationItems.filter((item) => item.key === "roster"),
+      },
+    ],
+    [navigationItems],
+  );
 
   const taskLoggedHoursById = useMemo(() => {
     return workLogs.reduce<Record<string, number>>((hoursByTaskId, workLog) => {
@@ -2356,6 +2398,7 @@ export default function App() {
     (member) => member.role === "mentor" || member.role === "lead",
   );
   const rosterAdmins = members.filter((member) => member.role === "admin");
+  const rosterExternal = members.filter((member) => member.role === "external");
   const homeActionItems = useMemo(() => {
     const today = localTodayDate();
     const dueSoonDate = shiftDateByDays(today, 3);
@@ -4074,10 +4117,14 @@ export default function App() {
     }
   };
 
-  const openCreateMemberEditor = () => {
+  const openCreateMemberEditor = (role: MemberRole = "student") => {
+    if (!canMentorApprove) {
+      return;
+    }
+
     setActiveMemberId(null);
     setMemberError(null);
-    setMemberDraft(buildMemberDraft());
+    setMemberDraft(buildMemberDraft({ role }));
     setMemberEditorMode("create");
   };
 
@@ -4100,7 +4147,13 @@ export default function App() {
   };
 
   const saveMemberDraft = async () => {
+    if (!canMentorApprove) {
+      setMemberError("Only mentors can invite or edit people.");
+      return;
+    }
+
     const name = memberDraft.name.trim();
+    const email = memberDraft.email.trim().toLowerCase();
     const duplicateName = members.some(
       (member) =>
         member.id !== activeMemberId &&
@@ -4120,7 +4173,17 @@ export default function App() {
     setMemberError(null);
 
     const payload = {
+      disciplineId: memberDraft.disciplineId || null,
+      elevated: memberDraft.role === "lead" || memberDraft.role === "admin",
+      email,
       name,
+      photoUrl: memberDraft.photoUrl.trim(),
+      plannedAttendanceDays: memberDraft.plannedAttendanceDays,
+      plannedAttendanceNotes: memberDraft.plannedAttendanceNotes.trim(),
+      plannedWeeklyAttendanceHours: Math.max(
+        0,
+        Number(memberDraft.plannedWeeklyAttendanceHours) || 0,
+      ),
       role: memberDraft.role,
     };
 
@@ -4890,6 +4953,7 @@ export default function App() {
     riskRows,
     riskSummary,
     rosterAdmins,
+    rosterExternal,
     rosterMentors,
     rosterStudents,
     requestTaskQa,
@@ -5990,8 +6054,8 @@ export default function App() {
           onCancel={closeMemberEditor}
           onDelete={memberEditorMode === "edit" ? deleteMemberDraft : undefined}
           onSave={saveMemberDraft}
-          saveLabel={memberEditorMode === "edit" ? "Update member" : "Create member"}
-          title={memberEditorMode === "edit" ? "Edit member" : "Create member"}
+          saveLabel={memberEditorMode === "edit" ? "Update person" : "Create person"}
+          title={memberEditorMode === "edit" ? "Edit selected person" : "Add person"}
           visible={Boolean(memberEditorMode)}
         >
           {memberError ? (
@@ -6004,6 +6068,41 @@ export default function App() {
               </Text>
             </View>
           ) : null}
+          <View style={styles.profilePhotoField}>
+            <Text style={[styles.modalFieldLabel, { color: themeColors.ink }]}>
+              Profile photo
+            </Text>
+            <View style={[styles.profilePhotoPicker, { borderColor: themeColors.border }]}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => undefined}
+                style={styles.profilePhotoChooseButton}
+              >
+                <Text style={styles.profilePhotoChooseButtonLabel}>Choose File</Text>
+              </Pressable>
+              <Text style={[styles.profilePhotoFileName, { color: themeColors.ink }]}>
+                {memberDraft.photoUrl ? "Photo selected" : "No file chosen"}
+              </Text>
+            </View>
+            <ModalField
+              label="Profile photo URL"
+              onChangeText={(value) => {
+                setMemberError(null);
+                setMemberDraft((current) => ({ ...current, photoUrl: value }));
+              }}
+              placeholder="https://example.com/photo.jpg"
+              value={memberDraft.photoUrl}
+            />
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setMemberDraft((current) => ({ ...current, photoUrl: "" }))}
+              style={styles.profilePhotoClearButton}
+            >
+              <Text style={[styles.profilePhotoClearButtonLabel, { color: themeColors.ink }]}>
+                Clear file
+              </Text>
+            </Pressable>
+          </View>
           <ModalField
             label="Name"
             onChangeText={(value) => {
@@ -6014,12 +6113,25 @@ export default function App() {
             value={memberDraft.name}
           />
           <DropdownField
+            clearLabel="None"
+            label="Discipline"
+            onChange={(value) => {
+              setMemberError(null);
+              setMemberDraft((current) => ({ ...current, disciplineId: value }));
+            }}
+            options={disciplineOptions}
+            placeholder="None"
+            value={memberDraft.disciplineId}
+          />
+          <DropdownField
             label="Role"
             onChange={(value) => {
+              const role = value as MemberRole;
               setMemberError(null);
               setMemberDraft((current) => ({
                 ...current,
-                role: value as MemberRole,
+                role,
+                elevated: role === "lead" || role === "admin",
               }));
             }}
             options={[
@@ -6027,8 +6139,76 @@ export default function App() {
               { id: "lead", name: "Lead" },
               { id: "mentor", name: "Mentor" },
               { id: "admin", name: "Admin" },
+              { id: "external", name: "External access" },
             ]}
             value={memberDraft.role}
+          />
+          <ModalField
+            keyboardType="numeric"
+            label="Planned weekly attendance"
+            onChangeText={(value) => {
+              setMemberError(null);
+              setMemberDraft((current) => ({
+                ...current,
+                plannedWeeklyAttendanceHours: value,
+              }));
+            }}
+            placeholder="0"
+            value={memberDraft.plannedWeeklyAttendanceHours}
+          />
+          <View style={styles.plannedDaysField}>
+            <Text style={[styles.modalFieldLabel, { color: themeColors.ink }]}>
+              Planned days
+            </Text>
+            <View style={styles.plannedDaysRow}>
+              {PLANNED_ATTENDANCE_DAY_OPTIONS.map((day) => {
+                const isSelected = memberDraft.plannedAttendanceDays.includes(day.id);
+
+                return (
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isSelected }}
+                    key={day.id}
+                    onPress={() => {
+                      setMemberError(null);
+                      setMemberDraft((current) => ({
+                        ...current,
+                        plannedAttendanceDays: current.plannedAttendanceDays.includes(day.id)
+                          ? current.plannedAttendanceDays.filter((value) => value !== day.id)
+                          : [...current.plannedAttendanceDays, day.id],
+                      }));
+                    }}
+                    style={styles.plannedDayOption}
+                  >
+                    <View
+                      style={[
+                        styles.plannedDayCheckbox,
+                        {
+                          backgroundColor: isSelected ? themeColors.navySurface : themeColors.canvas,
+                          borderColor: isSelected ? themeColors.blue : themeColors.border,
+                        },
+                      ]}
+                    />
+                    <Text style={[styles.plannedDayLabel, { color: themeColors.ink }]}>
+                      {day.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <ModalField
+            label="Attendance notes"
+            multiline
+            onChangeText={(value) => {
+              setMemberError(null);
+              setMemberDraft((current) => ({
+                ...current,
+                plannedAttendanceNotes: value,
+              }));
+            }}
+            placeholder=""
+            value={memberDraft.plannedAttendanceNotes}
           />
         </EditorModal>
 
@@ -6299,67 +6479,74 @@ export default function App() {
             </View>
 
             <View style={styles.navDrawerList}>
-              {navigationItems.map((item) => {
-                const isActive = activeTab === item.key;
+              {navigationSections.map((section) => (
+                <View key={section.title} style={styles.navDrawerSection}>
+                  <Text style={[styles.navDrawerSectionLabel, { color: themeColors.subtleText }]}>
+                    {section.title}
+                  </Text>
+                  {section.items.map((item) => {
+                    const isActive = activeTab === item.key;
 
-                return (
-                  <Pressable
-                    accessibilityRole="menuitem"
-                    accessibilityState={{ selected: isActive }}
-                    key={item.key}
-                    onPress={() => selectNavigationTab(item.key)}
-                    style={[
-                      styles.navDrawerItem,
-                      appResponsiveStyles.navTab,
-                      isActive && [styles.navDrawerItemActive, appResponsiveStyles.navTabActive],
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.sidebarIconBubble,
-                        appResponsiveStyles.navBubble,
-                        isActive && styles.sidebarIconBubbleActive,
-                      ]}
-                    >
-                      <Text
+                    return (
+                      <Pressable
+                        accessibilityRole="menuitem"
+                        accessibilityState={{ selected: isActive }}
+                        key={item.key}
+                        onPress={() => selectNavigationTab(item.key)}
                         style={[
-                          styles.sidebarIconLabel,
-                          { color: themeColors.navyInk },
-                          isActive && styles.sidebarIconLabelActive,
+                          styles.navDrawerItem,
+                          appResponsiveStyles.navTab,
+                          isActive && [styles.navDrawerItemActive, appResponsiveStyles.navTabActive],
                         ]}
                       >
-                        {item.shortLabel}
-                      </Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.navDrawerItemLabel,
-                        { color: themeColors.ink },
-                        isActive && { color: themeColors.navyInk },
-                      ]}
-                    >
-                      {item.label}
-                    </Text>
-                    <View
-                      style={[
-                        styles.sidebarCountPill,
-                        appResponsiveStyles.navCount,
-                        isActive && styles.sidebarCountPillActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.sidebarCountLabel,
-                          { color: themeColors.ink },
-                          isActive && styles.sidebarCountLabelActive,
-                        ]}
-                      >
-                        {item.count}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
+                        <View
+                          style={[
+                            styles.sidebarIconBubble,
+                            appResponsiveStyles.navBubble,
+                            isActive && styles.sidebarIconBubbleActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.sidebarIconLabel,
+                              { color: themeColors.navyInk },
+                              isActive && styles.sidebarIconLabelActive,
+                            ]}
+                          >
+                            {item.shortLabel}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.navDrawerItemLabel,
+                            { color: themeColors.ink },
+                            isActive && { color: themeColors.navyInk },
+                          ]}
+                        >
+                          {item.label}
+                        </Text>
+                        <View
+                          style={[
+                            styles.sidebarCountPill,
+                            appResponsiveStyles.navCount,
+                            isActive && styles.sidebarCountPillActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.sidebarCountLabel,
+                              { color: themeColors.ink },
+                              isActive && styles.sidebarCountLabelActive,
+                            ]}
+                          >
+                            {item.count}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ))}
             </View>
           </Pressable>
         </SafeAreaView>
