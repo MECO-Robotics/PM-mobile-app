@@ -2,9 +2,11 @@ import type { Dispatch, SetStateAction } from "react";
 import type { StyleProp, TextStyle, ViewStyle } from "react-native";
 
 import type { AppThemeColors } from "../theme";
+import type { HelpRequestInput } from "../data/helpRequests";
 import type {
   Discipline,
   Event,
+  HelpRequest,
   ManufacturingItem,
   Mechanism,
   Member,
@@ -126,6 +128,7 @@ export interface AppScreenProps {
   filteredSubsystems: Subsystem[];
   filteredTaskQueue: Task[];
   filteredWorkLogs: WorkLog[];
+  helpRequests: HelpRequest[];
   homeInventoryNeeds: PurchaseItem[];
   homeActionItems: HomeActionItem[];
   homeMeetingExport: string;
@@ -209,6 +212,7 @@ export interface AppScreenProps {
   qaRequests: QaRequest[];
   qaReviews: QaReview[];
   reportSummary: SummaryChipData[];
+  requestHelp: (input: HelpRequestInput) => boolean;
   riskRows: RiskRow[];
   riskSummary: SummaryChipData[];
   rosterAdmins: Member[];
@@ -282,6 +286,7 @@ export interface AppScreenProps {
   timelineSubsystemFilter: string;
   timelineTasks: Task[];
   workLogSearch: string;
+  workLogs: WorkLog[];
   workLogSortMode: WorkLogSortMode;
   workLogSubsystemFilter: string;
   workLogSummary: SummaryChipData[];

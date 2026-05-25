@@ -123,7 +123,7 @@ export function buildMemberDraft(
     name: seed?.name ?? "",
     role: seed?.role ?? "student",
     elevated:
-      seed?.elevated ?? (seed?.role === "mentor" || seed?.role === "admin"),
+      seed?.elevated ?? (seed?.role === "lead" || seed?.role === "admin"),
     disciplineId: seed?.disciplineId ?? "",
     plannedWeeklyAttendanceHours:
       typeof seed?.plannedWeeklyAttendanceHours === "number"

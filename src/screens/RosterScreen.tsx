@@ -19,16 +19,13 @@ function getInitials(name: string) {
 }
 
 function formatRole(role: string) {
-  if (role === "lead") {
-    return "Student / Subteam lead";
-  }
-
   return role === "external" ? "External access" : capitalize(role);
 }
 
 export function RosterScreen(props: AppScreenProps) {
   const {
     appResponsiveStyles,
+    canMentorApprove,
     disciplinesById,
     members,
     openCreateMemberEditor,
@@ -59,14 +56,18 @@ export function RosterScreen(props: AppScreenProps) {
               </Text>
             </View>
           </View>
-          <Pressable
-            accessibilityLabel={`Add ${title.toLowerCase()} person`}
-            accessibilityRole="button"
-            onPress={() => openCreateMemberEditor(addRole)}
-            style={styles.rosterAddButton}
-          >
-            <Text style={styles.rosterAddButtonLabel}>+</Text>
-          </Pressable>
+          {canMentorApprove ? (
+            <Pressable
+              accessibilityLabel={`Add ${title.toLowerCase()} person`}
+              accessibilityRole="button"
+              onPress={() => openCreateMemberEditor(addRole)}
+              style={styles.rosterAddButton}
+            >
+              <Text style={[styles.rosterAddButtonLabel, { color: themeColors.navyInk }]}>
+                +
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {memberList.map((member) => {
@@ -78,11 +79,8 @@ export function RosterScreen(props: AppScreenProps) {
           return (
             <Pressable
               key={member.id}
-              onPress={() => {
-                setSelectedMemberId(member.id);
-                openEditMemberEditor(member.id);
-              }}
-              onLongPress={() => openEditMemberEditor(member.id)}
+              onPress={() => setSelectedMemberId(member.id)}
+              onLongPress={canMentorApprove ? () => openEditMemberEditor(member.id) : undefined}
               style={[
                 styles.memberRow,
                 appResponsiveStyles.memberRow,
@@ -109,7 +107,7 @@ export function RosterScreen(props: AppScreenProps) {
               {member.role === "lead" || member.role === "admin" ? (
                 <View style={styles.memberRoleBadge}>
                   <Text style={[styles.memberRoleBadgeLabel, { color: themeColors.navyInk }]}>
-                    {member.role === "admin" ? "A" : "Lead"}
+                    {member.role === "admin" ? "A" : "L"}
                   </Text>
                 </View>
               ) : null}

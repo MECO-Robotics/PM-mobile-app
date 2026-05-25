@@ -105,6 +105,7 @@ import {
   requestJson,
   resolveApiBaseUrl,
 } from "./src/data/api";
+import { buildHelpRequest, type HelpRequestInput } from "./src/data/helpRequests";
 import { mecoSnapshot } from "./src/data/mockData";
 import { tasks as seededTasks } from "./src/data/tasks";
 import type {
@@ -113,6 +114,7 @@ import type {
   BootstrapMilestone,
   Event,
   EventType,
+  HelpRequest,
   PlatformBootstrapPayload,
   PublicAuthConfig,
   PurchaseItem,
@@ -718,6 +720,7 @@ export default function App() {
   const [partInstances, setPartInstances] = useState(() => mecoSnapshot.partInstances);
   const [qaReviews, setQaReviews] = useState<QaReview[]>(() => mecoSnapshot.qaReviews);
   const [qaRequests, setQaRequests] = useState<QaRequest[]>([]);
+  const [helpRequests, setHelpRequests] = useState<HelpRequest[]>([]);
   const [eventReports, setEventReports] = useState<EventReportDraft[]>([]);
   const systemThemeMode: AppThemeName = systemColorScheme === "dark" ? "dark" : "light";
   const themeMode = themeOverride ?? systemThemeMode;
@@ -887,6 +890,7 @@ export default function App() {
     setManufacturingItems(ensureArray(payload.manufacturingItems));
     setPurchaseItems(ensureArray(payload.purchaseItems));
     setQaRequests(ensureArray(payload.qaRequests));
+    setHelpRequests(ensureArray(payload.helpRequests));
     setPartDefinitions(ensureArray(payload.partDefinitions));
     setPartInstances(ensureArray(payload.partInstances));
   }, []);
@@ -1482,7 +1486,13 @@ export default function App() {
         key: "reports",
         label: "QA",
         shortLabel: "QA",
-        count: qaRequests.length + qaReviews.length + eventReports.length,
+        count: helpRequests.length + qaRequests.length + qaReviews.length + eventReports.length,
+      },
+      {
+        key: "roster",
+        label: "Directory",
+        shortLabel: "DR",
+        count: members.length,
       },
       {
         key: "roster",
@@ -1504,6 +1514,7 @@ export default function App() {
     purchaseItems,
     subsystems,
     members,
+    helpRequests.length,
     qaRequests.length,
     qaReviews,
     eventReports,
@@ -2380,12 +2391,13 @@ export default function App() {
   const reportSummary = useMemo(() => {
     const iterationCount = qaReviews.filter((review) => review.result === "iteration-worthy").length;
     return [
+      { label: "Help requests", value: String(helpRequests.length) },
       { label: "QA requests", value: String(qaRequests.length) },
       { label: "QA reports", value: String(qaReviews.length) },
       { label: "Event reports", value: String(eventReports.length) },
       { label: "Iterations", value: String(iterationCount) },
     ] satisfies SummaryChipData[];
-  }, [eventReports.length, qaRequests.length, qaReviews]);
+  }, [eventReports.length, helpRequests.length, qaRequests.length, qaReviews]);
 
   const riskSummary = useMemo(() => {
     const highCount = riskRows.filter((risk) => risk.priority === "high").length;
@@ -4123,6 +4135,10 @@ export default function App() {
   };
 
   const openCreateMemberEditor = (role: MemberRole = "student") => {
+    if (!canMentorApprove) {
+      return;
+    }
+
     setActiveMemberId(null);
     setMemberError(null);
     setMemberDraft(buildMemberDraft({ role }));
@@ -4173,6 +4189,11 @@ export default function App() {
   };
 
   const saveMemberDraft = async () => {
+    if (!canMentorApprove) {
+      setMemberError("Only mentors can invite or edit people.");
+      return;
+    }
+
     const name = memberDraft.name.trim();
     const email = memberDraft.email.trim().toLowerCase();
     const duplicateName = members.some(
@@ -4195,7 +4216,7 @@ export default function App() {
 
     const payload = {
       disciplineId: memberDraft.disciplineId || null,
-      elevated: memberDraft.role === "mentor" || memberDraft.role === "admin",
+      elevated: memberDraft.role === "lead" || memberDraft.role === "admin",
       email,
       name,
       photoUrl: memberDraft.photoUrl.trim(),
@@ -4536,6 +4557,24 @@ export default function App() {
     ]);
   };
 
+  const requestHelp = (input: HelpRequestInput) => {
+    if (!rosterMentors.some((mentor) => mentor.id === input.mentorId)) {
+      return false;
+    }
+
+    const request = buildHelpRequest({
+      ...input,
+      requestedById: input.requestedById ?? signedInMember?.id ?? null,
+    });
+
+    if (!request) {
+      return false;
+    }
+
+    setHelpRequests((current) => [request, ...current]);
+    return true;
+  };
+
   const saveQaReportDraft = async () => {
     const task = taskById[qaReportDraft.taskId];
     const participants = splitList(qaReportDraft.participantIdsText).filter(
@@ -4804,6 +4843,7 @@ export default function App() {
     setPartDefinitions([]);
     setPartInstances([]);
     setQaReviews([]);
+    setHelpRequests([]);
     setEventReports([]);
     clearWorkLogTimer();
     setActiveTab("home");
@@ -4852,6 +4892,7 @@ export default function App() {
     setActivePersonFilter("all");
     setSelectedMemberId(null);
     setSyncError(null);
+    setHelpRequests([]);
     closeTaskEditor();
     closeWorkLogEditor();
     closeMilestoneEditor();
@@ -4889,6 +4930,7 @@ export default function App() {
     filteredSubsystems,
     filteredTaskQueue,
     filteredWorkLogs,
+    helpRequests,
     homeActionItems,
     homeInventoryNeeds,
     homeMeetingExport,
@@ -4967,6 +5009,7 @@ export default function App() {
     qaRequests,
     qaReviews,
     reportSummary,
+    requestHelp,
     riskRows,
     riskSummary,
     rosterAdmins,
@@ -5043,6 +5086,7 @@ export default function App() {
     timelineSubsystemFilter,
     timelineTasks,
     workLogSearch,
+    workLogs,
     workLogSortMode,
     workLogSubsystemFilter,
     workLogSummary,
@@ -6085,42 +6129,39 @@ export default function App() {
             </View>
           ) : null}
           <View style={styles.profilePhotoField}>
-            <Text style={[styles.modalFieldLabel, { color: themeColors.subtleText }]}>
+            <Text style={[styles.modalFieldLabel, { color: themeColors.ink }]}>
               Profile photo
             </Text>
-            <View
-              style={[
-                styles.profilePhotoPicker,
-                { backgroundColor: themeColors.canvas, borderColor: themeColors.border },
-              ]}
-            >
+            <View style={[styles.profilePhotoPicker, { borderColor: themeColors.border }]}>
               <Pressable
                 accessibilityRole="button"
-                onPress={pickMemberProfilePhoto}
-                style={styles.profilePhotoUploadButton}
+                onPress={() => undefined}
+                style={styles.profilePhotoChooseButton}
               >
-                <Text style={[styles.profilePhotoUploadButtonLabel, { color: themeColors.ink }]}>
-                  Upload file
-                </Text>
+                <Text style={styles.profilePhotoChooseButtonLabel}>Choose File</Text>
               </Pressable>
-              <Text
-                numberOfLines={1}
-                style={[styles.profilePhotoFileName, { color: themeColors.subtleText }]}
-              >
-                {getPhotoFileName(memberDraft.photoUrl)}
+              <Text style={[styles.profilePhotoFileName, { color: themeColors.ink }]}>
+                {memberDraft.photoUrl ? "Photo selected" : "No file chosen"}
               </Text>
-              {memberDraft.photoUrl ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setMemberDraft((current) => ({ ...current, photoUrl: "" }))}
-                  style={styles.profilePhotoClearButton}
-                >
-                  <Text style={[styles.profilePhotoClearButtonLabel, { color: themeColors.subtleText }]}>
-                    Clear
-                  </Text>
-                </Pressable>
-              ) : null}
             </View>
+            <ModalField
+              label="Profile photo URL"
+              onChangeText={(value) => {
+                setMemberError(null);
+                setMemberDraft((current) => ({ ...current, photoUrl: value }));
+              }}
+              placeholder="https://example.com/photo.jpg"
+              value={memberDraft.photoUrl}
+            />
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setMemberDraft((current) => ({ ...current, photoUrl: "" }))}
+              style={styles.profilePhotoClearButton}
+            >
+              <Text style={[styles.profilePhotoClearButtonLabel, { color: themeColors.ink }]}>
+                Clear file
+              </Text>
+            </Pressable>
           </View>
           <ModalField
             label="Name"
@@ -6153,6 +6194,17 @@ export default function App() {
             value={memberDraft.disciplineId}
           />
           <DropdownField
+            clearLabel="None"
+            label="Discipline"
+            onChange={(value) => {
+              setMemberError(null);
+              setMemberDraft((current) => ({ ...current, disciplineId: value }));
+            }}
+            options={disciplineOptions}
+            placeholder="None"
+            value={memberDraft.disciplineId}
+          />
+          <DropdownField
             label="Role"
             onChange={(value) => {
               const role = value as MemberRole;
@@ -6160,7 +6212,7 @@ export default function App() {
               setMemberDraft((current) => ({
                 ...current,
                 role,
-                elevated: role === "mentor" || role === "admin",
+                elevated: role === "lead" || role === "admin",
               }));
             }}
             options={[
