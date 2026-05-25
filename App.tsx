@@ -1,6 +1,7 @@
 import { StatusBar } from "expo-status-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as Google from "expo-auth-session/providers/google";
+import * as ImagePicker from "expo-image-picker";
 import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -527,6 +528,17 @@ function mapMilestoneTypeToEventType(type: string | undefined): EventType {
 
 function mapEventTypeToMilestoneType(type: EventType) {
   return type === "drive-practice" ? "practice" : type;
+}
+
+function getPhotoFileName(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "No image selected";
+  }
+
+  const withoutQuery = trimmed.split(/[?#]/)[0] ?? trimmed;
+  const fileName = withoutQuery.split("/").filter(Boolean).pop();
+  return fileName || "Selected image";
 }
 
 function normalizeRequiredEmailDomain(domain: string | null | undefined) {
@@ -1269,19 +1281,16 @@ export default function App() {
       return sessionMatch;
     }
 
-    if (selectedMemberId && membersById[selectedMemberId]) {
-      return membersById[selectedMemberId];
-    }
-
     if (activePersonFilter !== "all" && membersById[activePersonFilter]) {
       return membersById[activePersonFilter];
     }
 
     return members[0] ?? null;
-  }, [activePersonFilter, members, membersById, selectedMemberId, sessionUser]);
+  }, [activePersonFilter, members, membersById, sessionUser]);
   const canMentorApprove =
+    sessionUser?.role === "mentor" ||
+    sessionUser?.role === "admin" ||
     signedInMember?.role === "mentor" ||
-    signedInMember?.role === "lead" ||
     signedInMember?.role === "admin";
   const signedInEmailInitial =
     sessionUser?.email.trim().charAt(0).toUpperCase() || "M";
@@ -1478,6 +1487,12 @@ export default function App() {
         label: "QA",
         shortLabel: "QA",
         count: helpRequests.length + qaRequests.length + qaReviews.length + eventReports.length,
+      },
+      {
+        key: "roster",
+        label: "Directory",
+        shortLabel: "DR",
+        count: members.length,
       },
       {
         key: "roster",
@@ -2393,9 +2408,11 @@ export default function App() {
     ] satisfies SummaryChipData[];
   }, [riskRows, subsystems]);
 
-  const rosterStudents = members.filter((member) => member.role === "student");
+  const rosterStudents = members.filter(
+    (member) => member.role === "student" || member.role === "lead",
+  );
   const rosterMentors = members.filter(
-    (member) => member.role === "mentor" || member.role === "lead",
+    (member) => member.role === "mentor" || member.role === "admin",
   );
   const rosterAdmins = members.filter((member) => member.role === "admin");
   const rosterExternal = members.filter((member) => member.role === "external");
@@ -3041,7 +3058,7 @@ export default function App() {
           TASK_SUBTEAM_DISCIPLINE_IDS[activeTaskSubteam][0] ?? disciplines[0]?.id ?? "",
         ownerId: members[0]?.id ?? "",
         mentorId:
-          members.find((member) => member.role === "mentor" || member.role === "lead")?.id ??
+          members.find((member) => member.role === "mentor" || member.role === "admin")?.id ??
           members[0]?.id ??
           "",
         startDate: today,
@@ -3595,7 +3612,7 @@ export default function App() {
   const requestTaskQa = async (task: Task) => {
     const mentorId =
       task.mentorId ||
-      members.find((member) => member.role === "mentor" || member.role === "lead")?.id ||
+      members.find((member) => member.role === "mentor" || member.role === "admin")?.id ||
       task.ownerId ||
       members[0]?.id ||
       "";
@@ -4146,6 +4163,31 @@ export default function App() {
     setMemberError(null);
   };
 
+  const pickMemberProfilePhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setMemberError("Allow photo library access to choose a profile photo.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      mediaTypes: ["images"],
+      quality: 0.82,
+    });
+
+    if (result.canceled || !result.assets[0]?.uri) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    setMemberError(null);
+    setMemberDraft((current) => ({
+      ...current,
+      photoUrl: asset.uri,
+    }));
+  };
+
   const saveMemberDraft = async () => {
     if (!canMentorApprove) {
       setMemberError("Only mentors can invite or edit people.");
@@ -4335,7 +4377,7 @@ export default function App() {
     const requesterId = signedInMember?.id ?? members[0]?.id ?? "";
     const ownerId = requesterId;
     const mentorId =
-      members.find((member) => member.role === "mentor" || member.role === "lead")?.id ??
+      members.find((member) => member.role === "mentor" || member.role === "admin")?.id ??
       requesterId;
     const dueDate = isoToday();
 
@@ -4726,7 +4768,7 @@ export default function App() {
       const subsystemId = event.relatedSubsystemIds[0] ?? subsystems[0]?.id ?? "";
       const ownerId = signedInMember?.id ?? members[0]?.id ?? "";
       const mentorId =
-        members.find((member) => member.role === "mentor" || member.role === "lead")?.id ??
+        members.find((member) => member.role === "mentor" || member.role === "admin")?.id ??
         ownerId;
 
       if (subsystemId && ownerId && mentorId) {
@@ -6130,6 +6172,27 @@ export default function App() {
             placeholder="Person name"
             value={memberDraft.name}
           />
+          <ModalField
+            keyboardType="email-address"
+            label="Email"
+            onChangeText={(value) => {
+              setMemberError(null);
+              setMemberDraft((current) => ({ ...current, email: value }));
+            }}
+            placeholder="person@mecorobotics.org"
+            value={memberDraft.email}
+          />
+          <DropdownField
+            clearLabel="None"
+            label="Discipline"
+            onChange={(value) => {
+              setMemberError(null);
+              setMemberDraft((current) => ({ ...current, disciplineId: value }));
+            }}
+            options={disciplineOptions}
+            placeholder="None"
+            value={memberDraft.disciplineId}
+          />
           <DropdownField
             clearLabel="None"
             label="Discipline"
@@ -6154,7 +6217,7 @@ export default function App() {
             }}
             options={[
               { id: "student", name: "Student" },
-              { id: "lead", name: "Lead" },
+              { id: "lead", name: "Student + subteam lead" },
               { id: "mentor", name: "Mentor" },
               { id: "admin", name: "Admin" },
               { id: "external", name: "External access" },
