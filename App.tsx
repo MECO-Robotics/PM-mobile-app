@@ -1,6 +1,7 @@
 import { StatusBar } from "expo-status-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as Google from "expo-auth-session/providers/google";
+import * as ImagePicker from "expo-image-picker";
 import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -525,6 +526,17 @@ function mapMilestoneTypeToEventType(type: string | undefined): EventType {
 
 function mapEventTypeToMilestoneType(type: EventType) {
   return type === "drive-practice" ? "practice" : type;
+}
+
+function getPhotoFileName(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "No image selected";
+  }
+
+  const withoutQuery = trimmed.split(/[?#]/)[0] ?? trimmed;
+  const fileName = withoutQuery.split("/").filter(Boolean).pop();
+  return fileName || "Selected image";
 }
 
 function normalizeRequiredEmailDomain(domain: string | null | undefined) {
@@ -1265,19 +1277,16 @@ export default function App() {
       return sessionMatch;
     }
 
-    if (selectedMemberId && membersById[selectedMemberId]) {
-      return membersById[selectedMemberId];
-    }
-
     if (activePersonFilter !== "all" && membersById[activePersonFilter]) {
       return membersById[activePersonFilter];
     }
 
     return members[0] ?? null;
-  }, [activePersonFilter, members, membersById, selectedMemberId, sessionUser]);
+  }, [activePersonFilter, members, membersById, sessionUser]);
   const canMentorApprove =
+    sessionUser?.role === "mentor" ||
+    sessionUser?.role === "admin" ||
     signedInMember?.role === "mentor" ||
-    signedInMember?.role === "lead" ||
     signedInMember?.role === "admin";
   const signedInEmailInitial =
     sessionUser?.email.trim().charAt(0).toUpperCase() || "M";
@@ -2387,9 +2396,11 @@ export default function App() {
     ] satisfies SummaryChipData[];
   }, [riskRows, subsystems]);
 
-  const rosterStudents = members.filter((member) => member.role === "student");
+  const rosterStudents = members.filter(
+    (member) => member.role === "student" || member.role === "lead",
+  );
   const rosterMentors = members.filter(
-    (member) => member.role === "mentor" || member.role === "lead",
+    (member) => member.role === "mentor" || member.role === "admin",
   );
   const rosterAdmins = members.filter((member) => member.role === "admin");
   const rosterExternal = members.filter((member) => member.role === "external");
@@ -3035,7 +3046,7 @@ export default function App() {
           TASK_SUBTEAM_DISCIPLINE_IDS[activeTaskSubteam][0] ?? disciplines[0]?.id ?? "",
         ownerId: members[0]?.id ?? "",
         mentorId:
-          members.find((member) => member.role === "mentor" || member.role === "lead")?.id ??
+          members.find((member) => member.role === "mentor" || member.role === "admin")?.id ??
           members[0]?.id ??
           "",
         startDate: today,
@@ -3589,7 +3600,7 @@ export default function App() {
   const requestTaskQa = async (task: Task) => {
     const mentorId =
       task.mentorId ||
-      members.find((member) => member.role === "mentor" || member.role === "lead")?.id ||
+      members.find((member) => member.role === "mentor" || member.role === "admin")?.id ||
       task.ownerId ||
       members[0]?.id ||
       "";
@@ -4112,10 +4123,6 @@ export default function App() {
   };
 
   const openCreateMemberEditor = (role: MemberRole = "student") => {
-    if (!canMentorApprove) {
-      return;
-    }
-
     setActiveMemberId(null);
     setMemberError(null);
     setMemberDraft(buildMemberDraft({ role }));
@@ -4140,12 +4147,32 @@ export default function App() {
     setMemberError(null);
   };
 
-  const saveMemberDraft = async () => {
-    if (!canMentorApprove) {
-      setMemberError("Only mentors can invite or edit people.");
+  const pickMemberProfilePhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setMemberError("Allow photo library access to choose a profile photo.");
       return;
     }
 
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      mediaTypes: ["images"],
+      quality: 0.82,
+    });
+
+    if (result.canceled || !result.assets[0]?.uri) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    setMemberError(null);
+    setMemberDraft((current) => ({
+      ...current,
+      photoUrl: asset.uri,
+    }));
+  };
+
+  const saveMemberDraft = async () => {
     const name = memberDraft.name.trim();
     const email = memberDraft.email.trim().toLowerCase();
     const duplicateName = members.some(
@@ -4168,7 +4195,7 @@ export default function App() {
 
     const payload = {
       disciplineId: memberDraft.disciplineId || null,
-      elevated: memberDraft.role === "lead" || memberDraft.role === "admin",
+      elevated: memberDraft.role === "mentor" || memberDraft.role === "admin",
       email,
       name,
       photoUrl: memberDraft.photoUrl.trim(),
@@ -4329,7 +4356,7 @@ export default function App() {
     const requesterId = signedInMember?.id ?? members[0]?.id ?? "";
     const ownerId = requesterId;
     const mentorId =
-      members.find((member) => member.role === "mentor" || member.role === "lead")?.id ??
+      members.find((member) => member.role === "mentor" || member.role === "admin")?.id ??
       requesterId;
     const dueDate = isoToday();
 
@@ -4702,7 +4729,7 @@ export default function App() {
       const subsystemId = event.relatedSubsystemIds[0] ?? subsystems[0]?.id ?? "";
       const ownerId = signedInMember?.id ?? members[0]?.id ?? "";
       const mentorId =
-        members.find((member) => member.role === "mentor" || member.role === "lead")?.id ??
+        members.find((member) => member.role === "mentor" || member.role === "admin")?.id ??
         ownerId;
 
       if (subsystemId && ownerId && mentorId) {
@@ -6058,39 +6085,42 @@ export default function App() {
             </View>
           ) : null}
           <View style={styles.profilePhotoField}>
-            <Text style={[styles.modalFieldLabel, { color: themeColors.ink }]}>
+            <Text style={[styles.modalFieldLabel, { color: themeColors.subtleText }]}>
               Profile photo
             </Text>
-            <View style={[styles.profilePhotoPicker, { borderColor: themeColors.border }]}>
+            <View
+              style={[
+                styles.profilePhotoPicker,
+                { backgroundColor: themeColors.canvas, borderColor: themeColors.border },
+              ]}
+            >
               <Pressable
                 accessibilityRole="button"
-                onPress={() => undefined}
-                style={styles.profilePhotoChooseButton}
+                onPress={pickMemberProfilePhoto}
+                style={styles.profilePhotoUploadButton}
               >
-                <Text style={styles.profilePhotoChooseButtonLabel}>Choose File</Text>
+                <Text style={[styles.profilePhotoUploadButtonLabel, { color: themeColors.ink }]}>
+                  Upload file
+                </Text>
               </Pressable>
-              <Text style={[styles.profilePhotoFileName, { color: themeColors.ink }]}>
-                {memberDraft.photoUrl ? "Photo selected" : "No file chosen"}
+              <Text
+                numberOfLines={1}
+                style={[styles.profilePhotoFileName, { color: themeColors.subtleText }]}
+              >
+                {getPhotoFileName(memberDraft.photoUrl)}
               </Text>
+              {memberDraft.photoUrl ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setMemberDraft((current) => ({ ...current, photoUrl: "" }))}
+                  style={styles.profilePhotoClearButton}
+                >
+                  <Text style={[styles.profilePhotoClearButtonLabel, { color: themeColors.subtleText }]}>
+                    Clear
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
-            <ModalField
-              label="Profile photo URL"
-              onChangeText={(value) => {
-                setMemberError(null);
-                setMemberDraft((current) => ({ ...current, photoUrl: value }));
-              }}
-              placeholder="https://example.com/photo.jpg"
-              value={memberDraft.photoUrl}
-            />
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setMemberDraft((current) => ({ ...current, photoUrl: "" }))}
-              style={styles.profilePhotoClearButton}
-            >
-              <Text style={[styles.profilePhotoClearButtonLabel, { color: themeColors.ink }]}>
-                Clear file
-              </Text>
-            </Pressable>
           </View>
           <ModalField
             label="Name"
@@ -6100,6 +6130,16 @@ export default function App() {
             }}
             placeholder="Person name"
             value={memberDraft.name}
+          />
+          <ModalField
+            keyboardType="email-address"
+            label="Email"
+            onChangeText={(value) => {
+              setMemberError(null);
+              setMemberDraft((current) => ({ ...current, email: value }));
+            }}
+            placeholder="person@mecorobotics.org"
+            value={memberDraft.email}
           />
           <DropdownField
             clearLabel="None"
@@ -6120,12 +6160,12 @@ export default function App() {
               setMemberDraft((current) => ({
                 ...current,
                 role,
-                elevated: role === "lead" || role === "admin",
+                elevated: role === "mentor" || role === "admin",
               }));
             }}
             options={[
               { id: "student", name: "Student" },
-              { id: "lead", name: "Lead" },
+              { id: "lead", name: "Student + subteam lead" },
               { id: "mentor", name: "Mentor" },
               { id: "admin", name: "Admin" },
               { id: "external", name: "External access" },
