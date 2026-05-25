@@ -243,6 +243,17 @@ export interface QaRequest {
   status: "requested";
 }
 
+export interface HelpRequest {
+  id: string;
+  taskId?: string | null;
+  workLogId?: string | null;
+  reason: string;
+  mentorId: string;
+  requestedById: string | null;
+  createdAt: string;
+  status: "requested";
+}
+
 export interface QAFinding {
   id: string;
   taskId?: string | null;
@@ -300,6 +311,7 @@ export interface PlatformBootstrapPayload {
   manufacturingItems?: ManufacturingItem[];
   purchaseItems?: PurchaseItem[];
   qaRequests?: QaRequest[];
+  helpRequests?: HelpRequest[];
   qaFindings?: QAFinding[];
   testFindings?: TestFinding[];
   designIterations?: DesignIteration[];

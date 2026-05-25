@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { Text } from "../i18n";
+import { buildHelpRequestDisplayRows } from "../data/helpRequests";
 import { SUBVIEW_INTERACTION_GUIDANCE } from "../ui/constants";
 import { formatDateTime } from "../ui/helpers";
 import { styles } from "../ui/styles";
@@ -31,6 +32,7 @@ export function ReportsScreen(props: AppScreenProps) {
     createQaRequest,
     eventReports,
     eventsById,
+    helpRequests,
     membersById,
     openCreateQaReportEditor,
     qaRequests,
@@ -39,6 +41,7 @@ export function ReportsScreen(props: AppScreenProps) {
     rosterMentors,
     taskById,
     tasks,
+    workLogs,
   } = props;
   const [isQaRequestOpen, setIsQaRequestOpen] = useState(false);
   const [qaRequestDraft, setQaRequestDraft] = useState({
@@ -49,6 +52,15 @@ export function ReportsScreen(props: AppScreenProps) {
   const [selectedQaReviewId, setSelectedQaReviewId] = useState<string | null>(null);
   const mentorOptions = rosterMentors.map((mentor) => ({ id: mentor.id, name: mentor.name }));
   const taskOptions = tasks.map((task) => ({ id: task.id, name: task.title }));
+  const workLogsById = Object.fromEntries(
+    workLogs.map((workLog) => [workLog.id, workLog]),
+  );
+  const helpRequestRows = buildHelpRequestDisplayRows({
+    helpRequests,
+    membersById,
+    taskById,
+    workLogsById,
+  });
   const canSubmitQaRequest = Boolean(
     (qaRequestDraft.subject.trim() || qaRequestDraft.taskId) && qaRequestDraft.mentorId,
   );
@@ -186,6 +198,38 @@ const renderScreen = () => {
           </>
         ) : null}
       </EditorModal>
+
+      <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>Help requests</Text>
+      <View style={styles.reportGrid}>
+        {helpRequestRows.map((request) => (
+          <View key={request.id} style={[styles.queueRowCard, appResponsiveStyles.rowCard]}>
+            <View style={styles.queueRowHeader}>
+              <View style={styles.queueRowPrimaryText}>
+                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                  {request.taskTitle}
+                </Text>
+                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                  Mentor assigned: {request.mentorName}
+                </Text>
+              </View>
+              <StatusPill label={formatQaStatus(request.status)} value={request.status} />
+            </View>
+            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
+              Student requested: {request.requesterName}
+            </Text>
+            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
+              Work log: {request.workLogLabel}
+            </Text>
+            <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>
+              Requested {formatDateTime(request.createdAt)}
+            </Text>
+            <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>
+              {request.reason}
+            </Text>
+          </View>
+        ))}
+      </View>
+      {helpRequestRows.length === 0 ? <EmptyState text="No help requests are waiting yet." /> : null}
 
       <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>QA requests</Text>
       <View style={styles.reportGrid}>

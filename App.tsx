@@ -104,6 +104,7 @@ import {
   requestJson,
   resolveApiBaseUrl,
 } from "./src/data/api";
+import { buildHelpRequest, type HelpRequestInput } from "./src/data/helpRequests";
 import { mecoSnapshot } from "./src/data/mockData";
 import { tasks as seededTasks } from "./src/data/tasks";
 import type {
@@ -112,6 +113,7 @@ import type {
   BootstrapMilestone,
   Event,
   EventType,
+  HelpRequest,
   PlatformBootstrapPayload,
   PublicAuthConfig,
   PurchaseItem,
@@ -706,6 +708,7 @@ export default function App() {
   const [partInstances, setPartInstances] = useState(() => mecoSnapshot.partInstances);
   const [qaReviews, setQaReviews] = useState<QaReview[]>(() => mecoSnapshot.qaReviews);
   const [qaRequests, setQaRequests] = useState<QaRequest[]>([]);
+  const [helpRequests, setHelpRequests] = useState<HelpRequest[]>([]);
   const [eventReports, setEventReports] = useState<EventReportDraft[]>([]);
   const systemThemeMode: AppThemeName = systemColorScheme === "dark" ? "dark" : "light";
   const themeMode = themeOverride ?? systemThemeMode;
@@ -875,6 +878,7 @@ export default function App() {
     setManufacturingItems(ensureArray(payload.manufacturingItems));
     setPurchaseItems(ensureArray(payload.purchaseItems));
     setQaRequests(ensureArray(payload.qaRequests));
+    setHelpRequests(ensureArray(payload.helpRequests));
     setPartDefinitions(ensureArray(payload.partDefinitions));
     setPartInstances(ensureArray(payload.partInstances));
   }, []);
@@ -1473,7 +1477,7 @@ export default function App() {
         key: "reports",
         label: "QA",
         shortLabel: "QA",
-        count: qaRequests.length + qaReviews.length + eventReports.length,
+        count: helpRequests.length + qaRequests.length + qaReviews.length + eventReports.length,
       },
       {
         key: "roster",
@@ -1495,6 +1499,7 @@ export default function App() {
     purchaseItems,
     subsystems,
     members,
+    helpRequests.length,
     qaRequests.length,
     qaReviews,
     eventReports,
@@ -2371,12 +2376,13 @@ export default function App() {
   const reportSummary = useMemo(() => {
     const iterationCount = qaReviews.filter((review) => review.result === "iteration-worthy").length;
     return [
+      { label: "Help requests", value: String(helpRequests.length) },
       { label: "QA requests", value: String(qaRequests.length) },
       { label: "QA reports", value: String(qaReviews.length) },
       { label: "Event reports", value: String(eventReports.length) },
       { label: "Iterations", value: String(iterationCount) },
     ] satisfies SummaryChipData[];
-  }, [eventReports.length, qaRequests.length, qaReviews]);
+  }, [eventReports.length, helpRequests.length, qaRequests.length, qaReviews]);
 
   const riskSummary = useMemo(() => {
     const highCount = riskRows.filter((risk) => risk.priority === "high").length;
@@ -4509,6 +4515,24 @@ export default function App() {
     ]);
   };
 
+  const requestHelp = (input: HelpRequestInput) => {
+    if (!rosterMentors.some((mentor) => mentor.id === input.mentorId)) {
+      return false;
+    }
+
+    const request = buildHelpRequest({
+      ...input,
+      requestedById: input.requestedById ?? signedInMember?.id ?? null,
+    });
+
+    if (!request) {
+      return false;
+    }
+
+    setHelpRequests((current) => [request, ...current]);
+    return true;
+  };
+
   const saveQaReportDraft = async () => {
     const task = taskById[qaReportDraft.taskId];
     const participants = splitList(qaReportDraft.participantIdsText).filter(
@@ -4777,6 +4801,7 @@ export default function App() {
     setPartDefinitions([]);
     setPartInstances([]);
     setQaReviews([]);
+    setHelpRequests([]);
     setEventReports([]);
     clearWorkLogTimer();
     setActiveTab("home");
@@ -4825,6 +4850,7 @@ export default function App() {
     setActivePersonFilter("all");
     setSelectedMemberId(null);
     setSyncError(null);
+    setHelpRequests([]);
     closeTaskEditor();
     closeWorkLogEditor();
     closeMilestoneEditor();
@@ -4862,6 +4888,7 @@ export default function App() {
     filteredSubsystems,
     filteredTaskQueue,
     filteredWorkLogs,
+    helpRequests,
     homeActionItems,
     homeInventoryNeeds,
     homeMeetingExport,
@@ -4940,6 +4967,7 @@ export default function App() {
     qaRequests,
     qaReviews,
     reportSummary,
+    requestHelp,
     riskRows,
     riskSummary,
     rosterAdmins,
@@ -5016,6 +5044,7 @@ export default function App() {
     timelineSubsystemFilter,
     timelineTasks,
     workLogSearch,
+    workLogs,
     workLogSortMode,
     workLogSubsystemFilter,
     workLogSummary,
