@@ -4515,6 +4515,24 @@ export default function App() {
     ]);
   };
 
+  const requestHelp = (input: HelpRequestInput) => {
+    if (!rosterMentors.some((mentor) => mentor.id === input.mentorId)) {
+      return false;
+    }
+
+    const request = buildHelpRequest({
+      ...input,
+      requestedById: input.requestedById ?? signedInMember?.id ?? null,
+    });
+
+    if (!request) {
+      return false;
+    }
+
+    setHelpRequests((current) => [request, ...current]);
+    return true;
+  };
+
   const saveQaReportDraft = async () => {
     const task = taskById[qaReportDraft.taskId];
     const participants = splitList(qaReportDraft.participantIdsText).filter(

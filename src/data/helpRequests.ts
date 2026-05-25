@@ -56,7 +56,13 @@ export function getDefaultHelpMentorId(
   task: Pick<Task, "mentorId"> | null | undefined,
   mentors: Pick<Member, "id">[],
 ) {
-  return task?.mentorId || mentors[0]?.id || "";
+  const taskMentorId = task?.mentorId ?? "";
+
+  if (taskMentorId && mentors.some((mentor) => mentor.id === taskMentorId)) {
+    return taskMentorId;
+  }
+
+  return mentors[0]?.id || "";
 }
 
 export function buildHelpRequestDisplayRows({

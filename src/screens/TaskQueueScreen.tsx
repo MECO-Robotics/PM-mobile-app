@@ -132,6 +132,8 @@ export function TaskQueueScreen(props: AppScreenProps) {
   const [isShiftDueDatesOpen, setIsShiftDueDatesOpen] = useState(false);
   const [shiftDayDelta, setShiftDayDelta] = useState("7");
   const [shiftDueDateError, setShiftDueDateError] = useState<string | null>(null);
+  const mentorOptions = rosterMentors.map((mentor) => ({ id: mentor.id, name: mentor.name }));
+  const defaultHelpMentorId = getDefaultHelpMentorId(helpRequestTask, rosterMentors);
   const shiftableTasks = filteredTaskQueue.filter((task) => task.status !== "complete");
 
   const openBlockerResolution = (task: Task) => {
@@ -551,6 +553,16 @@ const renderScreen = () => {
                 >
                   <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
                     Request QA
+                  </Text>
+                </Pressable>
+              ) : null}
+              {canRequestHelp ? (
+                <Pressable
+                  onPress={() => setHelpRequestTask(task)}
+                  style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                >
+                  <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                    Need help
                   </Text>
                 </Pressable>
               ) : null}

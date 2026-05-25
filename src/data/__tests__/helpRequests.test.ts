@@ -81,6 +81,10 @@ describe("need help request state", () => {
     expect(task.status).toBe("in-progress");
   });
 
+  it("falls back when a task mentor is no longer in the mentor roster", () => {
+    expect(getDefaultHelpMentorId({ mentorId: "former-mentor" }, mentors)).toBe("jordan");
+  });
+
   it("builds mentor-visible help queue rows with requester and work context", () => {
     const request = buildHelpRequest({
       id: "help-3",
