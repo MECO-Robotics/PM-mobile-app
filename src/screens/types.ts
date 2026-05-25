@@ -163,7 +163,6 @@ export interface AppScreenProps {
   openCreateEventReportEditor: (eventId?: string) => void;
   openCreateManufacturingEditor: () => void;
   openCreateMemberEditor: (role?: Member["role"]) => void;
-  openCreateMeetingEditor: () => void;
   openCreateMilestoneEditor: () => void;
   openCreatePartDefinitionEditor: () => void;
   openCreatePurchaseEditor: () => void;

@@ -4112,7 +4112,7 @@ export default function App() {
   };
 
   const openCreateMemberEditor = (role: MemberRole = "student") => {
-    if (!canManageRoster) {
+    if (!canMentorApprove) {
       return;
     }
 
@@ -4141,7 +4141,7 @@ export default function App() {
   };
 
   const saveMemberDraft = async () => {
-    if (!canManageRoster) {
+    if (!canMentorApprove) {
       setMemberError("Only mentors can invite or edit people.");
       return;
     }

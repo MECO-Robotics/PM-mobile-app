@@ -25,7 +25,7 @@ function formatRole(role: string) {
 export function RosterScreen(props: AppScreenProps) {
   const {
     appResponsiveStyles,
-    canManageRoster,
+    canMentorApprove,
     disciplinesById,
     members,
     openCreateMemberEditor,
@@ -56,7 +56,7 @@ export function RosterScreen(props: AppScreenProps) {
               </Text>
             </View>
           </View>
-          {canManageRoster ? (
+          {canMentorApprove ? (
             <Pressable
               accessibilityLabel={`Add ${title.toLowerCase()} person`}
               accessibilityRole="button"
@@ -80,7 +80,7 @@ export function RosterScreen(props: AppScreenProps) {
             <Pressable
               key={member.id}
               onPress={() => setSelectedMemberId(member.id)}
-              onLongPress={canManageRoster ? () => openEditMemberEditor(member.id) : undefined}
+              onLongPress={canMentorApprove ? () => openEditMemberEditor(member.id) : undefined}
               style={[
                 styles.memberRow,
                 appResponsiveStyles.memberRow,
