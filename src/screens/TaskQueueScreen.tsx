@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { Image, Modal, Pressable, ScrollView, View } from "react-native";
 
 import { Text } from "../i18n";
 import {
@@ -83,6 +83,7 @@ export function TaskQueueScreen(props: AppScreenProps) {
   const [blockerResolutionNote, setBlockerResolutionNote] = useState("");
   const [blockerResolutionError, setBlockerResolutionError] = useState<string | null>(null);
   const [helpRequestTask, setHelpRequestTask] = useState<Task | null>(null);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isShiftDueDatesOpen, setIsShiftDueDatesOpen] = useState(false);
   const [shiftDayDelta, setShiftDayDelta] = useState("7");
   const [shiftDueDateError, setShiftDueDateError] = useState<string | null>(null);
@@ -168,6 +169,7 @@ export function TaskQueueScreen(props: AppScreenProps) {
   };
 
   const resetTaskQueueFilters = () => {
+    setActiveTaskSubteam("programming");
     setTaskSearch("");
     setTaskSubsystemFilter("all");
     setTaskOwnerFilter("all");
@@ -180,16 +182,25 @@ export function TaskQueueScreen(props: AppScreenProps) {
 const renderScreen = () => {
   return (
     <WorkspacePanel
+      compactActionsInline
       title={`${activeTaskSubteamLabel} task queue`}
       subtitle="Search and filter queue cards for the selected subteam's work."
       actions={
-        <View style={styles.quickActionRow}>
+        <View style={styles.taskQueueHeaderActions}>
           <Pressable
-            onPress={() => setIsShiftDueDatesOpen(true)}
-            style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+            onPress={() => setIsFiltersOpen(true)}
+            style={[
+              styles.primaryAction,
+              appResponsiveStyles.primaryAction,
+            ]}
           >
-            <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
-              Shift due
+            <Text
+              style={[
+                styles.primaryActionLabel,
+                appResponsiveStyles.primaryActionLabel,
+              ]}
+            >
+              Filters
             </Text>
           </Pressable>
           <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
@@ -198,62 +209,6 @@ const renderScreen = () => {
         </View>
       }
     >
-      <FilterToolbar>
-        <SearchField
-          onChangeText={setTaskSearch}
-          placeholder="Search tasks"
-          value={taskSearch}
-        />
-
-        <OptionChipRow
-          allLabel="All subsystems"
-          onChange={setTaskSubsystemFilter}
-          options={subsystems.map((subsystem) => ({
-            id: subsystem.id,
-            name: subsystem.name,
-          }))}
-          value={taskSubsystemFilter}
-        />
-
-        <OptionChipRow
-          allLabel="All owners"
-          onChange={setTaskOwnerFilter}
-          options={members.map((member) => ({
-            id: member.id,
-            name: member.name,
-          }))}
-          value={taskOwnerFilter}
-        />
-
-        <OptionChipRow
-          allLabel="All statuses"
-          onChange={setTaskStatusFilter}
-          options={TASK_STATUS_OPTIONS}
-          value={taskStatusFilter}
-        />
-
-        <OptionChipRow
-          allLabel="All priorities"
-          onChange={setTaskPriorityFilter}
-          options={TASK_PRIORITY_OPTIONS}
-          value={taskPriorityFilter}
-        />
-
-        <OptionChipRow
-          allLabel="All flags"
-          onChange={(value) => setTaskBlockerFilter(value as BlockerFilterMode)}
-          options={BLOCKER_FILTER_OPTIONS}
-          value={taskBlockerFilter}
-        />
-
-        <OptionChipRow
-          allLabel="Any archive"
-          onChange={(value) => setTaskArchiveFilter(value as ArchiveFilterMode)}
-          options={ARCHIVE_FILTER_OPTIONS}
-          value={taskArchiveFilter}
-        />
-      </FilterToolbar>
-
       <SummaryRow chips={taskSummary} />
 
       {!isCompactLayout ? (
@@ -572,6 +527,146 @@ const renderScreen = () => {
         onSubmit={submitTaskHelpRequest}
         visible={Boolean(helpRequestTask)}
       />
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setIsFiltersOpen(false)}
+        transparent
+        visible={isFiltersOpen}
+      >
+        <Pressable style={styles.modalScrim} onPress={() => setIsFiltersOpen(false)}>
+          <Pressable
+            style={[
+              styles.taskQueueFilterSheet,
+              { backgroundColor: themeColors.surface, borderColor: themeColors.border },
+            ]}
+          >
+            <View style={styles.queueRowHeader}>
+              <View style={styles.queueRowPrimaryText}>
+                <Text style={[styles.queueRowTitle, appResponsiveStyles.rowTitle]}>
+                  Filters
+                </Text>
+                <Text style={[styles.queueRowSubtitle, appResponsiveStyles.rowSubtitle]}>
+                  Narrow the queue by team, owner, status, priority, and flags.
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setIsFiltersOpen(false)}
+                style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+              >
+                <Text
+                  style={[
+                    styles.quickActionButtonLabel,
+                    appResponsiveStyles.quickActionButtonLabel,
+                  ]}
+                >
+                  Done
+                </Text>
+              </Pressable>
+            </View>
+
+            <ScrollView
+              contentContainerStyle={styles.taskQueueFilterSheetContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.taskQueueFilterGroup}>
+                <Text style={[styles.subsectionLabel, appResponsiveStyles.subsectionLabel]}>
+                  Subteam
+                </Text>
+                <SectionTabs
+                  activeValue={activeTaskSubteam}
+                  onChange={setActiveTaskSubteam}
+                  options={TASK_SUBTEAM_OPTIONS}
+                />
+              </View>
+
+              <FilterToolbar>
+                <SearchField
+                  onChangeText={setTaskSearch}
+                  placeholder="Search tasks"
+                  value={taskSearch}
+                />
+
+                <OptionChipRow
+                  allLabel="All subsystems"
+                  onChange={setTaskSubsystemFilter}
+                  options={subsystems.map((subsystem) => ({
+                    id: subsystem.id,
+                    name: subsystem.name,
+                  }))}
+                  value={taskSubsystemFilter}
+                />
+
+                <OptionChipRow
+                  allLabel="All owners"
+                  onChange={setTaskOwnerFilter}
+                  options={members.map((member) => ({
+                    id: member.id,
+                    name: member.name,
+                  }))}
+                  value={taskOwnerFilter}
+                />
+
+                <OptionChipRow
+                  allLabel="All statuses"
+                  onChange={setTaskStatusFilter}
+                  options={TASK_STATUS_OPTIONS}
+                  value={taskStatusFilter}
+                />
+
+                <OptionChipRow
+                  allLabel="All priorities"
+                  onChange={setTaskPriorityFilter}
+                  options={TASK_PRIORITY_OPTIONS}
+                  value={taskPriorityFilter}
+                />
+
+                <OptionChipRow
+                  allLabel="All flags"
+                  onChange={(value) => setTaskBlockerFilter(value as BlockerFilterMode)}
+                  options={BLOCKER_FILTER_OPTIONS}
+                  value={taskBlockerFilter}
+                />
+
+                <OptionChipRow
+                  allLabel="Any archive"
+                  onChange={(value) => setTaskArchiveFilter(value as ArchiveFilterMode)}
+                  options={ARCHIVE_FILTER_OPTIONS}
+                  value={taskArchiveFilter}
+                />
+              </FilterToolbar>
+
+              <View style={styles.quickActionRow}>
+                <Pressable
+                  onPress={resetTaskQueueFilters}
+                  style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                >
+                  <Text
+                    style={[
+                      styles.quickActionButtonLabel,
+                      appResponsiveStyles.quickActionButtonLabel,
+                    ]}
+                  >
+                    Reset filters
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setIsShiftDueDatesOpen(true)}
+                  style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+                >
+                  <Text
+                    style={[
+                      styles.quickActionButtonLabel,
+                      appResponsiveStyles.quickActionButtonLabel,
+                    ]}
+                  >
+                    Shift due dates
+                  </Text>
+                </Pressable>
+              </View>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
       <EditorModal
         onCancel={closeShiftDueDates}
         onSave={saveShiftDueDates}

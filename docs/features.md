@@ -27,10 +27,10 @@ Tasks are organized by subteam:
 Task views:
 
 - Timeline: calendar-ordered tasks and milestones with ownership cues.
-- Queue: searchable and filterable task cards for execution.
+- Queue: task cards for execution with search and filtering collected behind the Filters action.
 - Milestones: event/deadline management with sorting and subsystem context.
 
-Task queue filters include blocked, no blockers, over estimate, overdue, due soon, dependency wait, ready now, ready for QA, needs fabrication, needs purchase, and unassigned.
+Task queue filters include subteam, subsystem, owner, status, priority, blocked, no blockers, over estimate, overdue, due soon, dependency wait, ready now, ready for QA, needs fabrication, needs purchase, unassigned, and archive mode.
 
 Task actions include create, edit, duplicate, start, request QA, resolve blockers, shift due dates, and delete. Task status is also affected by dependency state and QA readiness.
 
@@ -117,4 +117,3 @@ Roster groups members by role and supports member creation/editing. Roles are st
 The app supports English plus Turkish, Hebrew, French, Chinese, Spanish, Portuguese, Dutch, German, and Arabic translations. RTL text direction is enabled for RTL languages.
 
 The UI uses `AppThemeProvider` and app theme tokens from `src/theme.ts`, with automatic color-scheme awareness.
-
