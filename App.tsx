@@ -97,6 +97,7 @@ import {
 import { AppThemeProvider } from "./src/ui/themeContext";
 import { LocalizationProvider, Text, type LanguageCode } from "./src/i18n";
 import {
+  ApiNetworkError,
   ApiRequestError,
   classifyMobileAuthError,
   getMobileAuthErrorMessage,
@@ -140,7 +141,18 @@ import { RosterScreen } from "./src/screens/RosterScreen";
 import { SubsystemsScreen } from "./src/screens/SubsystemsScreen";
 import { TasksScreen } from "./src/screens/TasksScreen";
 import { WorkLogsScreen } from "./src/screens/WorkLogsScreen";
-import type { SubsystemCounts } from "./src/screens/types";
+import type { SubsystemCounts, WorkLogListItem } from "./src/screens/types";
+import {
+  buildWorkLogDraftFingerprint,
+  enqueuePendingWorkLogDraft,
+  loadPendingWorkLogDrafts,
+  markPendingWorkLogDraftFailed,
+  markPendingWorkLogDraftSyncing,
+  reconcilePendingWorkLogDrafts,
+  removePendingWorkLogDraft,
+  savePendingWorkLogDrafts,
+  type PendingWorkLogDraft,
+} from "./src/services/workLogDraftSync";
 import {
   endWorkLogLiveActivity,
   startWorkLogLiveActivity,
@@ -176,6 +188,29 @@ type WorkLogTimerState = {
   reminderNotificationIds: string[];
   startedAt: number | null;
 };
+
+type WorkLogMutationResponse = {
+  item?: WorkLog;
+};
+
+function shouldQueueWorkLogDraftAfterError(error: unknown) {
+  return (
+    error instanceof ApiNetworkError ||
+    (error instanceof ApiRequestError && error.status >= 500)
+  );
+}
+
+function mapPendingWorkLogDraftToWorkLog(
+  draft: PendingWorkLogDraft,
+): WorkLogListItem {
+  return {
+    id: draft.id,
+    localDraftId: draft.id,
+    syncError: draft.error,
+    syncStatus: draft.status,
+    ...draft.payload,
+  };
+}
 
 function formatTimerElapsed(elapsedMs: number) {
   const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
@@ -713,6 +748,11 @@ export default function App() {
   const [tasks, setTasks] = useState(() => withSeededSubteamTasks(mecoSnapshot.tasks));
   const [events, setEvents] = useState(() => mecoSnapshot.events);
   const [workLogs, setWorkLogs] = useState(() => mecoSnapshot.workLogs);
+  const workLogsRef = useRef<WorkLog[]>(mecoSnapshot.workLogs);
+  const [pendingWorkLogDrafts, setPendingWorkLogDrafts] = useState<
+    PendingWorkLogDraft[]
+  >([]);
+  const pendingWorkLogDraftsRef = useRef<PendingWorkLogDraft[]>([]);
   const [manufacturingItems, setManufacturingItems] = useState(
     () => mecoSnapshot.manufacturingItems,
   );
@@ -877,11 +917,21 @@ export default function App() {
   });
   const [eventReportError, setEventReportError] = useState<string | null>(null);
 
+  const persistPendingWorkLogDrafts = useCallback(
+    async (drafts: PendingWorkLogDraft[]) => {
+      pendingWorkLogDraftsRef.current = drafts;
+      setPendingWorkLogDrafts(drafts);
+      await savePendingWorkLogDrafts(drafts);
+    },
+    [],
+  );
+
   const applyBootstrapPayload = useCallback((payload: PlatformBootstrapPayload) => {
     const events = ensureArray(payload.events);
     const tasks = ensureArray(payload.tasks).map((task) =>
       normalizeTaskFromServer(task as ServerTask),
     );
+    const payloadWorkLogs = ensureArray(payload.workLogs);
 
     setMembers(ensureArray(payload.members));
     setSubsystems(normalizeTaskSubsystems(ensureArray(payload.subsystems)));
@@ -889,7 +939,8 @@ export default function App() {
     setMechanisms(ensureArray(payload.mechanisms));
     setTasks(tasks);
     setEvents(events.length > 0 ? events : mapMilestonesToEvents(payload));
-    setWorkLogs(ensureArray(payload.workLogs));
+    workLogsRef.current = payloadWorkLogs;
+    setWorkLogs(payloadWorkLogs);
     setManufacturingItems(ensureArray(payload.manufacturingItems));
     setPurchaseItems(ensureArray(payload.purchaseItems));
     setQaRequests(ensureArray(payload.qaRequests));
@@ -907,9 +958,104 @@ export default function App() {
         token,
       );
       applyBootstrapPayload(payload);
+      return payload;
     },
     [apiBaseUrl, applyBootstrapPayload],
   );
+
+  const syncPendingWorkLogDrafts = useCallback(
+    async (token: string | null, serverWorkLogs: WorkLog[] = workLogsRef.current) => {
+      let drafts = reconcilePendingWorkLogDrafts(
+        pendingWorkLogDraftsRef.current,
+        serverWorkLogs,
+      );
+
+      if (drafts.length !== pendingWorkLogDraftsRef.current.length) {
+        await persistPendingWorkLogDrafts(drafts);
+      }
+
+      let didSyncDraft = false;
+      for (const draft of drafts) {
+        drafts = markPendingWorkLogDraftSyncing(drafts, draft.id);
+        await persistPendingWorkLogDrafts(drafts);
+
+        try {
+          await requestJson<WorkLogMutationResponse>(
+            apiBaseUrl,
+            "/api/work-logs",
+            {
+              method: "POST",
+              body: JSON.stringify(draft.payload),
+            },
+            token,
+          );
+
+          drafts = removePendingWorkLogDraft(drafts, draft.id);
+          didSyncDraft = true;
+          await persistPendingWorkLogDrafts(drafts);
+        } catch (error) {
+          if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
+            throw error;
+          }
+
+          const message = getClientErrorMessage(error);
+          drafts = markPendingWorkLogDraftFailed(drafts, draft.id, message);
+          await persistPendingWorkLogDrafts(drafts);
+          return message;
+        }
+      }
+
+      if (drafts.length !== pendingWorkLogDraftsRef.current.length) {
+        await persistPendingWorkLogDrafts(drafts);
+      }
+
+      if (!didSyncDraft && pendingWorkLogDraftsRef.current.length === 0) {
+        return null;
+      }
+
+      try {
+        const payload = await refreshWorkspaceFromServer(token);
+        const reconciledDrafts = reconcilePendingWorkLogDrafts(
+          pendingWorkLogDraftsRef.current,
+          ensureArray(payload.workLogs),
+        );
+        await persistPendingWorkLogDrafts(reconciledDrafts);
+        return null;
+      } catch (error) {
+        if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
+          throw error;
+        }
+
+        return getClientErrorMessage(error);
+      }
+    },
+    [apiBaseUrl, persistPendingWorkLogDrafts, refreshWorkspaceFromServer],
+  );
+
+  useEffect(() => {
+    let isActive = true;
+
+    void loadPendingWorkLogDrafts().then((drafts) => {
+      if (!isActive) {
+        return;
+      }
+
+      const reconciledDrafts = reconcilePendingWorkLogDrafts(
+        drafts,
+        workLogsRef.current,
+      );
+      pendingWorkLogDraftsRef.current = reconciledDrafts;
+      setPendingWorkLogDrafts(reconciledDrafts);
+
+      if (reconciledDrafts.length !== drafts.length) {
+        void savePendingWorkLogDrafts(reconciledDrafts);
+      }
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   const loadPublicAuthConfig = useCallback(async () => {
     setBackendStatus("connecting");
@@ -951,8 +1097,13 @@ export default function App() {
       setSyncError(null);
 
       try {
-        await refreshWorkspaceFromServer(token);
-        setBackendStatus("connected");
+        const payload = await refreshWorkspaceFromServer(token);
+        const draftSyncError = await syncPendingWorkLogDrafts(
+          token,
+          ensureArray(payload.workLogs),
+        );
+        setBackendStatus(draftSyncError ? "offline" : "connected");
+        setSyncError(draftSyncError);
       } catch (error) {
         setBackendStatus("offline");
         setSyncError(parseClientError(error));
@@ -960,7 +1111,7 @@ export default function App() {
         setIsSyncing(false);
       }
     },
-    [refreshWorkspaceFromServer],
+    [refreshWorkspaceFromServer, syncPendingWorkLogDrafts],
   );
 
   const signInWithGoogle = useCallback(async () => {
@@ -1222,8 +1373,13 @@ export default function App() {
 
       const resolvedToken = token || null;
       setApiToken(resolvedToken);
-      await refreshWorkspaceFromServer(resolvedToken);
-      setBackendStatus("connected");
+      const payload = await refreshWorkspaceFromServer(resolvedToken);
+      const draftSyncError = await syncPendingWorkLogDrafts(
+        resolvedToken,
+        ensureArray(payload.workLogs),
+      );
+      setBackendStatus(draftSyncError ? "offline" : "connected");
+      setSyncError(draftSyncError);
     } catch (error) {
       if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
         endSessionForAuthFailure(getMobileAuthErrorMessage("expired-session"));
@@ -1235,7 +1391,12 @@ export default function App() {
     } finally {
       setIsSyncing(false);
     }
-  }, [apiBaseUrl, endSessionForAuthFailure, refreshWorkspaceFromServer]);
+  }, [
+    apiBaseUrl,
+    endSessionForAuthFailure,
+    refreshWorkspaceFromServer,
+    syncPendingWorkLogDrafts,
+  ]);
 
   const runMutation = useCallback(
     async (path: string, init: RequestInit) => {
@@ -1244,8 +1405,13 @@ export default function App() {
 
       try {
         await requestJson(apiBaseUrl, path, init, apiToken);
-        await refreshWorkspaceFromServer(apiToken);
-        setBackendStatus("connected");
+        const payload = await refreshWorkspaceFromServer(apiToken);
+        const draftSyncError = await syncPendingWorkLogDrafts(
+          apiToken,
+          ensureArray(payload.workLogs),
+        );
+        setBackendStatus(draftSyncError ? "offline" : "connected");
+        setSyncError(draftSyncError);
         return true;
       } catch (error) {
         if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
@@ -1260,7 +1426,13 @@ export default function App() {
         setIsSyncing(false);
       }
     },
-    [apiBaseUrl, apiToken, endSessionForAuthFailure, refreshWorkspaceFromServer],
+    [
+      apiBaseUrl,
+      apiToken,
+      endSessionForAuthFailure,
+      refreshWorkspaceFromServer,
+      syncPendingWorkLogDrafts,
+    ],
   );
 
   const membersById = useMemo(() => {
@@ -1340,6 +1512,20 @@ export default function App() {
       tasks.map((task) => [task.id, task]),
     ) as Record<string, Task>;
   }, [tasks]);
+  const workLogsForDisplay = useMemo<WorkLogListItem[]>(() => {
+    const serverFingerprints = new Set(
+      workLogs.map((workLog) => buildWorkLogDraftFingerprint(workLog)),
+    );
+    const localDraftRows = pendingWorkLogDrafts
+      .filter((draft) => !serverFingerprints.has(draft.fingerprint))
+      .map(mapPendingWorkLogDraftToWorkLog);
+
+    return [...localDraftRows, ...workLogs];
+  }, [pendingWorkLogDrafts, workLogs]);
+  const failedWorkLogDraftCount = useMemo(
+    () => pendingWorkLogDrafts.filter((draft) => draft.status === "failed").length,
+    [pendingWorkLogDrafts],
+  );
   const activeTaskSubteamTasks = useMemo(() => {
     const disciplineIds = TASK_SUBTEAM_DISCIPLINE_IDS[activeTaskSubteam];
 
@@ -1477,7 +1663,7 @@ export default function App() {
         key: "worklogs",
         label: "Logs",
         shortLabel: "WL",
-        count: workLogs.length,
+        count: workLogsForDisplay.length,
       },
       {
         key: "inventory",
@@ -1512,7 +1698,7 @@ export default function App() {
     ];
   }, [
     tasks,
-    workLogs,
+    workLogsForDisplay.length,
     partDefinitions,
     purchaseItems,
     subsystems,
@@ -1550,11 +1736,11 @@ export default function App() {
   );
 
   const taskLoggedHoursById = useMemo(() => {
-    return workLogs.reduce<Record<string, number>>((hoursByTaskId, workLog) => {
+    return workLogsForDisplay.reduce<Record<string, number>>((hoursByTaskId, workLog) => {
       hoursByTaskId[workLog.taskId] = (hoursByTaskId[workLog.taskId] ?? 0) + workLog.hours;
       return hoursByTaskId;
     }, {});
-  }, [workLogs]);
+  }, [workLogsForDisplay]);
 
   const filteredTaskQueue = useMemo(() => {
     const search = taskSearch.trim().toLowerCase();
@@ -1853,7 +2039,7 @@ export default function App() {
   const filteredWorkLogs = useMemo(() => {
     const search = workLogSearch.trim().toLowerCase();
 
-    const filtered = workLogs.filter((workLog) => {
+    const filtered = workLogsForDisplay.filter((workLog) => {
       const task = taskById[workLog.taskId];
 
       if (
@@ -1902,7 +2088,7 @@ export default function App() {
     membersById,
     subsystemsById,
     taskById,
-    workLogs,
+    workLogsForDisplay,
     workLogSearch,
     workLogSortMode,
     workLogSubsystemFilter,
@@ -1917,13 +2103,29 @@ export default function App() {
       return sum + workLog.hours;
     }, 0);
 
-    return [
+    const summary: SummaryChipData[] = [
       { label: "Entries", value: String(filteredWorkLogs.length) },
       { label: "Tracked hours", value: `${totalHours.toFixed(1)}h` },
       { label: "People", value: String(participantIds.size) },
       { label: "Tasks", value: String(taskIds.size) },
-    ] satisfies SummaryChipData[];
-  }, [filteredWorkLogs]);
+    ];
+
+    if (pendingWorkLogDrafts.length > 0) {
+      summary.push({
+        label: "Drafts",
+        value: String(pendingWorkLogDrafts.length),
+      });
+    }
+
+    if (failedWorkLogDraftCount > 0) {
+      summary.push({
+        label: "Sync failed",
+        value: String(failedWorkLogDraftCount),
+      });
+    }
+
+    return summary;
+  }, [failedWorkLogDraftCount, filteredWorkLogs, pendingWorkLogDrafts.length]);
 
   const visibleManufacturingProcess: ManufacturingItem["process"] =
     manufacturingView === "cnc"
@@ -3857,20 +4059,92 @@ export default function App() {
     };
 
     const isEdit = workLogEditorMode === "edit" && activeWorkLogId;
-    const ok = await runMutation(
-      isEdit ? `/api/work-logs/${activeWorkLogId}` : "/api/work-logs",
-      {
-        method: isEdit ? "PATCH" : "POST",
+    if (isEdit) {
+      const ok = await runMutation(`/api/work-logs/${activeWorkLogId}`, {
+        method: "PATCH",
         body: JSON.stringify(payload),
-      },
-    );
+      });
 
-    if (ok) {
+      if (ok) {
+        closeWorkLogEditor();
+      }
+
+      return;
+    }
+
+    const fingerprint = buildWorkLogDraftFingerprint(payload);
+    if (
+      pendingWorkLogDraftsRef.current.some(
+        (draft) => draft.fingerprint === fingerprint,
+      )
+    ) {
+      setSyncError("Work log draft is already saved locally and waiting to sync.");
+      closeWorkLogEditor();
+      return;
+    }
+
+    setIsSyncing(true);
+    setSyncError(null);
+
+    let serverCreateSucceeded = false;
+    try {
+      await requestJson<WorkLogMutationResponse>(
+        apiBaseUrl,
+        "/api/work-logs",
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        },
+        apiToken,
+      );
+      serverCreateSucceeded = true;
+      const refreshedPayload = await refreshWorkspaceFromServer(apiToken);
+      const draftSyncError = await syncPendingWorkLogDrafts(
+        apiToken,
+        ensureArray(refreshedPayload.workLogs),
+      );
+      setBackendStatus(draftSyncError ? "offline" : "connected");
+      setSyncError(draftSyncError);
+
       const loggedTask = taskById[workLogDraft.taskId];
       if (loggedTask) {
         await startTask(loggedTask);
       }
+
       closeWorkLogEditor();
+    } catch (error) {
+      if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
+        endSessionForAuthFailure(getMobileAuthErrorMessage("expired-session"));
+        return;
+      }
+
+      if (serverCreateSucceeded) {
+        setBackendStatus("offline");
+        setSyncError(getClientErrorMessage(error));
+        closeWorkLogEditor();
+        return;
+      }
+
+      if (!shouldQueueWorkLogDraftAfterError(error)) {
+        setBackendStatus("offline");
+        setSyncError(getClientErrorMessage(error));
+        return;
+      }
+
+      const result = enqueuePendingWorkLogDraft(
+        pendingWorkLogDraftsRef.current,
+        payload,
+      );
+      await persistPendingWorkLogDrafts(result.drafts);
+      setBackendStatus("offline");
+      setSyncError(
+        result.didCreate
+          ? "Work log saved locally. It will sync when the backend is reachable."
+          : "Work log draft is already saved locally and waiting to sync.",
+      );
+      closeWorkLogEditor();
+    } finally {
+      setIsSyncing(false);
     }
   };
 
