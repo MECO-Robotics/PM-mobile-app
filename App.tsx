@@ -1265,20 +1265,22 @@ export default function App() {
       members.map((member) => [member.id, member]),
     ) as Record<string, (typeof members)[number]>;
   }, [members]);
-  const signedInMember = useMemo(() => {
+  const sessionMember = useMemo(() => {
     const sessionName = sessionUser?.name.trim().toLowerCase();
     const sessionEmail = sessionUser?.email.trim().toLowerCase();
     const sessionAccount = sessionUser?.accountId.trim().toLowerCase();
-    const sessionMatch = members.find((member) => {
+    return members.find((member) => {
       return (
         member.id.toLowerCase() === sessionAccount ||
         member.name.trim().toLowerCase() === sessionName ||
         member.email?.trim().toLowerCase() === sessionEmail
       );
-    });
+    }) ?? null;
+  }, [members, sessionUser]);
 
-    if (sessionMatch) {
-      return sessionMatch;
+  const signedInMember = useMemo(() => {
+    if (sessionMember) {
+      return sessionMember;
     }
 
     if (selectedMemberId && membersById[selectedMemberId]) {
@@ -1290,12 +1292,12 @@ export default function App() {
     }
 
     return members[0] ?? null;
-  }, [activePersonFilter, members, membersById, selectedMemberId, sessionUser]);
+  }, [activePersonFilter, members, membersById, selectedMemberId, sessionMember]);
   const canMentorApprove =
     sessionUser?.role === "mentor" ||
     sessionUser?.role === "admin" ||
-    signedInMember?.role === "mentor" ||
-    signedInMember?.role === "admin";
+    sessionMember?.role === "mentor" ||
+    sessionMember?.role === "admin";
   const signedInEmailInitial =
     sessionUser?.email.trim().charAt(0).toUpperCase() || "M";
 
@@ -6175,6 +6177,16 @@ export default function App() {
             }}
             placeholder="Person name"
             value={memberDraft.name}
+          />
+          <ModalField
+            keyboardType="email-address"
+            label="Email"
+            onChangeText={(value) => {
+              setMemberError(null);
+              setMemberDraft((current) => ({ ...current, email: value }));
+            }}
+            placeholder="person@mecorobotics.org"
+            value={memberDraft.email}
           />
           <DropdownField
             clearLabel="None"
