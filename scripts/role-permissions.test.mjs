@@ -7,8 +7,9 @@ const screenTypesSource = readFileSync(new URL("../src/screens/types.ts", import
 const manufacturingSource = readFileSync(new URL("../src/screens/ManufacturingScreen.tsx", import.meta.url), "utf8");
 
 test("App derives mentor approval permission from mentor and admin roles", () => {
-  assert.match(appSource, /const canMentorApprove\s*=\s*[\s\S]*signedInMember\?\.role === "mentor"/);
-  assert.match(appSource, /const canMentorApprove\s*=\s*[\s\S]*signedInMember\?\.role === "admin"/);
+  assert.match(appSource, /const canMentorApprove\s*=\s*[\s\S]*sessionMember\?\.role === "mentor"/);
+  assert.match(appSource, /const canMentorApprove\s*=\s*[\s\S]*sessionMember\?\.role === "admin"/);
+  assert.doesNotMatch(appSource, /const canMentorApprove\s*=[\s\S]*signedInMember\?\.role/);
   assert.doesNotMatch(appSource, /const canMentorApprove\s*=[^;]*role === "lead"/);
 });
 
