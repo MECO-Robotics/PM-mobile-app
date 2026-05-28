@@ -9,6 +9,7 @@ Expo/React Native mobile client for MECO Mission Control manufacturing, planning
 - Meeting RSVP, attendance, and required work-log visibility.
 - Manufacturing and purchase queues with mentor review checkpoints.
 - QA outcomes that separate minor rework from iteration-worthy failures.
+- Role-aware mentor and student flows, including mentor-only QA decisions.
 - Planning metrics surfaced from the same operational data.
 - Mobile auth states for expired sessions, unavailable network, and backend auth configuration failures.
 
@@ -32,9 +33,13 @@ npm run sim:reset
 npm run start
 npm run ios
 npm run android
+npm run lint
+npm run test:role-permissions
 npm run typecheck
 npm test
 ```
+
+`npm run dev` is an Android-focused shortcut that runs `powershell -ExecutionPolicy Bypass -File ./script/build_and_run.ps1 --android`.
 
 Do not run Expo or npm scripts with `sudo`. If `node_modules` or `.expo` become owned by `root`, fix ownership from the repo root before starting the app:
 
@@ -55,6 +60,19 @@ The local Android simulator uses `.env.local` with
 `EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:8080` so it can reach a backend running
 on the Windows host.
 
+## Auth configuration (no secrets in source)
+
+- `EXPO_PUBLIC_API_BASE_URL` (required): platform API base URL for auth/bootstrap and data calls.
+- `EXPO_PUBLIC_GOOGLE_CLIENT_ID`: fallback Google client ID for sign-in.
+- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`: optional Google web override.
+- `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`: optional iOS override.
+- `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`: optional Android override.
+- `EXPO_PUBLIC_API_TOKEN`: optional static token for dev-only bootstrap paths.
+
+Keep OAuth client IDs and any tokens in environment/config files only and never commit raw secrets.
+
+Refer to `mobile-auth-smoke-tests.md` for the mobile-auth smoke checklist before shipping.
+
 ## Release automation
 
 - `CI` workflow runs `npm run typecheck` on pull requests and `main`.
@@ -62,9 +80,10 @@ on the Windows host.
 - Set GitHub repository secret `EXPO_TOKEN` before running release builds.
 - Set GitHub repository secret `EXPO_PUBLIC_API_BASE_URL` so production builds point at the hosted API.
 - Ensure `expo.ios.bundleIdentifier` and `expo.android.package` are set in `app.json` for non-interactive EAS builds.
+- Production EAS builds use `eas.json` profile `production`, with Android output as an app bundle.
 
 ## Next product steps
 
 1. Replace the mock snapshot in `src/data/mockData.ts` with API calls to `meco-mission-control-platform`.
-2. Add auth and role-aware views for students, mentors, and admins.
+2. Continue role-aware polish for students, mentors, and admins.
 3. Connect meeting sign-in, work-log submission, and QA forms to the backend.
