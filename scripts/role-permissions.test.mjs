@@ -6,10 +6,11 @@ const appSource = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
 const screenTypesSource = readFileSync(new URL("../src/screens/types.ts", import.meta.url), "utf8");
 const manufacturingSource = readFileSync(new URL("../src/screens/ManufacturingScreen.tsx", import.meta.url), "utf8");
 
-test("App derives mentor approval permission from mentor and admin roles", () => {
+test("App derives mentor approval permission from trusted mentor and admin roles", () => {
+  assert.match(appSource, /const canUseSignedInMemberRoleFallback\s*=\s*[\s\S]*Boolean\(sessionUser\)[\s\S]*!sessionMember[\s\S]*authConfig\?\.devBypassAvailable === true[\s\S]*apiToken === null/);
+  assert.match(appSource, /canUseSignedInMemberRoleFallback &&\s*\(\s*signedInMember\?\.role === "mentor" \|\| signedInMember\?\.role === "admin"\s*\)/);
   assert.match(appSource, /const canMentorApprove\s*=\s*[\s\S]*sessionMember\?\.role === "mentor"/);
   assert.match(appSource, /const canMentorApprove\s*=\s*[\s\S]*sessionMember\?\.role === "admin"/);
-  assert.doesNotMatch(appSource, /const canMentorApprove\s*=[\s\S]*signedInMember\?\.role/);
   assert.doesNotMatch(appSource, /const canMentorApprove\s*=[^;]*role === "lead"/);
 });
 

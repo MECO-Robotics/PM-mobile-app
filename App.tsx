@@ -1293,11 +1293,17 @@ export default function App() {
 
     return members[0] ?? null;
   }, [activePersonFilter, members, membersById, selectedMemberId, sessionMember]);
+  const canUseSignedInMemberRoleFallback =
+    Boolean(sessionUser) &&
+    !sessionMember &&
+    (authConfig?.devBypassAvailable === true || apiToken === null);
   const canMentorApprove =
     sessionUser?.role === "mentor" ||
     sessionUser?.role === "admin" ||
     sessionMember?.role === "mentor" ||
-    sessionMember?.role === "admin";
+    sessionMember?.role === "admin" ||
+    (canUseSignedInMemberRoleFallback &&
+      (signedInMember?.role === "mentor" || signedInMember?.role === "admin"));
   const signedInEmailInitial =
     sessionUser?.email.trim().charAt(0).toUpperCase() || "M";
 

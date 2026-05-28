@@ -40,7 +40,6 @@ require_repo_root
 trap cleanup EXIT
 
 echo "Checking skills against: $SKILLS_REPO"
-bash "$SCRIPT_DIR/sync-skills.sh"
 
 if ! git clone --depth 1 "$SKILLS_REPO" "$TMP_DIR"; then
   fail "failed to clone shared skills repo: $SKILLS_REPO"
