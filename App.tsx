@@ -1265,33 +1265,33 @@ export default function App() {
       members.map((member) => [member.id, member]),
     ) as Record<string, (typeof members)[number]>;
   }, [members]);
-  const signedInMember = useMemo(() => {
+  const sessionMember = useMemo(() => {
     const sessionName = sessionUser?.name.trim().toLowerCase();
     const sessionEmail = sessionUser?.email.trim().toLowerCase();
     const sessionAccount = sessionUser?.accountId.trim().toLowerCase();
-    const sessionMatch = members.find((member) => {
+    return members.find((member) => {
       return (
         member.id.toLowerCase() === sessionAccount ||
         member.name.trim().toLowerCase() === sessionName ||
         member.email?.trim().toLowerCase() === sessionEmail
       );
-    });
+    }) ?? null;
+  }, [members, sessionUser]);
 
-    if (sessionMatch) {
-      return sessionMatch;
-    }
-
-    if (activePersonFilter !== "all" && membersById[activePersonFilter]) {
-      return membersById[activePersonFilter];
+  const signedInMember = useMemo(() => {
+    if (sessionMember) {
+      return sessionMember;
     }
 
     return members[0] ?? null;
-  }, [activePersonFilter, members, membersById, sessionUser]);
+  }, [members, sessionMember]);
+  const canUseSignedInMemberRoleFallback =
+    sessionMember !== null && signedInMember?.id === sessionMember.id;
   const canMentorApprove =
     sessionUser?.role === "mentor" ||
     sessionUser?.role === "admin" ||
-    signedInMember?.role === "mentor" ||
-    signedInMember?.role === "admin";
+    (canUseSignedInMemberRoleFallback &&
+      (signedInMember?.role === "mentor" || signedInMember?.role === "admin"));
   const signedInEmailInitial =
     sessionUser?.email.trim().charAt(0).toUpperCase() || "M";
 
