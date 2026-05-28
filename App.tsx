@@ -1283,25 +1283,13 @@ export default function App() {
       return sessionMember;
     }
 
-    if (selectedMemberId && membersById[selectedMemberId]) {
-      return membersById[selectedMemberId];
-    }
-
-    if (activePersonFilter !== "all" && membersById[activePersonFilter]) {
-      return membersById[activePersonFilter];
-    }
-
     return members[0] ?? null;
-  }, [activePersonFilter, members, membersById, selectedMemberId, sessionMember]);
+  }, [members, sessionMember]);
   const canUseSignedInMemberRoleFallback =
-    Boolean(sessionUser) &&
-    !sessionMember &&
-    (authConfig?.devBypassAvailable === true || apiToken === null);
+    sessionMember !== null && signedInMember?.id === sessionMember.id;
   const canMentorApprove =
     sessionUser?.role === "mentor" ||
     sessionUser?.role === "admin" ||
-    sessionMember?.role === "mentor" ||
-    sessionMember?.role === "admin" ||
     (canUseSignedInMemberRoleFallback &&
       (signedInMember?.role === "mentor" || signedInMember?.role === "admin"));
   const signedInEmailInitial =
