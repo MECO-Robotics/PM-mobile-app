@@ -3,6 +3,8 @@ const { execFileSync, spawnSync } = require("child_process");
 const METRO_PORT = "8081";
 const DEFAULT_SIMULATOR_NAME = "iPhone 17";
 const SIMULATOR_SETTLE_MS = 5000;
+const SIMULATOR_STATE_CHECK_MS = 1000;
+const SIMULATOR_STATE_CHECKS = 30;
 
 function run(command, args, options = {}) {
   return spawnSync(command, args, {
@@ -46,6 +48,27 @@ function getSimulator() {
     .sort((left, right) => getRuntimeVersion(right.runtime) - getRuntimeVersion(left.runtime))[0];
 }
 
+function getSimulatorState(udid) {
+  const output = execFileSync("xcrun", ["simctl", "list", "devices", "--json"], {
+    encoding: "utf8",
+  });
+  const devicesByRuntime = JSON.parse(output).devices;
+  const devices = Object.values(devicesByRuntime).flat();
+  return devices.find((device) => device.udid === udid)?.state ?? "Unknown";
+}
+
+function waitForSimulatorState(udid, expectedState) {
+  for (let index = 0; index < SIMULATOR_STATE_CHECKS; index += 1) {
+    if (getSimulatorState(udid) === expectedState) {
+      return;
+    }
+
+    sleep(SIMULATOR_STATE_CHECK_MS);
+  }
+
+  throw new Error(`Simulator ${udid} did not reach ${expectedState}.`);
+}
+
 function getRuntimeVersion(runtime) {
   const parts = runtime.match(/iOS-(\d+)-(\d+)/);
   if (!parts) {
@@ -55,7 +78,7 @@ function getRuntimeVersion(runtime) {
   return Number(parts[1]) * 1000 + Number(parts[2]);
 }
 
-function shutdownBootedSimulator() {
+function getTargetSimulator() {
   const simulator = getSimulator();
 
   if (!simulator) {
@@ -65,28 +88,20 @@ function shutdownBootedSimulator() {
     throw new Error(`Simulator ${target} was not found.`);
   }
 
-  if (simulator.state !== "Booted") {
-    return simulator;
-  }
-
-  const result = run("xcrun", ["simctl", "shutdown", simulator.udid], {
-    quiet: true,
-  });
-
-  if (result.status !== 0) {
-    process.stderr.write(result.stderr);
-    process.exit(result.status ?? 1);
-  }
-
   return simulator;
 }
 
 function bootSimulator() {
-  const simulator = shutdownBootedSimulator();
+  const simulator = getTargetSimulator();
 
-  run("open", ["-a", "Simulator", "--args", "-CurrentDeviceUDID", simulator.udid], {
-    quiet: true,
-  });
+  if (simulator.state === "Booted") {
+    run("open", ["-a", "Simulator", "--args", "-CurrentDeviceUDID", simulator.udid], {
+      quiet: true,
+    });
+    sleep(SIMULATOR_SETTLE_MS);
+    return;
+  }
+
   const bootResult = run("xcrun", ["simctl", "boot", simulator.udid], { quiet: true });
   const alreadyBooted =
     bootResult.status !== 0 && bootResult.stderr.includes("current state: Booted");
@@ -100,6 +115,10 @@ function bootSimulator() {
     stdio: "inherit",
   });
 
+  waitForSimulatorState(simulator.udid, "Booted");
+  run("open", ["-a", "Simulator", "--args", "-CurrentDeviceUDID", simulator.udid], {
+    quiet: true,
+  });
   sleep(SIMULATOR_SETTLE_MS);
 }
 

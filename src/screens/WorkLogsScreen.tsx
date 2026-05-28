@@ -2,6 +2,7 @@ import { Modal, Pressable, View } from "react-native";
 import { useState } from "react";
 
 import { Text } from "../i18n";
+import { getDefaultHelpMentorId } from "../data/helpRequests";
 import {
   SUBVIEW_INTERACTION_GUIDANCE,
   WORKLOG_SORT_OPTIONS,
@@ -18,8 +19,17 @@ import {
   WorkspacePanel,
 } from "../ui/ui";
 import type { WorkLogSortMode } from "../ui/types";
+import type { Task, WorkLog } from "../types/domain";
 
 import type { AppScreenProps } from "./types";
+import { NeedHelpModal } from "./help/NeedHelpModal";
+
+type WorkLogHelpContext = {
+  contextTitle: string;
+  task: Task | null;
+  taskId: string | null;
+  workLogId: string | null;
+};
 
 export function WorkLogsScreen(props: AppScreenProps) {
   const {
@@ -31,6 +41,8 @@ export function WorkLogsScreen(props: AppScreenProps) {
     openWorkLogFromTimer,
     openEditWorkLogEditor,
     pauseWorkLogTimer,
+    requestHelp,
+    rosterMentors,
     setWorkLogSearch,
     setWorkLogSortMode,
     setWorkLogSubsystemFilter,
@@ -47,6 +59,9 @@ export function WorkLogsScreen(props: AppScreenProps) {
     workTimerIsPaused,
   } = props;
   const [isAddMenuVisible, setIsAddMenuVisible] = useState(false);
+  const [helpContext, setHelpContext] = useState<WorkLogHelpContext | null>(null);
+  const mentorOptions = rosterMentors.map((mentor) => ({ id: mentor.id, name: mentor.name }));
+  const defaultHelpMentorId = getDefaultHelpMentorId(helpContext?.task, rosterMentors);
 
   const openAddWorkLog = () => {
     setIsAddMenuVisible(false);
@@ -56,6 +71,56 @@ export function WorkLogsScreen(props: AppScreenProps) {
   const startTimer = () => {
     setIsAddMenuVisible(false);
     startWorkLogTimer();
+  };
+
+  const openTimerHelpRequest = () => {
+    setHelpContext({
+      contextTitle: "Active work timer",
+      task: null,
+      taskId: null,
+      workLogId: null,
+    });
+  };
+
+  const openWorkLogHelpRequest = (workLog: WorkLog) => {
+    const task = taskById[workLog.taskId] ?? null;
+
+    setHelpContext({
+      contextTitle: task ? `Work log for ${task.title}` : "Work log help request",
+      task,
+      taskId: workLog.taskId,
+      workLogId: workLog.id,
+    });
+  };
+
+  const closeHelpRequest = () => {
+    setHelpContext(null);
+  };
+
+  const submitWorkLogHelpRequest = ({
+    mentorId,
+    reason,
+  }: {
+    mentorId: string;
+    reason: string;
+  }) => {
+    if (!helpContext) {
+      return false;
+    }
+
+    const didRequestHelp = requestHelp({
+      taskId: helpContext.taskId,
+      workLogId: helpContext.workLogId,
+      reason,
+      mentorId,
+      requestedById: null,
+    });
+
+    if (didRequestHelp) {
+      closeHelpRequest();
+    }
+
+    return didRequestHelp;
   };
 
 const renderScreen = () => {
@@ -96,6 +161,14 @@ const renderScreen = () => {
                 </Text>
               </Pressable>
             )}
+            <Pressable
+              onPress={openTimerHelpRequest}
+              style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+            >
+              <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                Need help
+              </Text>
+            </Pressable>
           </View>
         </View>
       ) : null}
@@ -154,6 +227,16 @@ const renderScreen = () => {
             <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>Subsystem: {subsystemName}</Text>
             <Text style={[styles.queueMetaLine, appResponsiveStyles.metaLine]}>People: {people.join(", ") || "Unassigned"}</Text>
             <Text style={[styles.queueRowBody, appResponsiveStyles.rowBody]}>{workLog.notes || "No notes recorded."}</Text>
+            <View style={styles.quickActionRow}>
+              <Pressable
+                onPress={() => openWorkLogHelpRequest(workLog)}
+                style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
+              >
+                <Text style={[styles.quickActionButtonLabel, appResponsiveStyles.quickActionButtonLabel]}>
+                  Need help
+                </Text>
+              </Pressable>
+            </View>
           </Pressable>
         );
       })}
@@ -161,6 +244,16 @@ const renderScreen = () => {
       {filteredWorkLogs.length === 0 ? <EmptyState text="No work logs match the current filters." /> : null}
 
       <InteractionNote steps={SUBVIEW_INTERACTION_GUIDANCE.worklogs} />
+
+      <NeedHelpModal
+        appResponsiveStyles={appResponsiveStyles}
+        contextTitle={helpContext?.contextTitle ?? "Work help request"}
+        defaultMentorId={defaultHelpMentorId}
+        mentorOptions={mentorOptions}
+        onCancel={closeHelpRequest}
+        onSubmit={submitWorkLogHelpRequest}
+        visible={Boolean(helpContext)}
+      />
 
       <Modal
         animationType="fade"

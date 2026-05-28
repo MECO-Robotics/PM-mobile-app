@@ -1,4 +1,12 @@
-export type MemberRole = "student" | "lead" | "mentor" | "admin";
+export type MemberRole = "student" | "lead" | "mentor" | "admin" | "external";
+export type PlannedAttendanceDay =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
 export type EventType =
   | "drive-practice"
   | "competition"
@@ -45,8 +53,13 @@ export interface Member {
   name: string;
   role: MemberRole;
   email?: string;
+  photoUrl?: string;
   elevated?: boolean;
+  disciplineId?: string | null;
   seasonId?: string;
+  plannedWeeklyAttendanceHours?: number;
+  plannedAttendanceDays?: PlannedAttendanceDay[];
+  plannedAttendanceNotes?: string;
 }
 
 export interface Subsystem {
@@ -230,6 +243,17 @@ export interface QaRequest {
   status: "requested";
 }
 
+export interface HelpRequest {
+  id: string;
+  taskId?: string | null;
+  workLogId?: string | null;
+  reason: string;
+  mentorId: string;
+  requestedById: string | null;
+  createdAt: string;
+  status: "requested";
+}
+
 export interface QAFinding {
   id: string;
   taskId?: string | null;
@@ -287,6 +311,7 @@ export interface PlatformBootstrapPayload {
   manufacturingItems?: ManufacturingItem[];
   purchaseItems?: PurchaseItem[];
   qaRequests?: QaRequest[];
+  helpRequests?: HelpRequest[];
   qaFindings?: QAFinding[];
   testFindings?: TestFinding[];
   designIterations?: DesignIteration[];

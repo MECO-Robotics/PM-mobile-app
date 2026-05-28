@@ -1,6 +1,7 @@
 import { StatusBar } from "expo-status-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as Google from "expo-auth-session/providers/google";
+import * as ImagePicker from "expo-image-picker";
 import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -104,6 +105,7 @@ import {
   requestJson,
   resolveApiBaseUrl,
 } from "./src/data/api";
+import { buildHelpRequest, type HelpRequestInput } from "./src/data/helpRequests";
 import { mecoSnapshot } from "./src/data/mockData";
 import { tasks as seededTasks } from "./src/data/tasks";
 import type {
@@ -112,6 +114,7 @@ import type {
   BootstrapMilestone,
   Event,
   EventType,
+  HelpRequest,
   PlatformBootstrapPayload,
   PublicAuthConfig,
   PurchaseItem,
@@ -233,6 +236,16 @@ const INITIAL_SEASONS: SeasonOption[] = [
   { id: "test", label: "Test Season" },
   { id: "new", label: "New Season" },
 ];
+
+const PLANNED_ATTENDANCE_DAY_OPTIONS = [
+  { id: "monday", label: "Mon" },
+  { id: "tuesday", label: "Tue" },
+  { id: "wednesday", label: "Wed" },
+  { id: "thursday", label: "Thu" },
+  { id: "friday", label: "Fri" },
+  { id: "saturday", label: "Sat" },
+  { id: "sunday", label: "Sun" },
+] as const;
 
 const REQUIRED_EMAIL_DOMAIN = "mecorobotics.org";
 
@@ -517,6 +530,17 @@ function mapEventTypeToMilestoneType(type: EventType) {
   return type === "drive-practice" ? "practice" : type;
 }
 
+function getPhotoFileName(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "No image selected";
+  }
+
+  const withoutQuery = trimmed.split(/[?#]/)[0] ?? trimmed;
+  const fileName = withoutQuery.split("/").filter(Boolean).pop();
+  return fileName || "Selected image";
+}
+
 function normalizeRequiredEmailDomain(domain: string | null | undefined) {
   return domain?.trim().toLowerCase().replace(/^@/, "") || REQUIRED_EMAIL_DOMAIN;
 }
@@ -696,6 +720,7 @@ export default function App() {
   const [partInstances, setPartInstances] = useState(() => mecoSnapshot.partInstances);
   const [qaReviews, setQaReviews] = useState<QaReview[]>(() => mecoSnapshot.qaReviews);
   const [qaRequests, setQaRequests] = useState<QaRequest[]>([]);
+  const [helpRequests, setHelpRequests] = useState<HelpRequest[]>([]);
   const [eventReports, setEventReports] = useState<EventReportDraft[]>([]);
   const systemThemeMode: AppThemeName = systemColorScheme === "dark" ? "dark" : "light";
   const themeMode = themeOverride ?? systemThemeMode;
@@ -865,6 +890,7 @@ export default function App() {
     setManufacturingItems(ensureArray(payload.manufacturingItems));
     setPurchaseItems(ensureArray(payload.purchaseItems));
     setQaRequests(ensureArray(payload.qaRequests));
+    setHelpRequests(ensureArray(payload.helpRequests));
     setPartDefinitions(ensureArray(payload.partDefinitions));
     setPartInstances(ensureArray(payload.partInstances));
   }, []);
@@ -1266,8 +1292,9 @@ export default function App() {
     return members[0] ?? null;
   }, [activePersonFilter, members, membersById, selectedMemberId, sessionUser]);
   const canMentorApprove =
+    sessionUser?.role === "mentor" ||
+    sessionUser?.role === "admin" ||
     signedInMember?.role === "mentor" ||
-    signedInMember?.role === "lead" ||
     signedInMember?.role === "admin";
   const signedInEmailInitial =
     sessionUser?.email.trim().charAt(0).toUpperCase() || "M";
@@ -1463,7 +1490,19 @@ export default function App() {
         key: "reports",
         label: "QA",
         shortLabel: "QA",
-        count: qaRequests.length + qaReviews.length + eventReports.length,
+        count: helpRequests.length + qaRequests.length + qaReviews.length + eventReports.length,
+      },
+      {
+        key: "roster",
+        label: "Directory",
+        shortLabel: "DR",
+        count: members.length,
+      },
+      {
+        key: "roster",
+        label: "Directory",
+        shortLabel: "DR",
+        count: members.length,
       },
       {
         key: "risks",
@@ -1479,10 +1518,37 @@ export default function App() {
     purchaseItems,
     subsystems,
     members,
+    helpRequests.length,
     qaRequests.length,
     qaReviews,
     eventReports,
   ]);
+
+  const navigationSections = useMemo(
+    () => [
+      {
+        title: "Dashboard",
+        items: navigationItems.filter((item) =>
+          item.key === "home" || item.key === "attendance",
+        ),
+      },
+      {
+        title: "Work",
+        items: navigationItems.filter((item) =>
+          item.key === "tasks" ||
+          item.key === "worklogs" ||
+          item.key === "inventory" ||
+          item.key === "reports" ||
+          item.key === "risks",
+        ),
+      },
+      {
+        title: "Config",
+        items: navigationItems.filter((item) => item.key === "roster"),
+      },
+    ],
+    [navigationItems],
+  );
 
   const taskLoggedHoursById = useMemo(() => {
     return workLogs.reduce<Record<string, number>>((hoursByTaskId, workLog) => {
@@ -2329,12 +2395,13 @@ export default function App() {
   const reportSummary = useMemo(() => {
     const iterationCount = qaReviews.filter((review) => review.result === "iteration-worthy").length;
     return [
+      { label: "Help requests", value: String(helpRequests.length) },
       { label: "QA requests", value: String(qaRequests.length) },
       { label: "QA reports", value: String(qaReviews.length) },
       { label: "Event reports", value: String(eventReports.length) },
       { label: "Iterations", value: String(iterationCount) },
     ] satisfies SummaryChipData[];
-  }, [eventReports.length, qaRequests.length, qaReviews]);
+  }, [eventReports.length, helpRequests.length, qaRequests.length, qaReviews]);
 
   const riskSummary = useMemo(() => {
     const highCount = riskRows.filter((risk) => risk.priority === "high").length;
@@ -2345,11 +2412,14 @@ export default function App() {
     ] satisfies SummaryChipData[];
   }, [riskRows, subsystems]);
 
-  const rosterStudents = members.filter((member) => member.role === "student");
+  const rosterStudents = members.filter(
+    (member) => member.role === "student" || member.role === "lead",
+  );
   const rosterMentors = members.filter(
-    (member) => member.role === "mentor" || member.role === "lead",
+    (member) => member.role === "mentor" || member.role === "admin",
   );
   const rosterAdmins = members.filter((member) => member.role === "admin");
+  const rosterExternal = members.filter((member) => member.role === "external");
   const homeActionItems = useMemo(() => {
     const today = localTodayDate();
     const dueSoonDate = shiftDateByDays(today, 3);
@@ -2992,7 +3062,7 @@ export default function App() {
           TASK_SUBTEAM_DISCIPLINE_IDS[activeTaskSubteam][0] ?? disciplines[0]?.id ?? "",
         ownerId: members[0]?.id ?? "",
         mentorId:
-          members.find((member) => member.role === "mentor" || member.role === "lead")?.id ??
+          members.find((member) => member.role === "mentor" || member.role === "admin")?.id ??
           members[0]?.id ??
           "",
         startDate: today,
@@ -3546,7 +3616,7 @@ export default function App() {
   const requestTaskQa = async (task: Task) => {
     const mentorId =
       task.mentorId ||
-      members.find((member) => member.role === "mentor" || member.role === "lead")?.id ||
+      members.find((member) => member.role === "mentor" || member.role === "admin")?.id ||
       task.ownerId ||
       members[0]?.id ||
       "";
@@ -4068,10 +4138,14 @@ export default function App() {
     }
   };
 
-  const openCreateMemberEditor = () => {
+  const openCreateMemberEditor = (role: MemberRole = "student") => {
+    if (!canMentorApprove) {
+      return;
+    }
+
     setActiveMemberId(null);
     setMemberError(null);
-    setMemberDraft(buildMemberDraft());
+    setMemberDraft(buildMemberDraft({ role }));
     setMemberEditorMode("create");
   };
 
@@ -4093,8 +4167,39 @@ export default function App() {
     setMemberError(null);
   };
 
+  const pickMemberProfilePhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setMemberError("Allow photo library access to choose a profile photo.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      mediaTypes: ["images"],
+      quality: 0.82,
+    });
+
+    if (result.canceled || !result.assets[0]?.uri) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    setMemberError(null);
+    setMemberDraft((current) => ({
+      ...current,
+      photoUrl: asset.uri,
+    }));
+  };
+
   const saveMemberDraft = async () => {
+    if (!canMentorApprove) {
+      setMemberError("Only mentors can invite or edit people.");
+      return;
+    }
+
     const name = memberDraft.name.trim();
+    const email = memberDraft.email.trim().toLowerCase();
     const duplicateName = members.some(
       (member) =>
         member.id !== activeMemberId &&
@@ -4114,7 +4219,17 @@ export default function App() {
     setMemberError(null);
 
     const payload = {
+      disciplineId: memberDraft.disciplineId || null,
+      elevated: memberDraft.role === "lead" || memberDraft.role === "admin",
+      email,
       name,
+      photoUrl: memberDraft.photoUrl.trim(),
+      plannedAttendanceDays: memberDraft.plannedAttendanceDays,
+      plannedAttendanceNotes: memberDraft.plannedAttendanceNotes.trim(),
+      plannedWeeklyAttendanceHours: Math.max(
+        0,
+        Number(memberDraft.plannedWeeklyAttendanceHours) || 0,
+      ),
       role: memberDraft.role,
     };
 
@@ -4266,7 +4381,7 @@ export default function App() {
     const requesterId = signedInMember?.id ?? members[0]?.id ?? "";
     const ownerId = requesterId;
     const mentorId =
-      members.find((member) => member.role === "mentor" || member.role === "lead")?.id ??
+      members.find((member) => member.role === "mentor" || member.role === "admin")?.id ??
       requesterId;
     const dueDate = isoToday();
 
@@ -4444,6 +4559,24 @@ export default function App() {
       },
       ...current,
     ]);
+  };
+
+  const requestHelp = (input: HelpRequestInput) => {
+    if (!rosterMentors.some((mentor) => mentor.id === input.mentorId)) {
+      return false;
+    }
+
+    const request = buildHelpRequest({
+      ...input,
+      requestedById: input.requestedById ?? signedInMember?.id ?? null,
+    });
+
+    if (!request) {
+      return false;
+    }
+
+    setHelpRequests((current) => [request, ...current]);
+    return true;
   };
 
   const saveQaReportDraft = async () => {
@@ -4639,7 +4772,7 @@ export default function App() {
       const subsystemId = event.relatedSubsystemIds[0] ?? subsystems[0]?.id ?? "";
       const ownerId = signedInMember?.id ?? members[0]?.id ?? "";
       const mentorId =
-        members.find((member) => member.role === "mentor" || member.role === "lead")?.id ??
+        members.find((member) => member.role === "mentor" || member.role === "admin")?.id ??
         ownerId;
 
       if (subsystemId && ownerId && mentorId) {
@@ -4714,6 +4847,7 @@ export default function App() {
     setPartDefinitions([]);
     setPartInstances([]);
     setQaReviews([]);
+    setHelpRequests([]);
     setEventReports([]);
     clearWorkLogTimer();
     setActiveTab("home");
@@ -4762,6 +4896,7 @@ export default function App() {
     setActivePersonFilter("all");
     setSelectedMemberId(null);
     setSyncError(null);
+    setHelpRequests([]);
     closeTaskEditor();
     closeWorkLogEditor();
     closeMilestoneEditor();
@@ -4799,6 +4934,7 @@ export default function App() {
     filteredSubsystems,
     filteredTaskQueue,
     filteredWorkLogs,
+    helpRequests,
     homeActionItems,
     homeInventoryNeeds,
     homeMeetingExport,
@@ -4877,9 +5013,11 @@ export default function App() {
     qaRequests,
     qaReviews,
     reportSummary,
+    requestHelp,
     riskRows,
     riskSummary,
     rosterAdmins,
+    rosterExternal,
     rosterMentors,
     rosterStudents,
     requestTaskQa,
@@ -4952,6 +5090,7 @@ export default function App() {
     timelineSubsystemFilter,
     timelineTasks,
     workLogSearch,
+    workLogs,
     workLogSortMode,
     workLogSubsystemFilter,
     workLogSummary,
@@ -5979,8 +6118,8 @@ export default function App() {
           onCancel={closeMemberEditor}
           onDelete={memberEditorMode === "edit" ? deleteMemberDraft : undefined}
           onSave={saveMemberDraft}
-          saveLabel={memberEditorMode === "edit" ? "Update member" : "Create member"}
-          title={memberEditorMode === "edit" ? "Edit member" : "Create member"}
+          saveLabel={memberEditorMode === "edit" ? "Update person" : "Create person"}
+          title={memberEditorMode === "edit" ? "Edit selected person" : "Add person"}
           visible={Boolean(memberEditorMode)}
         >
           {memberError ? (
@@ -5993,6 +6132,41 @@ export default function App() {
               </Text>
             </View>
           ) : null}
+          <View style={styles.profilePhotoField}>
+            <Text style={[styles.modalFieldLabel, { color: themeColors.ink }]}>
+              Profile photo
+            </Text>
+            <View style={[styles.profilePhotoPicker, { borderColor: themeColors.border }]}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => undefined}
+                style={styles.profilePhotoChooseButton}
+              >
+                <Text style={styles.profilePhotoChooseButtonLabel}>Choose File</Text>
+              </Pressable>
+              <Text style={[styles.profilePhotoFileName, { color: themeColors.ink }]}>
+                {memberDraft.photoUrl ? "Photo selected" : "No file chosen"}
+              </Text>
+            </View>
+            <ModalField
+              label="Profile photo URL"
+              onChangeText={(value) => {
+                setMemberError(null);
+                setMemberDraft((current) => ({ ...current, photoUrl: value }));
+              }}
+              placeholder="https://example.com/photo.jpg"
+              value={memberDraft.photoUrl}
+            />
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setMemberDraft((current) => ({ ...current, photoUrl: "" }))}
+              style={styles.profilePhotoClearButton}
+            >
+              <Text style={[styles.profilePhotoClearButtonLabel, { color: themeColors.ink }]}>
+                Clear file
+              </Text>
+            </Pressable>
+          </View>
           <ModalField
             label="Name"
             onChangeText={(value) => {
@@ -6003,21 +6177,113 @@ export default function App() {
             value={memberDraft.name}
           />
           <DropdownField
+            clearLabel="None"
+            label="Discipline"
+            onChange={(value) => {
+              setMemberError(null);
+              setMemberDraft((current) => ({ ...current, disciplineId: value }));
+            }}
+            options={disciplineOptions}
+            placeholder="None"
+            value={memberDraft.disciplineId}
+          />
+          <DropdownField
+            clearLabel="None"
+            label="Discipline"
+            onChange={(value) => {
+              setMemberError(null);
+              setMemberDraft((current) => ({ ...current, disciplineId: value }));
+            }}
+            options={disciplineOptions}
+            placeholder="None"
+            value={memberDraft.disciplineId}
+          />
+          <DropdownField
             label="Role"
             onChange={(value) => {
+              const role = value as MemberRole;
               setMemberError(null);
               setMemberDraft((current) => ({
                 ...current,
-                role: value as MemberRole,
+                role,
+                elevated: role === "lead" || role === "admin",
               }));
             }}
             options={[
               { id: "student", name: "Student" },
-              { id: "lead", name: "Lead" },
+              { id: "lead", name: "Student + subteam lead" },
               { id: "mentor", name: "Mentor" },
               { id: "admin", name: "Admin" },
+              { id: "external", name: "External access" },
             ]}
             value={memberDraft.role}
+          />
+          <ModalField
+            keyboardType="numeric"
+            label="Planned weekly attendance"
+            onChangeText={(value) => {
+              setMemberError(null);
+              setMemberDraft((current) => ({
+                ...current,
+                plannedWeeklyAttendanceHours: value,
+              }));
+            }}
+            placeholder="0"
+            value={memberDraft.plannedWeeklyAttendanceHours}
+          />
+          <View style={styles.plannedDaysField}>
+            <Text style={[styles.modalFieldLabel, { color: themeColors.ink }]}>
+              Planned days
+            </Text>
+            <View style={styles.plannedDaysRow}>
+              {PLANNED_ATTENDANCE_DAY_OPTIONS.map((day) => {
+                const isSelected = memberDraft.plannedAttendanceDays.includes(day.id);
+
+                return (
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isSelected }}
+                    key={day.id}
+                    onPress={() => {
+                      setMemberError(null);
+                      setMemberDraft((current) => ({
+                        ...current,
+                        plannedAttendanceDays: current.plannedAttendanceDays.includes(day.id)
+                          ? current.plannedAttendanceDays.filter((value) => value !== day.id)
+                          : [...current.plannedAttendanceDays, day.id],
+                      }));
+                    }}
+                    style={styles.plannedDayOption}
+                  >
+                    <View
+                      style={[
+                        styles.plannedDayCheckbox,
+                        {
+                          backgroundColor: isSelected ? themeColors.navySurface : themeColors.canvas,
+                          borderColor: isSelected ? themeColors.blue : themeColors.border,
+                        },
+                      ]}
+                    />
+                    <Text style={[styles.plannedDayLabel, { color: themeColors.ink }]}>
+                      {day.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <ModalField
+            label="Attendance notes"
+            multiline
+            onChangeText={(value) => {
+              setMemberError(null);
+              setMemberDraft((current) => ({
+                ...current,
+                plannedAttendanceNotes: value,
+              }));
+            }}
+            placeholder=""
+            value={memberDraft.plannedAttendanceNotes}
           />
         </EditorModal>
 
@@ -6288,67 +6554,74 @@ export default function App() {
             </View>
 
             <View style={styles.navDrawerList}>
-              {navigationItems.map((item) => {
-                const isActive = activeTab === item.key;
+              {navigationSections.map((section) => (
+                <View key={section.title} style={styles.navDrawerSection}>
+                  <Text style={[styles.navDrawerSectionLabel, { color: themeColors.subtleText }]}>
+                    {section.title}
+                  </Text>
+                  {section.items.map((item) => {
+                    const isActive = activeTab === item.key;
 
-                return (
-                  <Pressable
-                    accessibilityRole="menuitem"
-                    accessibilityState={{ selected: isActive }}
-                    key={item.key}
-                    onPress={() => selectNavigationTab(item.key)}
-                    style={[
-                      styles.navDrawerItem,
-                      appResponsiveStyles.navTab,
-                      isActive && [styles.navDrawerItemActive, appResponsiveStyles.navTabActive],
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.sidebarIconBubble,
-                        appResponsiveStyles.navBubble,
-                        isActive && styles.sidebarIconBubbleActive,
-                      ]}
-                    >
-                      <Text
+                    return (
+                      <Pressable
+                        accessibilityRole="menuitem"
+                        accessibilityState={{ selected: isActive }}
+                        key={item.key}
+                        onPress={() => selectNavigationTab(item.key)}
                         style={[
-                          styles.sidebarIconLabel,
-                          { color: themeColors.navyInk },
-                          isActive && styles.sidebarIconLabelActive,
+                          styles.navDrawerItem,
+                          appResponsiveStyles.navTab,
+                          isActive && [styles.navDrawerItemActive, appResponsiveStyles.navTabActive],
                         ]}
                       >
-                        {item.shortLabel}
-                      </Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.navDrawerItemLabel,
-                        { color: themeColors.ink },
-                        isActive && { color: themeColors.navyInk },
-                      ]}
-                    >
-                      {item.label}
-                    </Text>
-                    <View
-                      style={[
-                        styles.sidebarCountPill,
-                        appResponsiveStyles.navCount,
-                        isActive && styles.sidebarCountPillActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.sidebarCountLabel,
-                          { color: themeColors.ink },
-                          isActive && styles.sidebarCountLabelActive,
-                        ]}
-                      >
-                        {item.count}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
+                        <View
+                          style={[
+                            styles.sidebarIconBubble,
+                            appResponsiveStyles.navBubble,
+                            isActive && styles.sidebarIconBubbleActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.sidebarIconLabel,
+                              { color: themeColors.navyInk },
+                              isActive && styles.sidebarIconLabelActive,
+                            ]}
+                          >
+                            {item.shortLabel}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.navDrawerItemLabel,
+                            { color: themeColors.ink },
+                            isActive && { color: themeColors.navyInk },
+                          ]}
+                        >
+                          {item.label}
+                        </Text>
+                        <View
+                          style={[
+                            styles.sidebarCountPill,
+                            appResponsiveStyles.navCount,
+                            isActive && styles.sidebarCountPillActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.sidebarCountLabel,
+                              { color: themeColors.ink },
+                              isActive && styles.sidebarCountLabelActive,
+                            ]}
+                          >
+                            {item.count}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ))}
             </View>
           </Pressable>
         </SafeAreaView>
