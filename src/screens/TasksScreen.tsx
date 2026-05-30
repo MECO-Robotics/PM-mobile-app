@@ -12,7 +12,6 @@ export function TasksScreen(props: AppScreenProps) {
     activeTaskSubteam,
     events,
     isLandscapeTimelineLayout,
-    membersById,
     openCreateDeadlineEditor,
     openCreateTaskEditor,
     openEditTaskEditor,
@@ -28,7 +27,6 @@ export function TasksScreen(props: AppScreenProps) {
       <LandscapeSubsystemTimeline
         colors={themeColors}
         events={events}
-        membersById={membersById}
         onAddDeadline={openCreateDeadlineEditor}
         onAddTask={openCreateTaskEditor}
         onTaskPress={openEditTaskEditor}
