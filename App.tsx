@@ -1,7 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as Google from "expo-auth-session/providers/google";
-import * as ImagePicker from "expo-image-picker";
 import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -957,7 +956,7 @@ export default function App() {
         setIsSyncing(false);
       }
     },
-    [endSessionForAuthFailure, refreshWorkspaceFromServer],
+    [refreshWorkspaceFromServer],
   );
 
   const signInWithGoogle = useCallback(async () => {
@@ -4163,29 +4162,8 @@ export default function App() {
     setMemberError(null);
   };
 
-  const pickMemberProfilePhoto = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setMemberError("Allow photo library access to choose a profile photo.");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsEditing: true,
-      mediaTypes: ["images"],
-      quality: 0.82,
-    });
-
-    if (result.canceled || !result.assets[0]?.uri) {
-      return;
-    }
-
-    const asset = result.assets[0];
-    setMemberError(null);
-    setMemberDraft((current) => ({
-      ...current,
-      photoUrl: asset.uri,
-    }));
+  const showProfilePhotoUrlOnlyMessage = () => {
+    setMemberError("Paste a hosted image URL below. Mobile file upload is not available yet.");
   };
 
   const saveMemberDraft = async () => {
@@ -6135,13 +6113,13 @@ export default function App() {
             <View style={[styles.profilePhotoPicker, { borderColor: themeColors.border }]}>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => undefined}
+                onPress={showProfilePhotoUrlOnlyMessage}
                 style={styles.profilePhotoChooseButton}
               >
-                <Text style={styles.profilePhotoChooseButtonLabel}>Choose File</Text>
+                <Text style={styles.profilePhotoChooseButtonLabel}>Use URL</Text>
               </Pressable>
               <Text style={[styles.profilePhotoFileName, { color: themeColors.ink }]}>
-                {memberDraft.photoUrl ? "Photo selected" : "No file chosen"}
+                {getPhotoFileName(memberDraft.photoUrl)}
               </Text>
             </View>
             <ModalField
