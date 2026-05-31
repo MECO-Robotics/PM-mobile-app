@@ -203,6 +203,14 @@ const renderScreen = () => {
               Filters
             </Text>
           </Pressable>
+          <Pressable
+            onPress={() => setIsShiftDueDatesOpen(true)}
+            style={[styles.primaryAction, appResponsiveStyles.primaryAction]}
+          >
+            <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>
+              Shift due dates
+            </Text>
+          </Pressable>
           <Pressable onPress={openCreateTaskEditor} style={[styles.primaryAction, appResponsiveStyles.primaryAction]}>
             <Text style={[styles.primaryActionLabel, appResponsiveStyles.primaryActionLabel]}>Add</Text>
           </Pressable>
@@ -530,6 +538,7 @@ const renderScreen = () => {
       <Modal
         animationType="fade"
         onRequestClose={() => setIsFiltersOpen(false)}
+        supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
         transparent
         visible={isFiltersOpen}
       >
@@ -647,19 +656,6 @@ const renderScreen = () => {
                     ]}
                   >
                     Reset filters
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setIsShiftDueDatesOpen(true)}
-                  style={[styles.quickActionButton, appResponsiveStyles.quickActionButton]}
-                >
-                  <Text
-                    style={[
-                      styles.quickActionButtonLabel,
-                      appResponsiveStyles.quickActionButtonLabel,
-                    ]}
-                  >
-                    Shift due dates
                   </Text>
                 </Pressable>
               </View>
