@@ -4132,9 +4132,16 @@ export default function App() {
         return;
       }
 
+      const message = getClientErrorMessage(error);
       const result = enqueuePendingWorkLogDraft(
         pendingWorkLogDraftsRef.current,
         payload,
+        new Date(),
+        {
+          attemptCount: 1,
+          error: message,
+          status: "failed",
+        },
       );
       await persistPendingWorkLogDrafts(result.drafts);
       setBackendStatus("offline");

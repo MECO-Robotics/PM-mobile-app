@@ -71,6 +71,26 @@ describe("offline work log draft sync queue", () => {
     });
   });
 
+  it("creates an attempted failed draft for an uncertain server submission", () => {
+    const result = enqueuePendingWorkLogDraft(
+      [],
+      payload,
+      new Date("2026-04-23T18:00:00.000Z"),
+      {
+        attemptCount: 1,
+        error: "Network unavailable.",
+        status: "failed",
+      },
+    );
+
+    expect(result.didCreate).toBe(true);
+    expect(result.draft).toMatchObject({
+      attemptCount: 1,
+      error: "Network unavailable.",
+      status: "failed",
+    });
+  });
+
   it("persists and reloads pending drafts from storage", async () => {
     const { drafts } = enqueuePendingWorkLogDraft(
       [],

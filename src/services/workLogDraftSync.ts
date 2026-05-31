@@ -22,6 +22,12 @@ export type PendingWorkLogDraft = {
 
 const WORK_LOG_DRAFT_STORAGE_KEY = "meco-mobile-work-log-drafts:v1";
 
+type EnqueuePendingWorkLogDraftOptions = {
+  attemptCount?: number;
+  error?: string;
+  status?: WorkLogDraftSyncStatus;
+};
+
 function normalizeNotes(notes: string) {
   return notes.trim().replace(/\s+/g, " ");
 }
@@ -143,6 +149,7 @@ export function enqueuePendingWorkLogDraft(
   drafts: PendingWorkLogDraft[],
   payload: WorkLogDraftPayload,
   now = new Date(),
+  options: EnqueuePendingWorkLogDraftOptions = {},
 ) {
   const normalizedPayload = normalizeWorkLogDraftPayload(payload);
   const fingerprint = buildWorkLogDraftFingerprint(normalizedPayload);
@@ -158,12 +165,13 @@ export function enqueuePendingWorkLogDraft(
 
   const timestamp = now.toISOString();
   const draft: PendingWorkLogDraft = {
-    attemptCount: 0,
+    attemptCount: options.attemptCount ?? 0,
     createdAt: timestamp,
+    error: options.error,
     fingerprint,
     id: `work-log-draft-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
     payload: normalizedPayload,
-    status: "pending",
+    status: options.status ?? "pending",
     updatedAt: timestamp,
   };
 
