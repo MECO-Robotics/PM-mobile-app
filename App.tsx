@@ -770,6 +770,7 @@ export default function App() {
   >([]);
   const pendingWorkLogDraftsRef = useRef<PendingWorkLogDraft[]>([]);
   const isSyncingWorkLogDraftsRef = useRef(false);
+  const startTaskRef = useRef<(task: Task) => Promise<void>>(async () => undefined);
   const activeWorkLogDraftOwnerKey = useMemo(
     () => getWorkLogDraftOwnerKey(sessionUser),
     [sessionUser],
@@ -1027,6 +1028,11 @@ export default function App() {
             drafts = removePendingWorkLogDraft(drafts, draft.id);
             didSyncDraft = true;
             await persistPendingWorkLogDrafts(drafts);
+
+            const loggedTask = tasks.find((task) => task.id === draft.payload.taskId);
+            if (loggedTask) {
+              await startTaskRef.current(loggedTask);
+            }
           } catch (error) {
             if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
               throw error;
@@ -1067,7 +1073,7 @@ export default function App() {
         isSyncingWorkLogDraftsRef.current = false;
       }
     },
-    [apiBaseUrl, persistPendingWorkLogDrafts, refreshWorkspaceFromServer, sessionUser],
+    [apiBaseUrl, persistPendingWorkLogDrafts, refreshWorkspaceFromServer, sessionUser, tasks],
   );
 
   useEffect(() => {
@@ -3859,6 +3865,7 @@ export default function App() {
       }),
     });
   };
+  startTaskRef.current = startTask;
 
   const requestTaskQa = async (task: Task) => {
     const mentorId =
@@ -4112,6 +4119,11 @@ export default function App() {
       });
 
       if (ok) {
+        const loggedTask = taskById[payload.taskId];
+        if (loggedTask) {
+          await startTask(loggedTask);
+        }
+
         closeWorkLogEditor();
       }
 
