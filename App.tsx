@@ -753,6 +753,7 @@ export default function App() {
     PendingWorkLogDraft[]
   >([]);
   const pendingWorkLogDraftsRef = useRef<PendingWorkLogDraft[]>([]);
+  const isSyncingWorkLogDraftsRef = useRef(false);
   const [manufacturingItems, setManufacturingItems] = useState(
     () => mecoSnapshot.manufacturingItems,
   );
@@ -965,69 +966,79 @@ export default function App() {
 
   const syncPendingWorkLogDrafts = useCallback(
     async (token: string | null, serverWorkLogs: WorkLog[] = workLogsRef.current) => {
-      let drafts = reconcilePendingWorkLogDrafts(
-        pendingWorkLogDraftsRef.current,
-        serverWorkLogs,
-      );
-
-      if (drafts.length !== pendingWorkLogDraftsRef.current.length) {
-        await persistPendingWorkLogDrafts(drafts);
+      if (isSyncingWorkLogDraftsRef.current) {
+        return null;
       }
 
-      let didSyncDraft = false;
-      let draftSyncError: string | null = null;
-      for (const draft of drafts) {
-        drafts = markPendingWorkLogDraftSyncing(drafts, draft.id);
-        await persistPendingWorkLogDrafts(drafts);
+      isSyncingWorkLogDraftsRef.current = true;
+
+      try {
+        let drafts = reconcilePendingWorkLogDrafts(
+          pendingWorkLogDraftsRef.current,
+          serverWorkLogs,
+        );
+
+        if (drafts.length !== pendingWorkLogDraftsRef.current.length) {
+          await persistPendingWorkLogDrafts(drafts);
+        }
+
+        let didSyncDraft = false;
+        let draftSyncError: string | null = null;
+        for (const draft of drafts) {
+          drafts = markPendingWorkLogDraftSyncing(drafts, draft.id);
+          await persistPendingWorkLogDrafts(drafts);
+
+          try {
+            await requestJson<WorkLogMutationResponse>(
+              apiBaseUrl,
+              "/api/work-logs",
+              {
+                method: "POST",
+                body: JSON.stringify(draft.payload),
+              },
+              token,
+            );
+
+            drafts = removePendingWorkLogDraft(drafts, draft.id);
+            didSyncDraft = true;
+            await persistPendingWorkLogDrafts(drafts);
+          } catch (error) {
+            if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
+              throw error;
+            }
+
+            const message = getClientErrorMessage(error);
+            drafts = markPendingWorkLogDraftFailed(drafts, draft.id, message);
+            await persistPendingWorkLogDrafts(drafts);
+            draftSyncError = draftSyncError ?? message;
+          }
+        }
+
+        if (drafts.length !== pendingWorkLogDraftsRef.current.length) {
+          await persistPendingWorkLogDrafts(drafts);
+        }
+
+        if (!didSyncDraft && pendingWorkLogDraftsRef.current.length === 0) {
+          return null;
+        }
 
         try {
-          await requestJson<WorkLogMutationResponse>(
-            apiBaseUrl,
-            "/api/work-logs",
-            {
-              method: "POST",
-              body: JSON.stringify(draft.payload),
-            },
-            token,
+          const payload = await refreshWorkspaceFromServer(token);
+          const reconciledDrafts = reconcilePendingWorkLogDrafts(
+            pendingWorkLogDraftsRef.current,
+            ensureArray(payload.workLogs),
           );
-
-          drafts = removePendingWorkLogDraft(drafts, draft.id);
-          didSyncDraft = true;
-          await persistPendingWorkLogDrafts(drafts);
+          await persistPendingWorkLogDrafts(reconciledDrafts);
+          return draftSyncError;
         } catch (error) {
           if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
             throw error;
           }
 
-          const message = getClientErrorMessage(error);
-          drafts = markPendingWorkLogDraftFailed(drafts, draft.id, message);
-          await persistPendingWorkLogDrafts(drafts);
-          draftSyncError = draftSyncError ?? message;
+          return getClientErrorMessage(error);
         }
-      }
-
-      if (drafts.length !== pendingWorkLogDraftsRef.current.length) {
-        await persistPendingWorkLogDrafts(drafts);
-      }
-
-      if (!didSyncDraft && pendingWorkLogDraftsRef.current.length === 0) {
-        return null;
-      }
-
-      try {
-        const payload = await refreshWorkspaceFromServer(token);
-        const reconciledDrafts = reconcilePendingWorkLogDrafts(
-          pendingWorkLogDraftsRef.current,
-          ensureArray(payload.workLogs),
-        );
-        await persistPendingWorkLogDrafts(reconciledDrafts);
-        return draftSyncError;
-      } catch (error) {
-        if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
-          throw error;
-        }
-
-        return getClientErrorMessage(error);
+      } finally {
+        isSyncingWorkLogDraftsRef.current = false;
       }
     },
     [apiBaseUrl, persistPendingWorkLogDrafts, refreshWorkspaceFromServer],
