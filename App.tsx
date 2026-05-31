@@ -5168,6 +5168,8 @@ export default function App() {
     setSelectedMemberId(null);
     setSyncError(null);
     setHelpRequests([]);
+    isSyncingWorkLogDraftsRef.current = false;
+    void persistPendingWorkLogDrafts([]);
     closeTaskEditor();
     closeWorkLogEditor();
     closeMilestoneEditor();
