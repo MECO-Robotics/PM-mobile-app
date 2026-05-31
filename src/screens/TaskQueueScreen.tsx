@@ -28,6 +28,7 @@ import { TaskQueueFilterSheet } from "./TaskQueueFilterSheet";
 
 export function TaskQueueScreen(props: AppScreenProps) {
   const {
+    activeTaskSubteam,
     activeTaskSubteamLabel,
     appResponsiveStyles,
     clearTaskBlockers,
@@ -49,6 +50,7 @@ export function TaskQueueScreen(props: AppScreenProps) {
     requestHelp,
     requestTaskQa,
     rosterMentors,
+    setActiveTaskSubteam,
     setTaskArchiveFilter,
     setTaskBlockerFilter,
     setTaskOwnerFilter,
