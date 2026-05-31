@@ -164,7 +164,6 @@ export function TaskQueueScreen(props: AppScreenProps) {
   };
 
   const resetTaskQueueFilters = () => {
-    setActiveTaskSubteam("programming");
     setTaskSearch("");
     setTaskSubsystemFilter("all");
     setTaskOwnerFilter("all");
