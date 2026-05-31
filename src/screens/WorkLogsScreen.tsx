@@ -222,6 +222,7 @@ const renderScreen = () => {
         const task = taskById[workLog.taskId];
         const subsystemName = task ? (subsystemsById[task.subsystemId]?.name ?? "Unknown") : "Unknown";
         const isLocalDraft = Boolean(workLog.syncStatus);
+        const canEditWorkLog = !isLocalDraft || workLog.syncStatus === "failed";
         const people = workLog.participantIds
           .map((participantId) => membersById[participantId]?.name)
           .filter((name): name is string => Boolean(name));
@@ -230,7 +231,7 @@ const renderScreen = () => {
           <Pressable
             key={workLog.id}
             onPress={() => {
-              if (!isLocalDraft) {
+              if (canEditWorkLog) {
                 openEditWorkLogEditor(workLog);
               }
             }}

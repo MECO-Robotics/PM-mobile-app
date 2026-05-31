@@ -4113,6 +4113,29 @@ export default function App() {
 
     const isEdit = workLogEditorMode === "edit" && activeWorkLogId;
     if (isEdit) {
+      const localDraft = pendingWorkLogDraftsRef.current.find(
+        (draft) => draft.id === activeWorkLogId,
+      );
+
+      if (localDraft) {
+        const remainingDrafts = removePendingWorkLogDraft(
+          pendingWorkLogDraftsRef.current,
+          localDraft.id,
+        );
+        const result = enqueuePendingWorkLogDraft(
+          remainingDrafts,
+          payload,
+          new Date(),
+          {
+            ownerKey: localDraft.ownerKey ?? activeWorkLogDraftOwnerKey,
+            status: "pending",
+          },
+        );
+        await persistPendingWorkLogDrafts(result.drafts);
+        closeWorkLogEditor();
+        return;
+      }
+
       const ok = await runMutation(`/api/work-logs/${activeWorkLogId}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
@@ -4219,6 +4242,18 @@ export default function App() {
 
   const deleteWorkLogDraft = async () => {
     if (!activeWorkLogId) {
+      return;
+    }
+
+    const localDraft = pendingWorkLogDraftsRef.current.find(
+      (draft) => draft.id === activeWorkLogId,
+    );
+
+    if (localDraft) {
+      await persistPendingWorkLogDrafts(
+        removePendingWorkLogDraft(pendingWorkLogDraftsRef.current, localDraft.id),
+      );
+      closeWorkLogEditor();
       return;
     }
 
