@@ -38,11 +38,13 @@ export function TasksScreen(props: AppScreenProps) {
 
   return (
     <>
-      <SectionTabs
-        activeValue={activeTaskSubteam}
-        onChange={setActiveTaskSubteam}
-        options={TASK_SUBTEAM_OPTIONS}
-      />
+      {taskView === "queue" ? null : (
+        <SectionTabs
+          activeValue={activeTaskSubteam}
+          onChange={setActiveTaskSubteam}
+          options={TASK_SUBTEAM_OPTIONS}
+        />
+      )}
       {taskView === "timeline"
         ? <TaskTimelineScreen {...props} />
         : taskView === "queue"

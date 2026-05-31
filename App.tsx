@@ -1498,12 +1498,6 @@ export default function App() {
         count: members.length,
       },
       {
-        key: "roster",
-        label: "Directory",
-        shortLabel: "DR",
-        count: members.length,
-      },
-      {
         key: "risks",
         label: "Risks",
         shortLabel: "RK",
