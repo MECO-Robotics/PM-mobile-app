@@ -975,6 +975,7 @@ export default function App() {
       }
 
       let didSyncDraft = false;
+      let draftSyncError: string | null = null;
       for (const draft of drafts) {
         drafts = markPendingWorkLogDraftSyncing(drafts, draft.id);
         await persistPendingWorkLogDrafts(drafts);
@@ -1001,7 +1002,7 @@ export default function App() {
           const message = getClientErrorMessage(error);
           drafts = markPendingWorkLogDraftFailed(drafts, draft.id, message);
           await persistPendingWorkLogDrafts(drafts);
-          return message;
+          draftSyncError = draftSyncError ?? message;
         }
       }
 
@@ -1020,7 +1021,7 @@ export default function App() {
           ensureArray(payload.workLogs),
         );
         await persistPendingWorkLogDrafts(reconciledDrafts);
-        return null;
+        return draftSyncError;
       } catch (error) {
         if (classifyMobileAuthError(error, "authenticated") === "expired-session") {
           throw error;

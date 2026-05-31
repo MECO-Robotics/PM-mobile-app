@@ -145,7 +145,7 @@ describe("offline work log draft sync queue", () => {
     expect(second.drafts).toHaveLength(1);
   });
 
-  it("prevents duplicate submission when server work logs already contain the draft", () => {
+  it("keeps local drafts even when a server work log has matching content", () => {
     const { drafts } = enqueuePendingWorkLogDraft(
       [],
       payload,
@@ -156,6 +156,6 @@ describe("offline work log draft sync queue", () => {
       ...payload,
     };
 
-    expect(reconcilePendingWorkLogDrafts(drafts, [serverWorkLog])).toEqual([]);
+    expect(reconcilePendingWorkLogDrafts(drafts, [serverWorkLog])).toEqual(drafts);
   });
 });
