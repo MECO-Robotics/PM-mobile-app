@@ -15,6 +15,7 @@ export type PendingWorkLogDraft = {
   error?: string;
   fingerprint: string;
   id: string;
+  ownerKey?: string;
   payload: WorkLogDraftPayload;
   status: WorkLogDraftSyncStatus;
   updatedAt: string;
@@ -25,6 +26,7 @@ const WORK_LOG_DRAFT_STORAGE_KEY = "meco-mobile-work-log-drafts:v1";
 type EnqueuePendingWorkLogDraftOptions = {
   attemptCount?: number;
   error?: string;
+  ownerKey?: string | null;
   status?: WorkLogDraftSyncStatus;
 };
 
@@ -96,6 +98,7 @@ function isPendingWorkLogDraft(value: unknown): value is PendingWorkLogDraft {
     typeof payload.hours === "number" &&
     Array.isArray(payload.participantIds) &&
     payload.participantIds.every((participantId) => typeof participantId === "string") &&
+    (candidate.ownerKey === undefined || typeof candidate.ownerKey === "string") &&
     typeof payload.notes === "string" &&
     (candidate.error === undefined || typeof candidate.error === "string")
   );
@@ -153,7 +156,12 @@ export function enqueuePendingWorkLogDraft(
 ) {
   const normalizedPayload = normalizeWorkLogDraftPayload(payload);
   const fingerprint = buildWorkLogDraftFingerprint(normalizedPayload);
-  const existingDraft = drafts.find((draft) => draft.fingerprint === fingerprint);
+  const ownerKey = options.ownerKey ?? null;
+  const existingDraft = drafts.find(
+    (draft) =>
+      draft.fingerprint === fingerprint &&
+      (draft.ownerKey ?? null) === ownerKey,
+  );
 
   if (existingDraft) {
     return {
@@ -170,6 +178,7 @@ export function enqueuePendingWorkLogDraft(
     error: options.error,
     fingerprint,
     id: `work-log-draft-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
+    ownerKey: ownerKey ?? undefined,
     payload: normalizedPayload,
     status: options.status ?? "pending",
     updatedAt: timestamp,
@@ -232,12 +241,17 @@ export function removePendingWorkLogDraft(
 export function reconcilePendingWorkLogDrafts(
   drafts: PendingWorkLogDraft[],
   serverWorkLogs: WorkLog[],
+  ownerKey: string | null = null,
 ) {
   const serverFingerprints = new Set(
     serverWorkLogs.map((workLog) => buildWorkLogDraftFingerprint(workLog)),
   );
 
-  return drafts.filter(
-    (draft) => draft.attemptCount === 0 || !serverFingerprints.has(draft.fingerprint),
-  );
+  return drafts.filter((draft) => {
+    if ((draft.ownerKey ?? null) !== ownerKey) {
+      return true;
+    }
+
+    return draft.attemptCount === 0 || !serverFingerprints.has(draft.fingerprint);
+  });
 }

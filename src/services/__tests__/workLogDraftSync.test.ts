@@ -165,6 +165,24 @@ describe("offline work log draft sync queue", () => {
     expect(second.drafts).toHaveLength(1);
   });
 
+  it("allows the same work log payload to be queued for separate owners", () => {
+    const first = enqueuePendingWorkLogDraft(
+      [],
+      payload,
+      new Date("2026-04-23T18:00:00.000Z"),
+      { ownerKey: "alex@mecorobotics.org" },
+    );
+    const second = enqueuePendingWorkLogDraft(
+      first.drafts,
+      payload,
+      new Date("2026-04-23T18:01:00.000Z"),
+      { ownerKey: "sam@mecorobotics.org" },
+    );
+
+    expect(second.didCreate).toBe(true);
+    expect(second.drafts).toHaveLength(2);
+  });
+
   it("keeps local drafts even when a server work log has matching content", () => {
     const { drafts } = enqueuePendingWorkLogDraft(
       [],
@@ -177,6 +195,37 @@ describe("offline work log draft sync queue", () => {
     };
 
     expect(reconcilePendingWorkLogDrafts(drafts, [serverWorkLog])).toEqual(drafts);
+  });
+
+  it("keeps attempted matching drafts from another owner", () => {
+    const { draft, drafts } = enqueuePendingWorkLogDraft(
+      [],
+      payload,
+      new Date("2026-04-23T18:00:00.000Z"),
+      { ownerKey: "alex@mecorobotics.org" },
+    );
+    const attemptedDrafts = markPendingWorkLogDraftFailed(
+      markPendingWorkLogDraftSyncing(
+        drafts,
+        draft.id,
+        new Date("2026-04-23T18:01:00.000Z"),
+      ),
+      draft.id,
+      "Network unavailable.",
+      new Date("2026-04-23T18:02:00.000Z"),
+    );
+    const serverWorkLog: WorkLog = {
+      id: "log-server-1",
+      ...payload,
+    };
+
+    expect(
+      reconcilePendingWorkLogDrafts(
+        attemptedDrafts,
+        [serverWorkLog],
+        "sam@mecorobotics.org",
+      ),
+    ).toEqual(attemptedDrafts);
   });
 
   it("drops matching drafts that already attempted server sync", () => {

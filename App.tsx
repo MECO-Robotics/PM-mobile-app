@@ -607,6 +607,22 @@ function buildLocalEmailSessionUser(email: string, hostedDomain: string): Sessio
   };
 }
 
+function getWorkLogDraftOwnerKey(user: SessionUser | null) {
+  return (
+    user?.email.trim().toLowerCase() ||
+    user?.accountId.trim().toLowerCase() ||
+    user?.name.trim().toLowerCase() ||
+    null
+  );
+}
+
+function isWorkLogDraftOwnedBy(
+  draft: PendingWorkLogDraft,
+  ownerKey: string | null,
+) {
+  return (draft.ownerKey ?? null) === ownerKey;
+}
+
 function mapMilestonesToEvents(payload: PlatformBootstrapPayload): Event[] {
   const subsystems = ensureArray(payload.subsystems);
 
@@ -754,6 +770,10 @@ export default function App() {
   >([]);
   const pendingWorkLogDraftsRef = useRef<PendingWorkLogDraft[]>([]);
   const isSyncingWorkLogDraftsRef = useRef(false);
+  const activeWorkLogDraftOwnerKey = useMemo(
+    () => getWorkLogDraftOwnerKey(sessionUser),
+    [sessionUser],
+  );
   const [manufacturingItems, setManufacturingItems] = useState(
     () => mecoSnapshot.manufacturingItems,
   );
@@ -965,7 +985,11 @@ export default function App() {
   );
 
   const syncPendingWorkLogDrafts = useCallback(
-    async (token: string | null, serverWorkLogs: WorkLog[] = workLogsRef.current) => {
+    async (
+      token: string | null,
+      serverWorkLogs: WorkLog[] = workLogsRef.current,
+      ownerKey: string | null = getWorkLogDraftOwnerKey(sessionUser),
+    ) => {
       if (isSyncingWorkLogDraftsRef.current) {
         return null;
       }
@@ -976,6 +1000,7 @@ export default function App() {
         let drafts = reconcilePendingWorkLogDrafts(
           pendingWorkLogDraftsRef.current,
           serverWorkLogs,
+          ownerKey,
         );
 
         if (drafts.length !== pendingWorkLogDraftsRef.current.length) {
@@ -984,7 +1009,7 @@ export default function App() {
 
         let didSyncDraft = false;
         let draftSyncError: string | null = null;
-        for (const draft of drafts) {
+        for (const draft of drafts.filter((draft) => isWorkLogDraftOwnedBy(draft, ownerKey))) {
           drafts = markPendingWorkLogDraftSyncing(drafts, draft.id);
           await persistPendingWorkLogDrafts(drafts);
 
@@ -1027,6 +1052,7 @@ export default function App() {
           const reconciledDrafts = reconcilePendingWorkLogDrafts(
             pendingWorkLogDraftsRef.current,
             ensureArray(payload.workLogs),
+            ownerKey,
           );
           await persistPendingWorkLogDrafts(reconciledDrafts);
           return draftSyncError;
@@ -1041,7 +1067,7 @@ export default function App() {
         isSyncingWorkLogDraftsRef.current = false;
       }
     },
-    [apiBaseUrl, persistPendingWorkLogDrafts, refreshWorkspaceFromServer],
+    [apiBaseUrl, persistPendingWorkLogDrafts, refreshWorkspaceFromServer, sessionUser],
   );
 
   useEffect(() => {
@@ -1113,6 +1139,7 @@ export default function App() {
         const draftSyncError = await syncPendingWorkLogDrafts(
           token,
           ensureArray(payload.workLogs),
+          getWorkLogDraftOwnerKey(user),
         );
         setBackendStatus(draftSyncError ? "offline" : "connected");
         setSyncError(draftSyncError);
@@ -1372,6 +1399,7 @@ export default function App() {
 
       let token = process.env.EXPO_PUBLIC_API_TOKEN?.trim() ?? "";
       token = token.length > 0 ? token : "";
+      let syncSessionUser = sessionUser;
 
       if (!token && authConfig.devBypassAvailable) {
         const session = await requestJson<SessionResponse>(
@@ -1380,6 +1408,7 @@ export default function App() {
           { method: "POST" },
         );
         token = session.token;
+        syncSessionUser = session.user;
         setSessionUser(session.user);
       }
 
@@ -1389,6 +1418,7 @@ export default function App() {
       const draftSyncError = await syncPendingWorkLogDrafts(
         resolvedToken,
         ensureArray(payload.workLogs),
+        getWorkLogDraftOwnerKey(syncSessionUser),
       );
       setBackendStatus(draftSyncError ? "offline" : "connected");
       setSyncError(draftSyncError);
@@ -1407,6 +1437,7 @@ export default function App() {
     apiBaseUrl,
     endSessionForAuthFailure,
     refreshWorkspaceFromServer,
+    sessionUser,
     syncPendingWorkLogDrafts,
   ]);
 
@@ -1421,6 +1452,7 @@ export default function App() {
         const draftSyncError = await syncPendingWorkLogDrafts(
           apiToken,
           ensureArray(payload.workLogs),
+          activeWorkLogDraftOwnerKey,
         );
         setBackendStatus(draftSyncError ? "offline" : "connected");
         setSyncError(draftSyncError);
@@ -1441,6 +1473,7 @@ export default function App() {
     [
       apiBaseUrl,
       apiToken,
+      activeWorkLogDraftOwnerKey,
       endSessionForAuthFailure,
       refreshWorkspaceFromServer,
       syncPendingWorkLogDrafts,
@@ -1481,6 +1514,13 @@ export default function App() {
       (signedInMember?.role === "mentor" || signedInMember?.role === "admin"));
   const signedInEmailInitial =
     sessionUser?.email.trim().charAt(0).toUpperCase() || "M";
+  const visiblePendingWorkLogDrafts = useMemo(
+    () =>
+      pendingWorkLogDrafts.filter((draft) =>
+        isWorkLogDraftOwnedBy(draft, activeWorkLogDraftOwnerKey),
+      ),
+    [activeWorkLogDraftOwnerKey, pendingWorkLogDrafts],
+  );
 
   const subsystemsById = useMemo(() => {
     return Object.fromEntries(
@@ -1528,15 +1568,15 @@ export default function App() {
     const serverFingerprints = new Set(
       workLogs.map((workLog) => buildWorkLogDraftFingerprint(workLog)),
     );
-    const localDraftRows = pendingWorkLogDrafts
+    const localDraftRows = visiblePendingWorkLogDrafts
       .filter((draft) => !serverFingerprints.has(draft.fingerprint))
       .map(mapPendingWorkLogDraftToWorkLog);
 
     return [...localDraftRows, ...workLogs];
-  }, [pendingWorkLogDrafts, workLogs]);
+  }, [visiblePendingWorkLogDrafts, workLogs]);
   const failedWorkLogDraftCount = useMemo(
-    () => pendingWorkLogDrafts.filter((draft) => draft.status === "failed").length,
-    [pendingWorkLogDrafts],
+    () => visiblePendingWorkLogDrafts.filter((draft) => draft.status === "failed").length,
+    [visiblePendingWorkLogDrafts],
   );
   const activeTaskSubteamTasks = useMemo(() => {
     const disciplineIds = TASK_SUBTEAM_DISCIPLINE_IDS[activeTaskSubteam];
@@ -2116,10 +2156,10 @@ export default function App() {
       { label: "Tasks", value: String(taskIds.size) },
     ];
 
-    if (pendingWorkLogDrafts.length > 0) {
+    if (visiblePendingWorkLogDrafts.length > 0) {
       summary.push({
         label: "Drafts",
-        value: String(pendingWorkLogDrafts.length),
+        value: String(visiblePendingWorkLogDrafts.length),
       });
     }
 
@@ -2131,7 +2171,7 @@ export default function App() {
     }
 
     return summary;
-  }, [failedWorkLogDraftCount, filteredWorkLogs, pendingWorkLogDrafts.length]);
+  }, [failedWorkLogDraftCount, filteredWorkLogs, visiblePendingWorkLogDrafts.length]);
 
   const visibleManufacturingProcess: ManufacturingItem["process"] =
     manufacturingView === "cnc"
@@ -4081,7 +4121,9 @@ export default function App() {
     const fingerprint = buildWorkLogDraftFingerprint(payload);
     if (
       pendingWorkLogDraftsRef.current.some(
-        (draft) => draft.fingerprint === fingerprint,
+        (draft) =>
+          draft.fingerprint === fingerprint &&
+          isWorkLogDraftOwnedBy(draft, activeWorkLogDraftOwnerKey),
       )
     ) {
       setSyncError("Work log draft is already saved locally and waiting to sync.");
@@ -4108,6 +4150,7 @@ export default function App() {
       const draftSyncError = await syncPendingWorkLogDrafts(
         apiToken,
         ensureArray(refreshedPayload.workLogs),
+        activeWorkLogDraftOwnerKey,
       );
       setBackendStatus(draftSyncError ? "offline" : "connected");
       setSyncError(draftSyncError);
@@ -4145,6 +4188,7 @@ export default function App() {
         {
           attemptCount: 1,
           error: message,
+          ownerKey: activeWorkLogDraftOwnerKey,
           status: "failed",
         },
       );
@@ -5162,8 +5206,6 @@ export default function App() {
     setSelectedMemberId(null);
     setSyncError(null);
     setHelpRequests([]);
-    isSyncingWorkLogDraftsRef.current = false;
-    void persistPendingWorkLogDrafts([]);
     closeTaskEditor();
     closeWorkLogEditor();
     closeMilestoneEditor();
