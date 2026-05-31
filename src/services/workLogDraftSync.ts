@@ -223,7 +223,13 @@ export function removePendingWorkLogDraft(
 
 export function reconcilePendingWorkLogDrafts(
   drafts: PendingWorkLogDraft[],
-  _serverWorkLogs: WorkLog[],
+  serverWorkLogs: WorkLog[],
 ) {
-  return drafts;
+  const serverFingerprints = new Set(
+    serverWorkLogs.map((workLog) => buildWorkLogDraftFingerprint(workLog)),
+  );
+
+  return drafts.filter(
+    (draft) => draft.attemptCount === 0 || !serverFingerprints.has(draft.fingerprint),
+  );
 }

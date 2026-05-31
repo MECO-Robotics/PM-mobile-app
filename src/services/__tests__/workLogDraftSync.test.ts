@@ -158,4 +158,28 @@ describe("offline work log draft sync queue", () => {
 
     expect(reconcilePendingWorkLogDrafts(drafts, [serverWorkLog])).toEqual(drafts);
   });
+
+  it("drops matching drafts that already attempted server sync", () => {
+    const { draft, drafts } = enqueuePendingWorkLogDraft(
+      [],
+      payload,
+      new Date("2026-04-23T18:00:00.000Z"),
+    );
+    const attemptedDrafts = markPendingWorkLogDraftFailed(
+      markPendingWorkLogDraftSyncing(
+        drafts,
+        draft.id,
+        new Date("2026-04-23T18:01:00.000Z"),
+      ),
+      draft.id,
+      "Network unavailable.",
+      new Date("2026-04-23T18:02:00.000Z"),
+    );
+    const serverWorkLog: WorkLog = {
+      id: "log-server-1",
+      ...payload,
+    };
+
+    expect(reconcilePendingWorkLogDrafts(attemptedDrafts, [serverWorkLog])).toEqual([]);
+  });
 });
