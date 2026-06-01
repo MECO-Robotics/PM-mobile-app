@@ -183,7 +183,7 @@ describe("offline work log draft sync queue", () => {
     expect(second.drafts).toHaveLength(2);
   });
 
-  it("keeps local drafts even when a server work log has matching content", () => {
+  it("drops matching local drafts when the server already has the work log", () => {
     const { drafts } = enqueuePendingWorkLogDraft(
       [],
       payload,
@@ -194,7 +194,7 @@ describe("offline work log draft sync queue", () => {
       ...payload,
     };
 
-    expect(reconcilePendingWorkLogDrafts(drafts, [serverWorkLog])).toEqual(drafts);
+    expect(reconcilePendingWorkLogDrafts(drafts, [serverWorkLog])).toEqual([]);
   });
 
   it("keeps attempted matching drafts from another owner", () => {

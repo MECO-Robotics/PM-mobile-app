@@ -252,6 +252,6 @@ export function reconcilePendingWorkLogDrafts(
       return true;
     }
 
-    return draft.attemptCount === 0 || !serverFingerprints.has(draft.fingerprint);
+    return !serverFingerprints.has(draft.fingerprint);
   });
 }

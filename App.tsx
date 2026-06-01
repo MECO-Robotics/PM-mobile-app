@@ -444,6 +444,10 @@ function getAutoTaskStatus(
   return task.status;
 }
 
+function buildTaskById(tasks: Task[]) {
+  return Object.fromEntries(tasks.map((task) => [task.id, task])) as Record<string, Task>;
+}
+
 function hasOpenTaskDependency(
   task: Pick<Task, "dependencyIds">,
   taskById: Record<string, Task>,
@@ -762,6 +766,8 @@ export default function App() {
   const [disciplines, setDisciplines] = useState(() => mecoSnapshot.disciplines);
   const [mechanisms, setMechanisms] = useState(() => mecoSnapshot.mechanisms);
   const [tasks, setTasks] = useState(() => withSeededSubteamTasks(mecoSnapshot.tasks));
+  const tasksRef = useRef<Task[]>(tasks);
+  const taskByIdRef = useRef<Record<string, Task>>(buildTaskById(tasks));
   const [events, setEvents] = useState(() => mecoSnapshot.events);
   const [workLogs, setWorkLogs] = useState(() => mecoSnapshot.workLogs);
   const workLogsRef = useRef<WorkLog[]>(mecoSnapshot.workLogs);
@@ -959,6 +965,8 @@ export default function App() {
     setSubsystems(normalizeTaskSubsystems(ensureArray(payload.subsystems)));
     setDisciplines(ensureArray(payload.disciplines));
     setMechanisms(ensureArray(payload.mechanisms));
+    tasksRef.current = tasks;
+    taskByIdRef.current = buildTaskById(tasks);
     setTasks(tasks);
     setEvents(events.length > 0 ? events : mapMilestonesToEvents(payload));
     workLogsRef.current = payloadWorkLogs;
@@ -1029,7 +1037,9 @@ export default function App() {
             didSyncDraft = true;
             await persistPendingWorkLogDrafts(drafts);
 
-            const loggedTask = tasks.find((task) => task.id === draft.payload.taskId);
+            const loggedTask = tasksRef.current.find(
+              (task) => task.id === draft.payload.taskId,
+            );
             if (loggedTask) {
               await startTaskRef.current(loggedTask);
             }
@@ -1073,8 +1083,13 @@ export default function App() {
         isSyncingWorkLogDraftsRef.current = false;
       }
     },
-    [apiBaseUrl, persistPendingWorkLogDrafts, refreshWorkspaceFromServer, sessionUser, tasks],
+    [apiBaseUrl, persistPendingWorkLogDrafts, refreshWorkspaceFromServer, sessionUser],
   );
+
+  useEffect(() => {
+    tasksRef.current = tasks;
+    taskByIdRef.current = buildTaskById(tasks);
+  }, [tasks]);
 
   useEffect(() => {
     let isActive = true;
@@ -1566,16 +1581,17 @@ export default function App() {
   }, [events]);
 
   const taskById = useMemo(() => {
-    return Object.fromEntries(
-      tasks.map((task) => [task.id, task]),
-    ) as Record<string, Task>;
+    return buildTaskById(tasks);
   }, [tasks]);
   const workLogsForDisplay = useMemo<WorkLogListItem[]>(() => {
     const serverFingerprints = new Set(
       workLogs.map((workLog) => buildWorkLogDraftFingerprint(workLog)),
     );
     const localDraftRows = visiblePendingWorkLogDrafts
-      .filter((draft) => !serverFingerprints.has(draft.fingerprint))
+      .filter(
+        (draft) =>
+          draft.attemptCount === 0 || !serverFingerprints.has(draft.fingerprint),
+      )
       .map(mapPendingWorkLogDraftToWorkLog);
 
     return [...localDraftRows, ...workLogs];
@@ -3827,7 +3843,8 @@ export default function App() {
   };
 
   const startTask = async (task: Task) => {
-    const status = getAutoTaskStatus(task, taskById);
+    const currentTaskById = taskByIdRef.current;
+    const status = getAutoTaskStatus(task, currentTaskById);
 
     if (status !== "in-progress" || task.status === "in-progress") {
       return;
@@ -4118,6 +4135,8 @@ export default function App() {
       );
 
       if (localDraft) {
+        const nextFingerprint = buildWorkLogDraftFingerprint(payload);
+        const didChangeLocalDraftPayload = nextFingerprint !== localDraft.fingerprint;
         const remainingDrafts = removePendingWorkLogDraft(
           pendingWorkLogDraftsRef.current,
           localDraft.id,
@@ -4128,7 +4147,14 @@ export default function App() {
           new Date(),
           {
             ownerKey: localDraft.ownerKey ?? activeWorkLogDraftOwnerKey,
-            status: "pending",
+            ...(didChangeLocalDraftPayload
+              ? { status: "pending" as const }
+              : {
+                  attemptCount: localDraft.attemptCount,
+                  error: localDraft.error,
+                  status:
+                    localDraft.status === "syncing" ? "pending" : localDraft.status,
+                }),
           },
         );
         await persistPendingWorkLogDrafts(result.drafts);
