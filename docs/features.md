@@ -38,6 +38,8 @@ Task actions include create, edit, duplicate, start, request QA, resolve blocker
 
 Work logs capture hours, participants, task linkage, and notes. The screen supports searching by task or note text and sorting by newest, oldest, longest, or shortest.
 
+When the backend is unreachable, newly created work logs are saved as local drafts with AsyncStorage. Draft rows remain visible in the work-log list with pending, syncing, or failed sync status and retry during normal workspace sync without posting duplicate matching drafts.
+
 The work timer can be started from the work-log flow. Timer state is persisted locally with AsyncStorage and reminders are scheduled at 30, 60, and 90 minutes when notification permission is available.
 
 Work-log note templates cover CAD, machining, wiring, programming, testing, and meeting notes.
