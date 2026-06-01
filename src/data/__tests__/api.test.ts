@@ -2,6 +2,7 @@ import {
   ApiNetworkError,
   ApiRequestError,
   classifyMobileAuthError,
+  getBackendConnectionErrorMessage,
   getMobileAuthErrorMessage,
   requestJson,
 } from "../api";
@@ -63,6 +64,12 @@ describe("mobile auth API fail-safe handling", () => {
     );
     expect(getMobileAuthErrorMessage("auth-config-unavailable")).toBe(
       "Authentication service is unavailable. Check the backend auth configuration and try again.",
+    );
+  });
+
+  it("builds actionable backend connection guidance", () => {
+    expect(getBackendConnectionErrorMessage("http://localhost:8080")).toBe(
+      "Backend API is not reachable at http://localhost:8080. Start the platform server on that host/port, or set EXPO_PUBLIC_API_BASE_URL to the backend URL your device can reach.",
     );
   });
 });

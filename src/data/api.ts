@@ -81,6 +81,13 @@ export function getMobileAuthErrorMessage(state: MobileAuthErrorState) {
   }
 }
 
+export function getBackendConnectionErrorMessage(apiBaseUrl: string) {
+  return [
+    `Backend API is not reachable at ${apiBaseUrl}.`,
+    "Start the platform server on that host/port, or set EXPO_PUBLIC_API_BASE_URL to the backend URL your device can reach.",
+  ].join(" ");
+}
+
 function parseErrorMessage(payload: unknown): string | null {
   if (typeof payload !== "object" || payload === null) {
     return null;
